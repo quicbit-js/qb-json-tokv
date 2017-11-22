@@ -121,16 +121,12 @@ fields:
 
     info
     {
-      msg:    (string) message explaining the issue
-      where:  (string) where the error occurred relative to tokens being parsed.  where codes are defined in
-              INFO_WHERE: {
-                BEFORE_KEY:     'before_key',  // before an object key was started (before the first '"')
-                IN_KEY:         'in_key',      // inside an object key (before the second '"')
-                AFTER_KEY:      'after_key',   // after an object key, but before the colon ':'
-                BEFORE_VAL:     'before_val',  // before an object or array value (after the comma, colon, or starting array brace
-                IN_VAL:         'in_val',      // inside an object or array value (includes uncertain number cases like 12.3<end>)
-                AFTER_VAL:      'after_val',   // after an object or array value, but before the comma or closing array or object brace
-              }
+      msg:    (string) brief summar such as 'unexpected character' or 'unterminated string'
+      state:  (int) a code that defines the parse state and position.
+              see state_to_str(state) and state_to_obj(state) as well as the section on
+              "How It Works" below to
+              understand exactly how to use this code.
+      tok:    the token that was last processed before the end or error occured
     }
 
 ## state_to_str (state)
