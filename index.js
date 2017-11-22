@@ -94,7 +94,7 @@ function state_map () {
 
   // map ( state0, tokens, state1)
   var map = function (s0, chars, s1) {
-    for (var i=0; i<chars.length; i++) {
+    for (var i = 0; i < chars.length; i++) {
       ret[s0 | chars.charCodeAt(i)] = s1
     }
   }
@@ -121,7 +121,7 @@ function state_map () {
   map( CTX_NONE | BEFORE|FIRST|VAL, val,  CTX_NONE | AFTER|VAL )
   map( CTX_NONE | AFTER|VAL,        ',',  CTX_NONE | BEFORE|VAL )
   map( CTX_NONE | BEFORE|VAL,       val,  CTX_NONE | AFTER|VAL )   // etc ...
-                                          
+
   // array values
   map( CTX_ARR | BEFORE|FIRST|VAL,  val,  CTX_ARR | AFTER|VAL )
   map( CTX_ARR | AFTER|VAL,         ',',  CTX_ARR | BEFORE|VAL )
@@ -147,7 +147,7 @@ var STATES = state_map()
 
 function map_ascii (s, code) {
   var ret = []
-  for (var i=0; i<s.length; i++) { ret[s.charCodeAt(i)] = code }
+  for (var i = 0; i < s.length; i++) { ret[s.charCodeAt(i)] = code }
   return ret
 }
 
@@ -161,9 +161,9 @@ function inf (msg, state, tok) {
 function skip_str (src, off, lim) {
   for (var i = off; i < lim; i++) {
     if (src[i] === 34) {
-      if (src[i-1] === 92) {
+      if (src[i - 1] === 92) {
         // count number of escapes going backwards (n = escape count +1)
-        for (var n = 2; src[i-n] === 92 && i-n >= off; n++) {}          // \ BACKSLASH escape
+        for (var n = 2; src[i - n] === 92 && i - n >= off; n++) {}          // \ BACKSLASH escape
         if (n % 2 === 1) {
           return i
         }
@@ -199,10 +199,10 @@ function tokenize (cb, src, off, lim) {
     tok = src[idx]
     switch (tok) {
       case 9: case 10: case 13: case 32:
-      if (WHITESPACE[src[++idx]] && idx < lim) {
-        while (WHITESPACE[src[++idx]] === 1 && idx < lim) {}
-      }
-      continue
+        if (WHITESPACE[src[++idx]] && idx < lim) {
+          while (WHITESPACE[src[++idx]] === 1 && idx < lim) {}
+        }
+        continue
 
       // placing (somewhat redundant) logic below this point allows fast skip of whitespace (above)
 
@@ -245,7 +245,7 @@ function tokenize (cb, src, off, lim) {
         if (!state1) { info = inf(UNC, state0, tok); tok = 0; voff = idx++; break }
         voff = idx++
         stack.pop()
-        state1 |= stack.length === 0 ? CTX_NONE : (stack[stack.length-1] === 91 ? CTX_ARR : CTX_OBJ)
+        state1 |= stack.length === 0 ? CTX_NONE : (stack[stack.length - 1] === 91 ? CTX_ARR : CTX_OBJ)
         state0 = state1
         break
 
