@@ -195,9 +195,9 @@ test('callback return', function (t) {
   )
 })
 
-var CTX_OBJ =     0x0100
-var CTX_ARR =     0x0200
-var CTX_NONE =    0x0300
+var OBJ =     0x0100
+var ARR =     0x0200
+var NON =     0x0300
 var BEFORE =      0x0400
 var AFTER =       0x0800
 var INSIDE =      0x0C00
@@ -209,11 +209,11 @@ test('state_to_str', function (t) {
   t.table_assert([
     [ 'state',                          'exp' ],
     [ null,                             'undefined' ],
-    [ CTX_OBJ | BEFORE | FIRST | KEY,   'in object, before first key' ],
-    [ CTX_OBJ | AFTER | VAL,            'in object, after value' ],
-    [ CTX_OBJ | INSIDE | FIRST | VAL,   'in object, inside first value' ],
-    [ CTX_ARR | INSIDE | FIRST | VAL,   'in array, inside first value' ],
-    [ CTX_NONE | BEFORE | VAL,          'before value' ],
+    [ OBJ | BEFORE | FIRST | KEY,   'in object, before first key' ],
+    [ OBJ | AFTER | VAL,            'in object, after value' ],
+    [ OBJ | INSIDE | FIRST | VAL,   'in object, inside first value' ],
+    [ ARR | INSIDE | FIRST | VAL,   'in array, inside first value' ],
+    [ NON | BEFORE | VAL,          'before value' ],
     [ 0,                                'value' ],
   ], function (state) {
     var ret = jtok.state_to_str(state)
@@ -226,14 +226,28 @@ test('state_to_obj', function (t) {
   t.table_assert([
     [ 'state',                              'exp' ],
     [ null,                                 {} ],
-    [ CTX_OBJ|BEFORE|FIRST|KEY,             { ctx: 'obj', pos: 'before', first: true, key: true } ],
-    [ CTX_OBJ|AFTER|VAL,                    { ctx: 'obj', pos: 'after', first: false, key: false } ],
-    [ CTX_OBJ|INSIDE|FIRST|VAL,             { ctx: 'obj', pos: 'inside', first: true, key: false }],
-    [ CTX_ARR|INSIDE|FIRST|VAL,             { ctx: 'arr', pos: 'inside', first: true, key: false } ],
-    [ CTX_NONE|BEFORE|VAL,                  { ctx: 'none', pos: 'before', first: false, key: false } ],
+    [ OBJ|BEFORE|FIRST|KEY,             { ctx: 'obj', pos: 'before', first: true, key: true } ],
+    [ OBJ|AFTER|VAL,                    { ctx: 'obj', pos: 'after', first: false, key: false } ],
+    [ OBJ|INSIDE|FIRST|VAL,             { ctx: 'obj', pos: 'inside', first: true, key: false }],
+    [ ARR|INSIDE|FIRST|VAL,             { ctx: 'arr', pos: 'inside', first: true, key: false } ],
+    [ NON|BEFORE|VAL,                   { ctx: 'none', pos: 'before', first: false, key: false } ],
     [ 0,                                    { ctx: 'undefined', pos: 'undefined', first: false, key: false } ],
   ], function (state) {
     return qbobj.select(jtok.state_to_obj(state), ['ctx', 'pos', 'first', 'key'])
+  })
+})
+
+test('restore', function (t) {
+  var o = 123
+  var a = 91
+  t.table_assert([
+    [ 'input',          'off',      'lim',  'state',          'stack', 'tok',      'exp' ],
+    [ '{"a": 3.3}',         4,      null,   OBJ|AFTER|KEY,    [o],      TOK.STR,   [ 'B@4', 'N3@6', '}@9', 'E@10' ] ],
+  ], function (input, off, lim, state, stack, tok) {
+    var hector = t.hector()
+    var cb = format_callback({log: hector})
+    jtok.tokenize(cb, utf8.buffer(input), off, lim, {restore: {state: state, stack: stack, tok: tok}})
+    return hector.arg(0)
   })
 })
 

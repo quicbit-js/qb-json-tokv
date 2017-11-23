@@ -33,20 +33,20 @@ sense as a new package once done.  Very fast JSON parsing under a complete valid
 
 # API
 
-## tokenize(callback, src, off, lim)
+## tokenize (callback, src, off, lim, opt)
   
 Tokenize the given source array or buffer, sending all results to the given callback function. (the
 process can be controlled/stopped via the function return value)
 
-    src:       A UTF-8 encoded array containing ANY JSON value such as an object, quoted
+    src        A UTF-8 encoded array containing ANY JSON value such as an object, quoted
                string, array, or valid JSON number.  IOW, it doesn't have to be a {...} object.
                
-    callback:  A function called for each token encountered.
+    callback   A function called for each token encountered.
     
-        src:        the buffer being parsed
-        koff:       index of key start (inclusive) in current object, in arrays koff is -1
-        klim:       index of key limit (non-inclusive) in current object, in arrays koff is -1
-        tok:        integer token representing the type encountered.  In most cases, token is the ASCII of the 
+        src         the buffer being parsed
+        koff        index of key start (inclusive) in current object, in arrays koff is -1
+        klim        index of key limit (non-inclusive) in current object, in arrays koff is -1
+        tok         integer token representing the type encountered.  In most cases, token is the ASCII of the 
                     first character encountered.  'n' for null, 't' for true, '{' for object start.
                     The TOK property defines these token codes by name:
                         
@@ -66,13 +66,13 @@ process can be controlled/stopped via the function return value)
                     }
                         
                         
-        voff:       index of value offset (inclusive) in current object or array
-        vlim:       index of value limit (non-inclusive) in current object or array
+        voff        index of value offset (inclusive) in current object or array
+        vlim        index of value limit (non-inclusive) in current object or array
         
-        info:       (object) if tok === TOK.ERR or tok === TOK.END, then info holds details that can be 
+        info        (object) if tok === TOK.ERR or tok === TOK.END, then info holds details that can be 
                     used to recover or handle values split across buffers.
                      
-        return:     the value returned controls processing: 
+        return      the value returned controls processing:
                         returning 0 halts the tokenizer.
                         returning a positive number will continue tokenizing at that offset (it is not possible to return to 0)
                                 (backtrack or skip forward).  Note that
@@ -83,7 +83,9 @@ process can be controlled/stopped via the function return value)
                         returning anything else (undefined, null, negative number) - will cause 
                                 processing to continue.
                      
-    state            for incremental parsing, you can pass the state object returned by the end callback into this argument.
+    opt             
+        state       (integer - to continue parsing at another point, you can provide a state
+    for incremental parsing, you can pass the state object returned by the end callback into this argument.
 
 ## TOK
 
@@ -222,8 +224,7 @@ a first value is expected (before-first-value):
 
 Still not clear?  See the example in the next section that maps these states to an exmaple JSON snippet.
 
-
-## How it works - Understanding the parse graph
+## How it works - Understanding the parse graph (state and stack)
 
 Even if you aren't familiar with bit twiddling, you can easily understand and modify the efficient parse graph.  The
 graph is defined as a series of allowed state transitions.  If the state graph is in a variable called 'states', then we
@@ -234,18 +235,43 @@ could check and perform state transition from state0 (current state) to state1 (
 If the state isn't allowed, then state1 is undefined.  If allowed, then it is defined (an integer) that can be
 used again to get the next state:
 
-    var state2 = states[state1 + ascii-value]   
+    var state2 = states[state1 + ascii-value]
     
-Each integer holds context information about where it is in the JSON document.  
-There are three possible  contexts: **CTX_OBJ**, **CTX_ARR**, **CTX_NONE** that define the type of 
-container the parser are within: 
+This simple mechanism works for all state transitions, except when we leave context of an object or array.  
+When a '}' or ']' is encountered, the new state will have no context set (you can see this for yourself in
+the Adding Custom Rules to Parsing section, above).
+
+When closing an object or array, the 'stack' is used to supplement missing context:
+
+   state1 |= stack.length === 0 ? CTX_NONE : (stack[stack.length - 1] === 91 ? CTX_ARR : CTX_OBJ)
+ 
+
+### The 'stack'
+
+Brace matching is tracked as an array of integers (ascii brace codes) called the 'stack' that stores all 
+the open unmatched ascii braces.
+
+    var A = 91      // ascii for '[' - array start
+    var O = 123     // ascii for '{' - object start                                    
+    stack = []
+    
+    [] |[O]                         |[O,A]           | [O]    | []
+       |                            |                |        |
+       {  name :  "Samuel" , tags : [ "Sam", "Sammy" ]        } ,  "another value"
+    
+### The Components of the 'state' Integer
+ 
+Each state integer holds context information about the current parsing context is in the JSON document.  
+There are three possible  *contexts*: **CTX_OBJ**, **CTX_ARR**, **CTX_NONE** that define the type of 
+container the parser is within: 
 
     CTX_NONE  |           CTX_OBJ           |     CTX_ARR    |  CTX_OBJ  |  CTX_NONE
               |                             |                |           |          
               { "name" : "Samuel", "tags" : [ "Sam", "Sammy" ]           }
 
-There are 2 item types: **KEY** and **VAL**(UE).  The start and end of arrays and objects
-are considered a VAL(UE) when used in conjunction with the **position** codes, below 
+State also describes which of the 2 item types: **KEY** or **VAL**(UE) the position of the parser is near.  Note that
+bothe the start and end of arrays and objects
+are considered a VALUES when describing position. 
 
        VALUE                                          VAL
        |   KEY     VAL     KEY   VAL              VAL  |
@@ -254,7 +280,7 @@ are considered a VAL(UE) when used in conjunction with the **position** codes, b
        {  name : "Samuel", tags : [ "Sam", "Sammy" ]   }
         
 
-There are 3 possible **positions** **BEFORE**, **AFTER**, and **INSIDE**, that define parse position relative to a key 
+There are 3 possible *positions*, **BEFORE**, **AFTER**, and **INSIDE**, that define parse position relative to a key 
 or value plus a **FIRST** indicator to indicate if it is the first item in a new context: 
 
     CTX_NONE|BEFORE|FIRST|VAL 
@@ -269,7 +295,7 @@ or value plus a **FIRST** indicator to indicate if it is the first item in a new
       |  |    | | |
       |  |    | | |       CTX_OBJ|AFTER|FIRST|VAL
       |  |    | | |       |
-      |  |    | | |       | CTX_OBJ|BEFORE|KEY         (no longer FIRST)
+      |  |    | | |       | CTX_OBJ|BEFORE|KEY         (notice it is no longer FIRST)
       |  |    | | |       | |
       |  |    | | |       | | CTX_OBJ|INSIDE|KEY
       |  |    | | |       | | |
@@ -301,20 +327,8 @@ or value plus a **FIRST** indicator to indicate if it is the first item in a new
        {  name :  "Samuel" , tags : [ "Sam", "Sammy" ]        } ,  "another value"
     
 
-The state graph is a single array of integers.  Transitioning
-state is done with one bitwise-or and one array reference - so it's very fast. 
-
-Brace matching is maintained as an array of integers (ascii brace codes) that stores all the open-ascii.
-
-    var A = 91      // ascii for '[' - array start
-    var O = 123     // ascii for '{' - object start                                    
-    stack = []
-    
-    [] |[O]                         |[O,A]           | [O]    | []
-       |                            |                |        |
-       {  name :  "Samuel" , tags : [ "Sam", "Sammy" ]        } ,  "another value"
-    
-
-So state management is the matter of a bitwise-or and one or two array lookups per token.  Note that this could be reduced to one array
-lookup by expanding the array to include DEPTH state, which may make sense for parsing shallow JSON,
-but we kept decided to keep depth separate to keep the graph small and handle depths up to max safe integer.
+So state management is the matter of a bitwise-or and one or two array lookups per token.  Note that this work
+could be reduced to just one bitwise-or and one array
+lookup by expanding the states to include DEPTH state, which could make sense for parsing shallow JSON,
+but we decided to track depth in a separate stack to keep code simple, the graph footprint small, and 
+not risk crashing on deeply nested structures (up to max-safe-integer (2^53-1)).
