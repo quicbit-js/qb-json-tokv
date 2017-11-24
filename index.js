@@ -192,6 +192,7 @@ function tokenize (cb, src, off, lim, opt) {
   var state1 = 0                    // new state to transition into
   var stack = rst.stack || []       // collection of array and object open braces (for checking matched braces)
   var tok = rst.tok || -1           // current token/byte being handled
+  var errstate = 0                    // error state - if set, then an error will be sent
 
   cb(src, -1, -1, TOK.BEG, off, off)                      // 'B' - BEGIN
 
@@ -219,12 +220,13 @@ function tokenize (cb, src, off, lim, opt) {
 
       case 34:                                  // "    QUOTE
         state1 = STATES[state0|tok]
-        if (!state1) { info = inf(UNC, state0,  tok, stack); tok = 0; break }
+        if (!state1) { errstate = state0; break }
         idx = skip_str(src, idx, lim, 34, 92)
-        if (idx === -1) { idx = lim; info = inf('unterminated string', state0|INSIDE, tok, stack); tok = 0; break }
-        idx++       // move past end quote
+        if (idx === -1) { idx = lim; errstate = state0|INSIDE; break }
+        idx++    // skip quote
 
-        if ((state0 & (POS_MASK | KEYVAL_MASK)) === (BEFORE | KEY)) {   // ignore FIRST bit
+        // key
+        if ((state0 & (POS_MASK|KEYVAL_MASK)) === (BEFORE|KEY)) {
           koff = voff
           klim = idx
           voff = -1                   // indicate no value
@@ -235,7 +237,7 @@ function tokenize (cb, src, off, lim, opt) {
       case 91:                                  // [    ARRAY START
       case 123:                                 // {    OBJECT START
         state1 = STATES[state0|tok]
-        if (!state1) { info = inf(UNC, state0,  tok, stack); tok = 0; break }
+        if (!state1) { errstate = state0; break }
         stack.push(tok)
         state0 = state1
         break
@@ -243,7 +245,7 @@ function tokenize (cb, src, off, lim, opt) {
       case 93:                                  // ]    ARRAY END
       case 125:                                 // }    OBJECT END
         state1 = STATES[state0|tok]
-        if (!state1) { info = inf(UNC, state0,  tok, stack); tok = 0; break }
+        if (!state1) { errstate = state0; break }
         stack.pop()
         state1 |= stack.length === 0 ? CTX_NONE : (stack[stack.length - 1] === 91 ? CTX_ARR : CTX_OBJ)
         state0 = state1
@@ -252,14 +254,14 @@ function tokenize (cb, src, off, lim, opt) {
       case 110:                                 // n    DMSG
       case 116:                                 // t    true
         state1 = STATES[state0|tok]
-        if (!state1) { info = inf(UNC, state0,  tok, stack); tok = 0; break }
+        if (!state1) { errstate = state0; break }
         idx += 3 // added 1 above
         state0 = state1
         break
 
       case 102:                                 // f    false
         state1 = STATES[state0|tok]
-        if (!state1) { info = inf(UNC, state0,  tok, stack); tok = 0; break }
+        if (!state1) { errstate = state0; break }
         idx += 4  // added 1 above
         state0 = state1
         break
@@ -268,7 +270,7 @@ function tokenize (cb, src, off, lim, opt) {
       case 53:case 54:case 55:case 56:case 57:   // digits 5-9
       case 45:                                   // '-'   ('+' is not legal here)
         state1 = STATES[state0|tok]
-        if (!state1) { info = inf(UNC, state0,  tok, stack); tok = 0; break }
+        if (!state1) { errstate = state0; break }
         tok = TOK.NUM                                 // N  Number
         while (ALL_NUM_CHARS[src[idx]] === 1 && idx < lim) {idx++}
         if (idx === lim && (state0 & CTX_MASK) !== CTX_NONE) { info = inf('unterminated number', state0|INSIDE,  tok, stack); tok = 0; break }
@@ -276,7 +278,11 @@ function tokenize (cb, src, off, lim, opt) {
         break
 
       default:
-        info = inf(UNC, state0,  tok, stack); tok = 0
+        errstate = state0
+    }
+    if (errstate !== 0) {
+      info = inf(UNC, errstate,  tok, stack); tok = 0
+      errstate = 0
     }
 
     if (voff !== -1) {
