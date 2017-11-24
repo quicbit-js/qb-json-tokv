@@ -154,7 +154,12 @@ function map_ascii (s, code) {
 var WHITESPACE = map_ascii('\n\t\r ', 1)
 var ALL_NUM_CHARS = map_ascii('-0123456789+.eE', 1)
 
-function inf (msg, state, tok, stack) {
+function inf (state, tok, stack) {
+  var msg = 'unterminated character'
+  return {msg: msg, state: state, tok: tok, stack: stack}
+}
+
+function inf2 (msg, state, tok, stack) {
   return {msg: msg, state: state, tok: tok, stack: stack}
 }
 
@@ -174,8 +179,6 @@ function skip_str (src, off, lim) {
   }
   return -1
 }
-
-var UNC = 'unexpected character'  // default error message, used for most errors
 
 function tokenize (cb, src, off, lim, opt) {
   opt = opt || {}
@@ -213,7 +216,7 @@ function tokenize (cb, src, off, lim, opt) {
       case 44:                                  // ,    COMMA
       case 58:                                  // :    COLON
         state1 = STATES[state0|tok]
-        if (!state1) { info = inf(UNC, state0, tok, stack); tok = 0; break }
+        if (!state1) { errstate = state0; break }
         state0 = state1
         voff = -1
         continue
@@ -273,7 +276,7 @@ function tokenize (cb, src, off, lim, opt) {
         if (!state1) { errstate = state0; break }
         tok = TOK.NUM                                 // N  Number
         while (ALL_NUM_CHARS[src[idx]] === 1 && idx < lim) {idx++}
-        if (idx === lim && (state0 & CTX_MASK) !== CTX_NONE) { info = inf('unterminated number', state0|INSIDE,  tok, stack); tok = 0; break }
+        if (idx === lim && (state0 & CTX_MASK) !== CTX_NONE) { info = inf2('unterminated number', state0|INSIDE,  tok, stack); tok = 0; break }
         state0 = state1
         break
 
@@ -281,7 +284,7 @@ function tokenize (cb, src, off, lim, opt) {
         errstate = state0
     }
     if (errstate !== 0) {
-      info = inf(UNC, errstate,  tok, stack); tok = 0
+      info = inf(errstate,  tok, stack); tok = 0
       errstate = 0
     }
 
@@ -299,7 +302,7 @@ function tokenize (cb, src, off, lim, opt) {
   }  // end main_loop: while(idx < lim) {...
 
   if (koff !== -1) {
-    info = inf('incomplete key-value pair', state0, tok, stack); tok = 0
+    info = inf2('incomplete key-value pair', state0, tok, stack); tok = 0
     cb(src, koff, klim, tok, lim, lim, info)           // push out pending key
   }
 
