@@ -155,11 +155,11 @@ var WHITESPACE = map_ascii('\n\t\r ', 1)
 var ALL_NUM_CHARS = map_ascii('-0123456789+.eE', 1)
 
 function inf (state, tok, stack) {
-  var msg = 'unterminated character'
-  return {msg: msg, state: state, tok: tok, stack: stack}
-}
-
-function inf2 (msg, state, tok, stack) {
+  var tokstr = (tok > 31 && tok < 127 && tok !== 34) ? '"' + String.fromCharCode(tok) + '"' : String(tok)
+  var msg = 'unexpected character, ' + state_to_str(state) + ', tok: ' + tokstr
+  if ((state & POS_MASK) === INSIDE) {
+    msg = tok === TOK.NUM ? 'unterminated number' : 'unterminated string'
+  }
   return {msg: msg, state: state, tok: tok, stack: stack}
 }
 
@@ -276,7 +276,7 @@ function tokenize (cb, src, off, lim, opt) {
         if (!state1) { errstate = state0; break }
         tok = TOK.NUM                                 // N  Number
         while (ALL_NUM_CHARS[src[idx]] === 1 && idx < lim) {idx++}
-        if (idx === lim && (state0 & CTX_MASK) !== CTX_NONE) { info = inf2('unterminated number', state0|INSIDE,  tok, stack); tok = 0; break }
+        if (idx === lim && (state0 & CTX_MASK) !== CTX_NONE) { errstate = state0 | INSIDE }
         state0 = state1
         break
 
@@ -284,7 +284,8 @@ function tokenize (cb, src, off, lim, opt) {
         errstate = state0
     }
     if (errstate !== 0) {
-      info = inf(errstate,  tok, stack); tok = 0
+      info = inf(errstate,  tok, stack)
+      tok = 0
       errstate = 0
     }
 
@@ -302,8 +303,8 @@ function tokenize (cb, src, off, lim, opt) {
   }  // end main_loop: while(idx < lim) {...
 
   if (koff !== -1) {
-    info = inf2('incomplete key-value pair', state0, tok, stack); tok = 0
-    cb(src, koff, klim, tok, lim, lim, info)           // push out pending key
+    info = inf(state0, tok, stack)
+    cb(src, koff, klim, 0, lim, lim, info)           // push out pending key
   }
 
   cb(src, -1, -1, TOK.END, idx, idx)        // END
