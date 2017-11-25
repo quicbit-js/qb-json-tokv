@@ -332,7 +332,7 @@ function tokenize (src, cb, opt) {
   // unclean finish - a truncation from reaching lim or from client request (zero)
   var state = errstate || state0
   if (opt.incremental) {
-    //  caller requested increment information, truncation is not an error
+    //  caller requested increment information, report state (as end, not error)
     var end_info = { src: src, off: off, lim: lim, koff: koff, klim: klim, idx: idx, state: state, tok: tok, stack: stack }
     cb(src, koff, klim, TOK.END, idx, idx, end_info)
     return end_info
@@ -343,7 +343,7 @@ function tokenize (src, cb, opt) {
       if (idx >= lim && cbres !== 0) {
         cb(src, -1, -1, TOK.END, lim, lim, null)
       }
-    } // else, client requested stop without incremental info - don't report
+    } // else, caller requested stop
     return null
   }
 }
