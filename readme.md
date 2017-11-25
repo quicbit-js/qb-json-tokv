@@ -72,21 +72,14 @@ process can be controlled/stopped via the function return value)
         info        (object) if tok === TOK.ERR or tok === TOK.END, then info holds details that can be 
                     used to recover or handle values split across buffers.
                      
-        return      the value returned controls processing:
-                        returning 0 halts the tokenizer.
-                        returning a positive number will continue tokenizing at that offset (it is not possible to return to 0)
-                                (backtrack or skip forward).  Note that
-                                jumping to the value 'xyz' of a key value pair:
-                                        { "a": "xyz" }...
-                                will make the tokenizer return just a string value
-                                
-                        returning anything else (undefined, null, negative number) - will cause 
-                                processing to continue.
+        return      truthy to continue processing, falsey to halt processing (returning a true boolean may be 
+                    slighty faster than other truthy values)
                      
     opt
         off         offset into src to start parsing (default is 0)
         lim         limit in src to stop parsing (default is src.length)             
         state       (integer - to continue parsing at another point, you can provide a state
+        
     for incremental parsing, you can pass the state object returned by the end callback into this argument.
 
 ## TOK

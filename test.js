@@ -33,13 +33,12 @@ var TOK = jtok.TOK
 
 function format_callback (opt) {
   var log = opt.log || console.log
-  var return_on_err = opt.ret_on_err
-  var return_fn = opt.return_fn || function (ret) { return ret }      // controls return value for testing
+  var return_on_err = opt.ret_on_err == null ? true : opt.ret_on_err
 
   return function format_callback (buf, koff, klim, tok, voff, vlim, info) {
     var val_str
     var vlen = vlim - voff
-    var ret = -1    // returning 0 halts process, > 0 continues at that index.  other values (neg, undefined,...) continue as normal.
+    var ret = true              // continue by default
     switch (tok) {
       case TOK.STR:
         val_str = 'S' + vlen + '@' + voff
@@ -61,7 +60,7 @@ function format_callback (opt) {
       log('K' + (klim - koff) + '@' + koff + ':' + val_str)      // key and value
     }
 
-    return return_fn(ret)  // 0 will halt.  a positive number will parse at that offset. anything else will continue to next.
+    return ret
   }
 }
 
@@ -96,11 +95,9 @@ test('tokenize', function (t) {
       [ '"x", 4\n, null, 3.2e5 , true, false',      null, null,   [ 'B@0', 'S3@0','N1@5','n@9','N5@15','t@23', 'f@29', 'E@34']         ],
       [ '["a",1.3,\n\t{ "b" : ["v", "w"]\n}\t\n ]', null, null,   [ 'B@0', '[@0','S3@1','N3@5','{@11','K3@13:[@19','S3@20','S3@25',']@28','}@30',']@34', 'E@35' ] ],
     ],
-    function (input, off, lim, cb_opt) {
-      cb_opt = cb_opt || {}
+    function (input, off, lim) {
       var hector = t.hector()
-      cb_opt.log = hector
-      var cb = format_callback(cb_opt)
+      var cb = format_callback({log: hector})
       jtok.tokenize(utf8.buffer(input), cb, {off:off, lim:lim })
       return hector.arg(0)
     }
@@ -111,9 +108,9 @@ test('tokenize - errors', function (t) {
   t.tableAssert(
     [
       [ 'input',                    'cb_opt',                 'exp' ],
+      [ '"ab',                       null,                    [ 'B@0', '!3@0 inside first value, tok: """', 'E@3' ]  ],
       [ '"ab',                       {ret_on_err: 0},         [ 'B@0', '!3@0 inside first value, tok: """' ]  ],
       [ '"abc"%',                    {ret_on_err: 0},         [ 'B@0', 'S5@0', '!1@5 after value, tok: "%"' ]  ],
-      [ '"ab',                       null,                    [ 'B@0', '!3@0 inside first value, tok: """', 'E@3' ]  ],
       [ '{"a" : ',                   null,                    [ 'B@0', '{@0', 'K3@1:!0@7 in object, before value, tok: " "', 'E@7' ]  ],
       [ '{"a"',                      null,                    [ 'B@0', '{@0', 'K3@1:!0@4 in object, after key, tok: """', 'E@4' ]  ],
       [ '{"a" ',                     null,                    [ 'B@0', '{@0', 'K3@1:!0@5 in object, after key, tok: " "', 'E@5' ]  ],
@@ -125,70 +122,20 @@ test('tokenize - errors', function (t) {
       [ '[3.05E-2',                  null,                    [ 'B@0', '[@0', '!7@1 in array, inside first value, tok: "N"', 'E@8' ]  ],
       [ '[3.05E-2,4.',               null,                    [ 'B@0', '[@0', 'N7@1', '!2@9 in array, inside value, tok: "N"', 'E@11' ]  ],
       [ '{"a":3^6}',                 null,                    [ 'B@0', '{@0', 'K3@1:N1@5', '!1@6 in object, after value, tok: "^"', '!1@7 in object, after value, tok: "6"', '}@8', 'E@9' ]  ],
-      [ '{"a":3^6}',                 {ret_on_err: null},      [ 'B@0', '{@0', 'K3@1:N1@5', '!1@6 in object, after value, tok: "^"', '!1@7 in object, after value, tok: "6"', '}@8', 'E@9' ]  ],
+      [ '{"a":3^6}',                 {ret_on_err: 1},         [ 'B@0', '{@0', 'K3@1:N1@5', '!1@6 in object, after value, tok: "^"', '!1@7 in object, after value, tok: "6"', '}@8', 'E@9' ]  ],
       [ ',[,:["b"]',                 {ret_on_err: 0},         [ 'B@0', '!1@0 before first value, tok: ","' ] ],
       [ '{"a":3^6}',                 {ret_on_err: 0},         [ 'B@0', '{@0', 'K3@1:N1@5', '!1@6 in object, after value, tok: "^"' ] ],
-      [ '{"a":3^6}',                 {ret_on_err: -1},        [ 'B@0', '{@0', 'K3@1:N1@5', '!1@6 in object, after value, tok: "^"', '!1@7 in object, after value, tok: "6"', '}@8', 'E@9' ]  ],
+      [ '{"a":3^6}',                 {ret_on_err: 1},         [ 'B@0', '{@0', 'K3@1:N1@5', '!1@6 in object, after value, tok: "^"', '!1@7 in object, after value, tok: "6"', '}@8', 'E@9' ]  ],
       [ '{"a":^}',                   {ret_on_err: 0},         [ 'B@0', '{@0', 'K3@1:!1@5 in object, before value, tok: "^"' ]  ],
       [ '0*',                        {ret_on_err: 0},         [ 'B@0', 'N1@0', '!1@1 after value, tok: "*"' ] ],
-      [ '0*',                        {ret_on_err: -1},        [ 'B@0', 'N1@0', '!1@1 after value, tok: "*"', 'E@2' ] ],
-      [ '{"a":1,"b:2,"c":3}',        {ret_on_err: undefined}, [ 'B@0', '{@0', 'K3@1:N1@5', 'K6@7:!1@13 in object, after key, tok: "c"', '!1@14 in object, after key, tok: """', 'N1@16', '}@17', 'E@18' ] ],
+      [ '0*',                        {ret_on_err: 1},         [ 'B@0', 'N1@0', '!1@1 after value, tok: "*"', 'E@2' ] ],
+      [ '{"a":1,"b:2,"c":3}',        {ret_on_err: 1},         [ 'B@0', '{@0', 'K3@1:N1@5', 'K6@7:!1@13 in object, after key, tok: "c"', '!1@14 in object, after key, tok: """', 'N1@16', '}@17', 'E@18' ] ],
     ],
     function (input, cb_opt) {
       cb_opt = cb_opt || {}
       var hector = t.hector()
       cb_opt.log = hector
       var cb = format_callback(cb_opt)
-      jtok.tokenize(utf8.buffer(input), cb)
-      return hector.arg(0)
-    }
-  )
-})
-
-test('callback return', function (t) {
-  t.tableAssert(
-    [
-      [ 'input',     'at_tok', 'cb_ret',  'exp'                                          ],
-      [ '{"a":1}',    1,        6,        [ 'B@0', '{@0','}@6', 'E@7' ]                  ],
-      [ '{"a":1}',    2,        6,        [ 'B@0', '{@0','K3@1:N1@5','}@6', 'E@7' ]      ],
-      [ '{"a":1}',    3,        6,        [ 'B@0', '{@0', 'K3@1:N1@5', '}@6', '!1@6 after value, tok: "}"', 'E@7' ] ],
-      [ '{"a":1}',    4,        6,        [ 'B@0', '{@0','K3@1:N1@5','}@6', 'E@7' ]      ],
-      [ '{"a":1}',    2,        0,        [ 'B@0', '{@0', 'K3@1:N1@5' ]                  ],
-      [ '{"a":1}',    2,        4,        [ 'B@0', '{@0', 'K3@1:N1@5', '!1@4 in object, after value, tok: ":"', '!1@5 in object, after value, tok: "1"', '}@6', 'E@7' ] ],
-      [ '{"a":1}',    3,        5,        [ 'B@0', '{@0', 'K3@1:N1@5', '}@6', '!1@5 after value, tok: "1"', '!1@6 after value, tok: "}"', 'E@7' ] ],
-      [ '{"a":1}',    3,        6,        [ 'B@0', '{@0', 'K3@1:N1@5', '}@6', '!1@6 after value, tok: "}"', 'E@7' ] ],
-      [ '{"a":1}',    3,        7,        [ 'B@0', '{@0','K3@1:N1@5','}@6', 'E@7' ] ],
-      [ '{"a":1}',    3,        8,        [ 'B@0', '{@0','K3@1:N1@5','}@6', 'E@7' ] ],
-      [ '{"a":1}',    3,        0,        [ 'B@0', '{@0','K3@1:N1@5','}@6' ] ],
-      [ '{"a":1}',    3,        null,     [ 'B@0', '{@0','K3@1:N1@5','}@6', 'E@7' ] ],
-      [ '["a","b"]',  3,        null,     [ 'B@0', '[@0','S3@1','S3@5',']@8', 'E@9' ] ],
-      [ '["a","b"]',  3,        0,        [ 'B@0', '[@0','S3@1','S3@5' ] ],
-      [ '["a","b"]',  3,        1,        [ 'B@0', '[@0', 'S3@1', 'S3@5', '!1@1 in array, after value, tok: """', '!1@2 in array, after value, tok: "a"', '!1@3 in array, after value, tok: """', 'S3@5', ']@8', 'E@9' ] ],
-      [ '["a","b"]',  3,        4,        [ 'B@0', '[@0', 'S3@1', 'S3@5', 'S3@5', ']@8', 'E@9' ] ],
-      [ '["a","b"]',  3,        5,        [ 'B@0', '[@0', 'S3@1', 'S3@5', '!1@5 in array, after value, tok: """', '!1@6 in array, after value, tok: "b"', '!1@7 in array, after value, tok: """', ']@8', 'E@9' ]   ],
-      [ '["a","b"]',  3,        8,        [ 'B@0', '[@0','S3@1','S3@5',']@8', 'E@9' ]                 ],
-      [ '["a","b"]',  4,        8,        [ 'B@0', '[@0', 'S3@1', 'S3@5', ']@8', '!1@8 after value, tok: "]"', 'E@9' ] ],
-      [ '["a","b"]',  2,        4,        [ 'B@0', '[@0', 'S3@1', 'S3@5', ']@8', 'E@9' ]   ],
-      [ '["a","b"]',  2,        7,        [ 'B@0', '[@0', 'S3@1', '!1@7 in array, after value, tok: """', ']@8', 'E@9' ]   ],
-      [ '["a","b"]',  2,        8,        [ 'B@0', '[@0','S3@1',']@8', 'E@9' ]                        ],
-      [ '["a","b"]',  2,        9,        [ 'B@0', '[@0', 'S3@1', '!8@1 in array, after value, tok: """', 'E@9' ]                              ],
-      [ '["a","b"]',  2,        0,        [ 'B@0', '[@0','S3@1' ]                                     ],
-      [ '["a","b"]',  2,        null,     [ 'B@0', '[@0','S3@1','S3@5',']@8', 'E@9' ]                 ],
-    ],
-    function (input, at_tok, cb_ret) {
-      var hector = t.hector()
-      var cur_tok = 0
-      var cb = format_callback({
-        log: hector,
-        return_fn: function (ret) {
-          if (cur_tok !== -1 && cur_tok++ === at_tok) {
-            cur_tok = -1  // no more returnswq
-            return cb_ret
-          } else {
-            return ret
-          }
-        }
-      })
       jtok.tokenize(utf8.buffer(input), cb)
       return hector.arg(0)
     }
@@ -268,31 +215,31 @@ test('incremental state', function (t) {
     [ 'null',                 null ],
     [ ' 7E4 ',                null ],
     [ '',                     null ],
-    [ '"',                    { koff: -1, klim: -1, idx: 1, state: NONE|INSIDE|FIRST|VAL, tok: 34, stack: [] } ],
-    [ '"abc',                 { koff: -1, klim: -1, idx: 4, state: NONE|INSIDE|FIRST|VAL, tok: 34, stack: [] } ],
-    [ '"abc", ',              { koff: -1, klim: -1, idx: 7, state: NONE|BEFORE|VAL, tok: 32, stack: [] } ],
-    [ '[',                    { koff: -1, klim: -1, idx: 1, state: ARR|BEFORE|FIRST|VAL, tok: 91, stack: [ 91 ] } ],
-    [ '[ 83',                 { koff: -1, klim: -1, idx: 4, state: ARR|INSIDE|FIRST|VAL, tok: 78, stack: [ 91 ] } ],
-    [ '[ 83 ',                { koff: -1, klim: -1, idx: 5, state: ARR|AFTER|VAL, tok: 32, stack: [ 91 ] } ],
-    [ '[ 83,',                { koff: -1, klim: -1, idx: 5, state: ARR|BEFORE|VAL, tok: 44, stack: [ 91 ] } ],
-    [ '[ 83, "',              { koff: -1, klim: -1, idx: 7, state: ARR|INSIDE|VAL, tok: 34, stack: [ 91 ] } ],
-    [ '[ 83, "a"',            { koff: -1, klim: -1, idx: 9, state: ARR|AFTER|VAL, tok: 34, stack: [ 91 ] } ],
-    [ '[ 83, "a",',           { koff: -1, klim: -1, idx: 10, state: ARR|BEFORE|VAL, tok: 44, stack: [ 91 ] } ],
-    [ '{',                    { koff: -1, klim: -1, idx: 1, state: OBJ|BEFORE|FIRST|KEY, tok: 123, stack: [ 123 ] } ],
-    [ '{ "',                  { koff: -1, klim: -1, idx: 3, state: OBJ|INSIDE|FIRST|KEY, tok: 34, stack: [ 123 ] } ],
-    [ '{ "a',                 { koff: -1, klim: -1, idx: 4, state: OBJ|INSIDE|FIRST|KEY, tok: 34, stack: [ 123 ] } ],
-    [ '{ "a"',                { koff: 2, klim: 5, idx: 5, state: OBJ|AFTER|KEY, tok: 34, stack: [ 123 ] } ],
-    [ '{ "a":',               { koff: 2, klim: 5, idx: 6, state: OBJ|BEFORE|VAL, tok: 58, stack: [ 123 ] } ],
-    [ '{ "a": 9',             { koff: 2, klim: 5, idx: 8, state: OBJ|INSIDE|VAL, tok: 78, stack: [ 123 ] } ],
-    [ '{ "a": 9, ',           { koff: -1, klim: -1, idx: 10, state: OBJ|BEFORE|KEY, tok: 32, stack: [ 123 ] } ],
-    [ '{ "a": 9, "',          { koff: -1, klim: -1, idx: 11, state: OBJ|INSIDE|KEY, tok: 34, stack: [ 123 ] } ],
-    [ '{ "a": 9, "b"',        { koff: 10, klim: 13, idx: 13, state: OBJ|AFTER|KEY, tok: 34, stack: [ 123 ] } ],
-    [ '{ "a": 9, "b": ',      { koff: 10, klim: 13, idx: 15, state: OBJ|BEFORE|VAL, tok: 32, stack: [ 123 ] } ],
-    [ '{ "a": 9, "b": [',     { koff: -1, klim: -1, idx: 16, state: ARR|BEFORE|FIRST|VAL, tok: 91, stack: [ 123, 91 ] } ],
-    [ '{ "a": 9, "b": [ 4',   { koff: -1, klim: -1, idx: 18, state: ARR|INSIDE|FIRST|VAL, tok: 78, stack: [ 123, 91 ] } ],
+    [ '"',                    { koff: -1, klim: -1, idx: 1,  state: NONE|INSIDE|FIRST|VAL, tok: 34,  stack: [] } ],
+    [ '"abc',                 { koff: -1, klim: -1, idx: 4,  state: NONE|INSIDE|FIRST|VAL, tok: 34,  stack: [] } ],
+    [ '"abc", ',              { koff: -1, klim: -1, idx: 7,  state: NONE|BEFORE|VAL,       tok: 32,  stack: [] } ],
+    [ '[',                    { koff: -1, klim: -1, idx: 1,  state: ARR|BEFORE|FIRST|VAL,  tok: 91,  stack: [ 91 ] } ],
+    [ '[ 83',                 { koff: -1, klim: -1, idx: 4,  state: ARR|INSIDE|FIRST|VAL,  tok: 78,  stack: [ 91 ] } ],
+    [ '[ 83 ',                { koff: -1, klim: -1, idx: 5,  state: ARR|AFTER|VAL,         tok: 32,  stack: [ 91 ] } ],
+    [ '[ 83,',                { koff: -1, klim: -1, idx: 5,  state: ARR|BEFORE|VAL,        tok: 44,  stack: [ 91 ] } ],
+    [ '[ 83, "',              { koff: -1, klim: -1, idx: 7,  state: ARR|INSIDE|VAL,        tok: 34,  stack: [ 91 ] } ],
+    [ '[ 83, "a"',            { koff: -1, klim: -1, idx: 9,  state: ARR|AFTER|VAL,         tok: 34,  stack: [ 91 ] } ],
+    [ '[ 83, "a",',           { koff: -1, klim: -1, idx: 10, state: ARR|BEFORE|VAL,        tok: 44,  stack: [ 91 ] } ],
+    [ '{',                    { koff: -1, klim: -1, idx: 1,  state: OBJ|BEFORE|FIRST|KEY,  tok: 123, stack: [ 123 ] } ],
+    [ '{ "',                  { koff: -1, klim: -1, idx: 3,  state: OBJ|INSIDE|FIRST|KEY,  tok: 34,  stack: [ 123 ] } ],
+    [ '{ "a',                 { koff: -1, klim: -1, idx: 4,  state: OBJ|INSIDE|FIRST|KEY,  tok: 34,  stack: [ 123 ] } ],
+    [ '{ "a"',                { koff:  2, klim:  5, idx: 5,  state: OBJ|AFTER|KEY,         tok: 34,  stack: [ 123 ] } ],
+    [ '{ "a":',               { koff:  2, klim:  5, idx: 6,  state: OBJ|BEFORE|VAL,        tok: 58,  stack: [ 123 ] } ],
+    [ '{ "a": 9',             { koff:  2, klim:  5, idx: 8,  state: OBJ|INSIDE|VAL,        tok: 78,  stack: [ 123 ] } ],
+    [ '{ "a": 9, ',           { koff: -1, klim: -1, idx: 10, state: OBJ|BEFORE|KEY,        tok: 32,  stack: [ 123 ] } ],
+    [ '{ "a": 9, "',          { koff: -1, klim: -1, idx: 11, state: OBJ|INSIDE|KEY,        tok: 34,  stack: [ 123 ] } ],
+    [ '{ "a": 9, "b"',        { koff: 10, klim: 13, idx: 13, state: OBJ|AFTER|KEY,         tok: 34,  stack: [ 123 ] } ],
+    [ '{ "a": 9, "b": ',      { koff: 10, klim: 13, idx: 15, state: OBJ|BEFORE|VAL,        tok: 32,  stack: [ 123 ] } ],
+    [ '{ "a": 9, "b": [',     { koff: -1, klim: -1, idx: 16, state: ARR|BEFORE|FIRST|VAL,  tok: 91,  stack: [ 123, 91 ] } ],
+    [ '{ "a": 9, "b": [ 4',   { koff: -1, klim: -1, idx: 18, state: ARR|INSIDE|FIRST|VAL,  tok: 78,  stack: [ 123, 91 ] } ],
   ], function (input) {
     var src = utf8.buffer(input)
-    var ret = jtok.tokenize(src, function () {}, {incremental: true})
+    var ret = jtok.tokenize(src, function () {return true}, {incremental: true})
     if (ret) {
       ret.src === src || err('src not set')
       ret.off === 0 || err('off not set')

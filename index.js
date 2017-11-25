@@ -192,11 +192,7 @@ function skip_str (src, off, lim) {
 }
 
 function tokenize (src, cb, opt) {
-  opt = opt || {}
-  var rst = opt.restore || {}
-  var off = opt.off || 0
-  var lim = opt.lim == null ? src.length : opt.lim
-
+  // localized constants for faster access
   var states = STATE_MAP
   var inside = INSIDE
   var ctx_mask = CTX_MASK
@@ -210,16 +206,21 @@ function tokenize (src, cb, opt) {
   var whitespace = WHITESPACE
   var all_num_chars = ALL_NUM_CHARS
 
-  var idx = off                     // current index offset into buf
-  var koff = -1                     // key start index
-  var klim = -1                     // key limit index
-  var voff = -1                     // value start index
-  var state0 = rst.state || ctx_none|before|FIRST|VAL  // state we are transitioning from. see state_map()
-  var state1 = 0                    // new state to transition into
-  var stack = rst.stack || []       // collection of array and object open braces (for checking matched braces)
-  var tok = rst.tok || -1           // current token/byte being handled
-  var errstate = 0                  // error state - if set, then an error will be sent
-  var cbres = -1                    // callback result (integer indicating stop, continue or jump to new index)
+  opt = opt || {}
+  var off =     opt.off || 0
+  var lim =     opt.lim == null ? src.length : opt.lim
+  var rst =     opt.restore || {}
+  var koff =    rst.koff == null ? -1 : rst.koff        // key start index
+  var klim =    rst.klim == null ? -1 : rst.klim        // key limit index
+  var state0 =  rst.state || ctx_none|before|FIRST|VAL  // state we are transitioning from. see state_map()
+  var stack =   rst.stack || []                         // collection of array and object open braces (for checking matched braces)
+  var tok =     rst.tok == null ? -1 : rst.tok          // current token/byte being handled
+
+  var state1 = 0                                      // new state to transition into
+  var errstate = 0                                    // holds state0 (cause) when an error happens
+  var idx = off                                       // current index offset into buf
+  var cbres = true                                    // callback result - truthy to continue processing
+  var voff = -1                                       // value start index
 
   // note that BEG and END are the only token values with zero length (voff === vlim)
   cb(src, -1, -1, TOK.BEG, off, off)                      // 'B' - BEGIN
@@ -311,20 +312,18 @@ function tokenize (src, cb, opt) {
       state0 = state1
       cbres = cb(src, koff, klim, tok, voff, idx, null)
     }
-    if (cbres === 0) {
-      break
+    if (cbres === true || cbres) {    // === check is faster (node 6)
+      koff = -1
+      klim = -1
+      errstate = 0
+      continue
     }
-    if (cbres > 0) {
-      idx = cbres
-    }
-    koff = -1
-    klim = -1
-    errstate = 0
+    break
   }  // end main_loop: while(idx < lim) {...
 
   if (errstate === 0 && (state0 === (CTX_NONE|BEFORE|FIRST|VAL) || state0 === (CTX_NONE|AFTER|VAL))) {
     // clean finish
-    if (cbres !== 0 && idx >= lim) {
+    if (cbres && idx >= lim) {
       cb(src, -1, -1, TOK.END, lim, lim, null)
     }
     return null
@@ -338,9 +337,9 @@ function tokenize (src, cb, opt) {
     return end_info
   } else {
     // call did not request increment information, report trunction error and end
-    if (cbres !== 0) {
+    if (cbres) {
       cbres = cb(src, koff, klim, 0, voff, idx, info_for_unfinished(koff, state, tok, stack))
-      if (idx >= lim && cbres !== 0) {
+      if (idx >= lim && cbres) {
         cb(src, -1, -1, TOK.END, lim, lim, null)
       }
     } // else, caller requested stop

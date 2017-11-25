@@ -57,7 +57,7 @@ var tokcb = function (src, koff, klim, tok, voff, vlim, info) {
         default:
             tok_count++
     }
-    return -1
+    return true
 }
 
 // var tok_count = 0
