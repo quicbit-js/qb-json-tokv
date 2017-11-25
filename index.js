@@ -201,8 +201,8 @@ function tokenize (cb, src, off, lim, opt) {
   var state1 = 0                    // new state to transition into
   var stack = rst.stack || []       // collection of array and object open braces (for checking matched braces)
   var tok = rst.tok || -1           // current token/byte being handled
-  var errstate = 0                    // error state - if set, then an error will be sent
-  var cbres = -1                     // callback result (integer indicating stop, continue or jump to new index)
+  var errstate = 0                  // error state - if set, then an error will be sent
+  var cbres = -1                    // callback result (integer indicating stop, continue or jump to new index)
 
   // note that BEG and END are the only token values with zero length (voff === vlim)
   cb(src, -1, -1, TOK.BEG, off, off)                      // 'B' - BEGIN
@@ -243,7 +243,6 @@ function tokenize (cb, src, off, lim, opt) {
           state0 = state1
           continue
         }
-        state0 = state1
         break
 
       case 48:case 49:case 50:case 51:case 52:   // digits 0-4
@@ -254,7 +253,6 @@ function tokenize (cb, src, off, lim, opt) {
         tok = TOK.NUM                                 // N  Number
         while (ALL_NUM_CHARS[src[idx]] === 1 && idx < lim) {idx++}
         if (idx === lim && (state0 & CTX_MASK) !== CTX_NONE) { errstate = state0|INSIDE; continue }
-        state0 = state1
         break
 
       case 91:                                  // [    ARRAY START
@@ -262,7 +260,6 @@ function tokenize (cb, src, off, lim, opt) {
         state1 = STATES[state0|tok]
         if (!state1) { errstate = state0; break }
         stack.push(tok)
-        state0 = state1
         break
 
       case 93:                                  // ]    ARRAY END
@@ -271,7 +268,6 @@ function tokenize (cb, src, off, lim, opt) {
         if (!state1) { errstate = state0; break }
         stack.pop()
         state1 |= stack.length === 0 ? CTX_NONE : (stack[stack.length - 1] === 91 ? CTX_ARR : CTX_OBJ)
-        state0 = state1
         break
 
       case 110:                                 // n    DMSG
@@ -279,14 +275,12 @@ function tokenize (cb, src, off, lim, opt) {
         state1 = STATES[state0|tok]
         if (!state1) { errstate = state0; break }
         idx += 3 // added 1 above
-        state0 = state1
         break
 
       case 102:                                 // f    false
         state1 = STATES[state0|tok]
         if (!state1) { errstate = state0; break }
         idx += 4  // added 1 above
-        state0 = state1
         break
 
       default:
@@ -297,6 +291,7 @@ function tokenize (cb, src, off, lim, opt) {
       // errors for which idx !== lim (all except string and number truncation)
       cbres = cb(src, koff, klim, 0, voff, idx, info_for_unexpected(errstate, tok, stack))
     } else {
+      state0 = state1
       cbres = cb(src, koff, klim, tok, voff, idx, null)
     }
     if (cbres === 0) {
