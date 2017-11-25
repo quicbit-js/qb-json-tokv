@@ -16,11 +16,11 @@
 [code-image]:      https://www.bithound.io/github/quicbit-js/qb-json-tokv/badges/code.svg
 [code-link]:       https://www.bithound.io/github/quicbit-js/qb-json-tokv
 
-Fast (~150 MB/sec) and light-weight, incremental, validating, JSON parser with zero dependencies.
+A fast, zero-dependency, *validating* JSON parser (~275 MB/sec in node on 2.2 GHz Intel i7).
 
 **qb-json-tokv introduces validation and incremental parsing!**
 
-qb-json-tokv started out as an update to qb-json-tok (faster but with no validation), but winded up making more
+qb-json-tokv started out as an update to qb-json-tok (which is faster but with no validation), but winded up making more
 sense as a new package once done.  Very fast JSON parsing under a complete validating parse-graph.
 
 **Complies with the 100% test coverage and minimum dependency requirements** of 
@@ -331,4 +331,4 @@ So state management is the matter of a bitwise-or and one or two array lookups p
 could be reduced to just one bitwise-or and one array
 lookup by expanding the states to include DEPTH state, which could make sense for parsing shallow JSON,
 but we decided to track depth in a separate stack to keep code simple, the graph footprint small, and 
-not risk crashing on deeply nested structures (up to max-safe-integer (2^53-1)).
+not risk crashing on deeply nested structures (in theory up to 2^53-1, the maximum safe integer).

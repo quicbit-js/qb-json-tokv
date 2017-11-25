@@ -1,7 +1,7 @@
 {
   "name": "qb-json-tokv",
   "version": "1.0.2",
-  "description": "A fast and light-weight *validating* JSON parser (~150 MB/sec) with zero dependencies",
+  "description": "A fast and light-weight *validating* JSON parser (~275 MB/sec) with zero dependencies",
   "homepage": "https://github.com/quicbit-js/qb-json-tokv",
   "url": "https://github.com/quicbit-js/qb-json-tokv/issues",
   "email": "support@quicbit.com",

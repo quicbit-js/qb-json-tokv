@@ -91,8 +91,12 @@ var FIRST =       0x2000     // is first value in an object or array
 // create an int-int map from (state + tok) -- to --> (new state)
 function state_map () {
   var ret = []
+  var max = CTX_NONE|INSIDE|KEY|FIRST|255   // max value
+  for (var i=0; i < max; i++) {
+    ret[i] = 0
+  }
 
-  // map ( state0, tokens, state1)
+  // map ( state0, tokens ) => state1
   var map = function (s0, chars, s1) {
     for (var i = 0; i < chars.length; i++) {
       ret[s0 | chars.charCodeAt(i)] = s1
@@ -225,14 +229,14 @@ function tokenize (cb, src, off, lim, opt) {
       case 44:                                  // ,    COMMA
       case 58:                                  // :    COLON
         state1 = states[state0|tok]
-        if (state1 === undefined) { errstate = state0; break }
+        if (state1 === 0) { errstate = state0; break }
         state0 = state1
         voff = idx
         continue
 
       case 34:                                  // "    QUOTE
         state1 = states[state0|tok]
-        if (state1 === undefined) { errstate = state0; break }
+        if (state1 === 0) { errstate = state0; break }
         idx = skip_str(src, idx, lim, 34, 92)
         if (idx === -1) { idx = lim; errstate = state0|INSIDE; continue }
         idx++    // skip quote
@@ -251,7 +255,7 @@ function tokenize (cb, src, off, lim, opt) {
       case 53:case 54:case 55:case 56:case 57:   // digits 5-9
       case 45:                                   // '-'   ('+' is not legal here)
         state1 = states[state0|tok]
-        if (state1 === undefined) { errstate = state0; break }
+        if (state1 === 0) { errstate = state0; break }
         tok = TOK.NUM                                 // N  Number
         while (ALL_NUM_CHARS[src[idx]] === 1 && idx < lim) {idx++}
         if (idx === lim && (state0 & CTX_MASK) !== CTX_NONE) { errstate = state0|INSIDE; continue }
@@ -260,14 +264,14 @@ function tokenize (cb, src, off, lim, opt) {
       case 91:                                  // [    ARRAY START
       case 123:                                 // {    OBJECT START
         state1 = states[state0|tok]
-        if (state1 === undefined) { errstate = state0; break }
+        if (state1 === 0) { errstate = state0; break }
         stack.push(tok)
         break
 
       case 93:                                  // ]    ARRAY END
       case 125:                                 // }    OBJECT END
         state1 = states[state0|tok]
-        if (state1 === undefined) { errstate = state0; break }
+        if (state1 === 0) { errstate = state0; break }
         stack.pop()
         state1 |= stack.length === 0 ? CTX_NONE : (stack[stack.length - 1] === 91 ? CTX_ARR : CTX_OBJ)
         break
@@ -275,13 +279,13 @@ function tokenize (cb, src, off, lim, opt) {
       case 110:                                 // n    DMSG
       case 116:                                 // t    true
         state1 = states[state0|tok]
-        if (state1 === undefined) { errstate = state0; break }
+        if (state1 === 0) { errstate = state0; break }
         idx += 3 // added 1 above
         break
 
       case 102:                                 // f    false
         state1 = states[state0|tok]
-        if (state1 === undefined) { errstate = state0; break }
+        if (state1 === 0) { errstate = state0; break }
         idx += 4  // added 1 above
         break
 
