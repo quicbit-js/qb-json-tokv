@@ -193,6 +193,8 @@ function tokenize (cb, src, off, lim, opt) {
   off = off || 0
   lim = lim == null ? src.length : lim
 
+  var states = STATES
+
   var idx = off                     // current index offset into buf
   var koff = -1
   var klim = -1
@@ -222,15 +224,15 @@ function tokenize (cb, src, off, lim, opt) {
 
       case 44:                                  // ,    COMMA
       case 58:                                  // :    COLON
-        state1 = STATES[state0|tok]
-        if (!state1) { errstate = state0; break }
+        state1 = states[state0|tok]
+        if (state1 === undefined) { errstate = state0; break }
         state0 = state1
         voff = idx
         continue
 
       case 34:                                  // "    QUOTE
-        state1 = STATES[state0|tok]
-        if (!state1) { errstate = state0; break }
+        state1 = states[state0|tok]
+        if (state1 === undefined) { errstate = state0; break }
         idx = skip_str(src, idx, lim, 34, 92)
         if (idx === -1) { idx = lim; errstate = state0|INSIDE; continue }
         idx++    // skip quote
@@ -248,8 +250,8 @@ function tokenize (cb, src, off, lim, opt) {
       case 48:case 49:case 50:case 51:case 52:   // digits 0-4
       case 53:case 54:case 55:case 56:case 57:   // digits 5-9
       case 45:                                   // '-'   ('+' is not legal here)
-        state1 = STATES[state0|tok]
-        if (!state1) { errstate = state0; break }
+        state1 = states[state0|tok]
+        if (state1 === undefined) { errstate = state0; break }
         tok = TOK.NUM                                 // N  Number
         while (ALL_NUM_CHARS[src[idx]] === 1 && idx < lim) {idx++}
         if (idx === lim && (state0 & CTX_MASK) !== CTX_NONE) { errstate = state0|INSIDE; continue }
@@ -257,29 +259,29 @@ function tokenize (cb, src, off, lim, opt) {
 
       case 91:                                  // [    ARRAY START
       case 123:                                 // {    OBJECT START
-        state1 = STATES[state0|tok]
-        if (!state1) { errstate = state0; break }
+        state1 = states[state0|tok]
+        if (state1 === undefined) { errstate = state0; break }
         stack.push(tok)
         break
 
       case 93:                                  // ]    ARRAY END
       case 125:                                 // }    OBJECT END
-        state1 = STATES[state0|tok]
-        if (!state1) { errstate = state0; break }
+        state1 = states[state0|tok]
+        if (state1 === undefined) { errstate = state0; break }
         stack.pop()
         state1 |= stack.length === 0 ? CTX_NONE : (stack[stack.length - 1] === 91 ? CTX_ARR : CTX_OBJ)
         break
 
       case 110:                                 // n    DMSG
       case 116:                                 // t    true
-        state1 = STATES[state0|tok]
-        if (!state1) { errstate = state0; break }
+        state1 = states[state0|tok]
+        if (state1 === undefined) { errstate = state0; break }
         idx += 3 // added 1 above
         break
 
       case 102:                                 // f    false
-        state1 = STATES[state0|tok]
-        if (!state1) { errstate = state0; break }
+        state1 = states[state0|tok]
+        if (state1 === undefined) { errstate = state0; break }
         idx += 4  // added 1 above
         break
 
