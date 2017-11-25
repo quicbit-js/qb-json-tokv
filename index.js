@@ -147,7 +147,7 @@ function state_map () {
   return ret
 }
 
-var STATES = state_map()
+var STATE_MAP = state_map()
 
 function map_ascii (s, code) {
   var ret = []
@@ -197,13 +197,24 @@ function tokenize (cb, src, off, lim, opt) {
   off = off || 0
   lim = lim == null ? src.length : lim
 
-  var states = STATES
+  var states = STATE_MAP
+  var inside = INSIDE
+  var ctx_mask = CTX_MASK
+  var ctx_none = CTX_NONE
+  var ctx_arr = CTX_ARR
+  var ctx_obj = CTX_OBJ
+  var pos_mask = POS_MASK
+  var keyval_mask = KEYVAL_MASK
+  var before = BEFORE
+  var key = KEY
+  var whitespace = WHITESPACE
+  var all_num_chars = ALL_NUM_CHARS
 
   var idx = off                     // current index offset into buf
   var koff = -1
   var klim = -1
   var voff = -1                     // value start index
-  var state0 = rst.state || CTX_NONE|BEFORE|FIRST|VAL  // state we are transitioning from. see state_map()
+  var state0 = rst.state || ctx_none|before|FIRST|VAL  // state we are transitioning from. see state_map()
   var state1 = 0                    // new state to transition into
   var stack = rst.stack || []       // collection of array and object open braces (for checking matched braces)
   var tok = rst.tok || -1           // current token/byte being handled
@@ -218,8 +229,8 @@ function tokenize (cb, src, off, lim, opt) {
     tok = src[idx++]
     switch (tok) {
       case 9: case 10: case 13: case 32:
-        if (WHITESPACE[src[idx]] && idx < lim) {
-          while (WHITESPACE[src[++idx]] === 1 && idx < lim) {}
+        if (whitespace[src[idx]] && idx < lim) {
+          while (whitespace[src[++idx]] === 1 && idx < lim) {}
         }
         voff = idx
         continue
@@ -238,11 +249,11 @@ function tokenize (cb, src, off, lim, opt) {
         state1 = states[state0|tok]
         if (state1 === 0) { errstate = state0; break }
         idx = skip_str(src, idx, lim, 34, 92)
-        if (idx === -1) { idx = lim; errstate = state0|INSIDE; continue }
+        if (idx === -1) { idx = lim; errstate = state0|inside; continue }
         idx++    // skip quote
 
         // key
-        if ((state0 & (POS_MASK|KEYVAL_MASK)) === (BEFORE|KEY)) {
+        if ((state0 & (pos_mask|keyval_mask)) === (before|key)) {
           koff = voff
           klim = idx
           voff = idx
@@ -257,8 +268,8 @@ function tokenize (cb, src, off, lim, opt) {
         state1 = states[state0|tok]
         if (state1 === 0) { errstate = state0; break }
         tok = TOK.NUM                                 // N  Number
-        while (ALL_NUM_CHARS[src[idx]] === 1 && idx < lim) {idx++}
-        if (idx === lim && (state0 & CTX_MASK) !== CTX_NONE) { errstate = state0|INSIDE; continue }
+        while (all_num_chars[src[idx]] === 1 && idx < lim) {idx++}
+        if (idx === lim && (state0 & ctx_mask) !== ctx_none) { errstate = state0|inside; continue }
         break
 
       case 91:                                  // [    ARRAY START
@@ -273,7 +284,7 @@ function tokenize (cb, src, off, lim, opt) {
         state1 = states[state0|tok]
         if (state1 === 0) { errstate = state0; break }
         stack.pop()
-        state1 |= stack.length === 0 ? CTX_NONE : (stack[stack.length - 1] === 91 ? CTX_ARR : CTX_OBJ)
+        state1 |= stack.length === 0 ? ctx_none : (stack[stack.length - 1] === 91 ? ctx_arr : ctx_obj)
         break
 
       case 110:                                 // n    DMSG
@@ -354,9 +365,28 @@ var TOK = {
   END: 69,        // 'E' - end -   buffer limit reached
 }
 
+var STATE = {
+  CTX_MASK:    CTX_MASK,
+  CTX_OBJ:     CTX_OBJ,
+  CTX_ARR:     CTX_ARR,
+  CTX_NONE:    CTX_NONE,
+
+  POS_MASK:    POS_MASK,
+  BEFORE:      BEFORE,
+  AFTER:       AFTER,
+  INSIDE:      INSIDE,
+
+  KEYVAL_MASK: KEYVAL_MASK,
+  VAL:         VAL,
+  KEY:         KEY,
+                      
+  FIRST:       FIRST,     // means value or key/value is first in an object or array
+}
+
 module.exports = {
   tokenize: tokenize,
   state_to_str: state_to_str,
   state_to_obj: function (state) { return new State(state) },
   TOK: TOK,
+  STATE: STATE,
 }

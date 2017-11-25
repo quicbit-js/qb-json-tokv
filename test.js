@@ -149,21 +149,21 @@ test('callback return', function (t) {
   t.tableAssert(
     [
       [ 'input',     'at_tok', 'cb_ret',  'exp'                                          ],
-      [ '{"a":1}',    1,        6,        [ 'B@0', '{@0','}@6', 'E@7' ]                               ],
-      [ '{"a":1}',    2,        6,        [ 'B@0', '{@0','K3@1:N1@5','}@6', 'E@7' ]                   ],
-      [ '{"a":1}',    3,        6,        [ 'B@0', '{@0', 'K3@1:N1@5', '}@6', '!1@6 after value, tok: "}"', 'E@7' ]            ],
-      [ '{"a":1}',    4,        6,        [ 'B@0', '{@0','K3@1:N1@5','}@6', 'E@7' ]                   ],
-      [ '{"a":1}',    2,        0,        [ 'B@0', '{@0', 'K3@1:N1@5' ]                         ],
+      [ '{"a":1}',    1,        6,        [ 'B@0', '{@0','}@6', 'E@7' ]                  ],
+      [ '{"a":1}',    2,        6,        [ 'B@0', '{@0','K3@1:N1@5','}@6', 'E@7' ]      ],
+      [ '{"a":1}',    3,        6,        [ 'B@0', '{@0', 'K3@1:N1@5', '}@6', '!1@6 after value, tok: "}"', 'E@7' ] ],
+      [ '{"a":1}',    4,        6,        [ 'B@0', '{@0','K3@1:N1@5','}@6', 'E@7' ]      ],
+      [ '{"a":1}',    2,        0,        [ 'B@0', '{@0', 'K3@1:N1@5' ]                  ],
       [ '{"a":1}',    2,        4,        [ 'B@0', '{@0', 'K3@1:N1@5', '!1@4 in object, after value, tok: ":"', '!1@5 in object, after value, tok: "1"', '}@6', 'E@7' ] ],
-      [ '{"a":1}',    3,        5,        [ 'B@0', '{@0', 'K3@1:N1@5', '}@6', '!1@5 after value, tok: "1"', '!1@6 after value, tok: "}"', 'E@7' ]   ],
-      [ '{"a":1}',    3,        6,        [ 'B@0', '{@0', 'K3@1:N1@5', '}@6', '!1@6 after value, tok: "}"', 'E@7' ]         ],
-      [ '{"a":1}',    3,        7,        [ 'B@0', '{@0','K3@1:N1@5','}@6', 'E@7' ]                   ],
-      [ '{"a":1}',    3,        8,        [ 'B@0', '{@0','K3@1:N1@5','}@6', 'E@7' ]                   ],
-      [ '{"a":1}',    3,        0,        [ 'B@0', '{@0','K3@1:N1@5','}@6' ]                          ],
-      [ '{"a":1}',    3,        null,     [ 'B@0', '{@0','K3@1:N1@5','}@6', 'E@7' ]                   ],
-      [ '["a","b"]',  3,        null,     [ 'B@0', '[@0','S3@1','S3@5',']@8', 'E@9' ]                 ],
-      [ '["a","b"]',  3,        0,        [ 'B@0', '[@0','S3@1','S3@5' ]                              ],
-      [ '["a","b"]',  3,        1,        [ 'B@0', '[@0', 'S3@1', 'S3@5', '!1@1 in array, after value, tok: """', '!1@2 in array, after value, tok: "a"', '!1@3 in array, after value, tok: """', 'S3@5', ']@8', 'E@9' ]  ],
+      [ '{"a":1}',    3,        5,        [ 'B@0', '{@0', 'K3@1:N1@5', '}@6', '!1@5 after value, tok: "1"', '!1@6 after value, tok: "}"', 'E@7' ] ],
+      [ '{"a":1}',    3,        6,        [ 'B@0', '{@0', 'K3@1:N1@5', '}@6', '!1@6 after value, tok: "}"', 'E@7' ] ],
+      [ '{"a":1}',    3,        7,        [ 'B@0', '{@0','K3@1:N1@5','}@6', 'E@7' ] ],
+      [ '{"a":1}',    3,        8,        [ 'B@0', '{@0','K3@1:N1@5','}@6', 'E@7' ] ],
+      [ '{"a":1}',    3,        0,        [ 'B@0', '{@0','K3@1:N1@5','}@6' ] ],
+      [ '{"a":1}',    3,        null,     [ 'B@0', '{@0','K3@1:N1@5','}@6', 'E@7' ] ],
+      [ '["a","b"]',  3,        null,     [ 'B@0', '[@0','S3@1','S3@5',']@8', 'E@9' ] ],
+      [ '["a","b"]',  3,        0,        [ 'B@0', '[@0','S3@1','S3@5' ] ],
+      [ '["a","b"]',  3,        1,        [ 'B@0', '[@0', 'S3@1', 'S3@5', '!1@1 in array, after value, tok: """', '!1@2 in array, after value, tok: "a"', '!1@3 in array, after value, tok: """', 'S3@5', ']@8', 'E@9' ] ],
       [ '["a","b"]',  3,        4,        [ 'B@0', '[@0', 'S3@1', 'S3@5', 'S3@5', ']@8', 'E@9' ] ],
       [ '["a","b"]',  3,        5,        [ 'B@0', '[@0', 'S3@1', 'S3@5', '!1@5 in array, after value, tok: """', '!1@6 in array, after value, tok: "b"', '!1@7 in array, after value, tok: """', ']@8', 'E@9' ]   ],
       [ '["a","b"]',  3,        8,        [ 'B@0', '[@0','S3@1','S3@5',']@8', 'E@9' ]                 ],
@@ -195,26 +195,28 @@ test('callback return', function (t) {
   )
 })
 
-var OBJ =     0x0100
-var ARR =     0x0200
-var NON =     0x0300
-var BEFORE =      0x0400
-var AFTER =       0x0800
-var INSIDE =      0x0C00
-var VAL =         0x0000
-var KEY =         0x1000
-var FIRST =       0x2000     // is first value in an object or array
+var STATE = jtok.STATE
+
+var OBJ = STATE.CTX_OBJ
+var ARR = STATE.CTX_ARR
+var NON = STATE.CTX_NONE
+var BEFORE = STATE.BEFORE
+var AFTER = STATE.AFTER
+var INSIDE = STATE.INSIDE
+var VAL = STATE.VAL
+var KEY = STATE.KEY
+var FIRST = STATE.FIRST
 
 test('state_to_str', function (t) {
   t.table_assert([
-    [ 'state',                          'exp' ],
-    [ null,                             'undefined' ],
-    [ OBJ | BEFORE | FIRST | KEY,   'in object, before first key' ],
-    [ OBJ | AFTER | VAL,            'in object, after value' ],
-    [ OBJ | INSIDE | FIRST | VAL,   'in object, inside first value' ],
-    [ ARR | INSIDE | FIRST | VAL,   'in array, inside first value' ],
-    [ NON | BEFORE | VAL,          'before value' ],
-    [ 0,                                'value' ],
+    [ 'state',                        'exp' ],
+    [ null,                           'undefined' ],
+    [ OBJ | BEFORE | FIRST | KEY,     'in object, before first key' ],
+    [ OBJ | AFTER | VAL,              'in object, after value' ],
+    [ OBJ | INSIDE | FIRST | VAL,     'in object, inside first value' ],
+    [ ARR | INSIDE | FIRST | VAL,     'in array, inside first value' ],
+    [ NON | BEFORE | VAL,             'before value' ],
+    [ 0,                              'value' ],
   ], function (state) {
     var ret = jtok.state_to_str(state)
     ret === jtok.state_to_obj(state).toString() || err('mismatched output')
@@ -224,14 +226,14 @@ test('state_to_str', function (t) {
 
 test('state_to_obj', function (t) {
   t.table_assert([
-    [ 'state',                              'exp' ],
-    [ null,                                 {} ],
-    [ OBJ|BEFORE|FIRST|KEY,             { ctx: 'obj', pos: 'before', first: true, key: true } ],
-    [ OBJ|AFTER|VAL,                    { ctx: 'obj', pos: 'after', first: false, key: false } ],
-    [ OBJ|INSIDE|FIRST|VAL,             { ctx: 'obj', pos: 'inside', first: true, key: false }],
-    [ ARR|INSIDE|FIRST|VAL,             { ctx: 'arr', pos: 'inside', first: true, key: false } ],
-    [ NON|BEFORE|VAL,                   { ctx: 'none', pos: 'before', first: false, key: false } ],
-    [ 0,                                    { ctx: 'undefined', pos: 'undefined', first: false, key: false } ],
+    [ 'state',                            'exp' ],
+    [ null,                               {} ],
+    [ OBJ|BEFORE|FIRST|KEY,               { ctx: 'obj', pos: 'before', first: true, key: true } ],
+    [ OBJ|AFTER|VAL,                      { ctx: 'obj', pos: 'after', first: false, key: false } ],
+    [ OBJ|INSIDE|FIRST|VAL,               { ctx: 'obj', pos: 'inside', first: true, key: false }],
+    [ ARR|INSIDE|FIRST|VAL,               { ctx: 'arr', pos: 'inside', first: true, key: false } ],
+    [ NON|BEFORE|VAL,                     { ctx: 'none', pos: 'before', first: false, key: false } ],
+    [ 0,                                  { ctx: 'undefined', pos: 'undefined', first: false, key: false } ],
   ], function (state) {
     return qbobj.select(jtok.state_to_obj(state), ['ctx', 'pos', 'first', 'key'])
   })

@@ -16,7 +16,7 @@
 [code-image]:      https://www.bithound.io/github/quicbit-js/qb-json-tokv/badges/code.svg
 [code-link]:       https://www.bithound.io/github/quicbit-js/qb-json-tokv
 
-A fast, zero-dependency, *validating* JSON parser (~275 MB/sec in node on 2.2 GHz Intel i7).
+A fast, zero-dependency, *validating* JSON parser (~300 MB/sec running node 6 on 2.2 GHz Intel i7).
 
 **qb-json-tokv introduces validation and incremental parsing!**
 
@@ -273,7 +273,7 @@ State also describes which of the 2 item types: **KEY** or **VAL**(UE) the posit
 bothe the start and end of arrays and objects
 are considered a VALUES when describing position. 
 
-       VALUE                                          VAL
+      VAL                                             VAL
        |   KEY     VAL     KEY   VAL              VAL  |
        |    |       |       |     |  VAL      VAL  |   |
        |    |       |       |     |   |       |    |   |
@@ -327,8 +327,4 @@ or value plus a **FIRST** indicator to indicate if it is the first item in a new
        {  name :  "Samuel" , tags : [ "Sam", "Sammy" ]        } ,  "another value"
     
 
-So state management is the matter of a bitwise-or and one or two array lookups per token.  Note that this work
-could be reduced to just one bitwise-or and one array
-lookup by expanding the states to include DEPTH state, which could make sense for parsing shallow JSON,
-but we decided to track depth in a separate stack to keep code simple, the graph footprint small, and 
-not risk crashing on deeply nested structures (in theory up to 2^53-1, the maximum safe integer).
+So state management is the matter of a bitwise-or and one or two array lookups per token.
