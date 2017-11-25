@@ -101,7 +101,7 @@ test('tokenize', function (t) {
       var hector = t.hector()
       cb_opt.log = hector
       var cb = format_callback(cb_opt)
-      jtok.tokenize(cb, utf8.buffer(input), off, lim)
+      jtok.tokenize(utf8.buffer(input), cb, {off:off, lim:lim })
       return hector.arg(0)
     }
   )
@@ -139,7 +139,7 @@ test('tokenize - errors', function (t) {
       var hector = t.hector()
       cb_opt.log = hector
       var cb = format_callback(cb_opt)
-      jtok.tokenize(cb, utf8.buffer(input))
+      jtok.tokenize(utf8.buffer(input), cb)
       return hector.arg(0)
     }
   )
@@ -189,7 +189,7 @@ test('callback return', function (t) {
           }
         }
       })
-      jtok.tokenize(cb, utf8.buffer(input))
+      jtok.tokenize(utf8.buffer(input), cb)
       return hector.arg(0)
     }
   )
@@ -199,7 +199,7 @@ var STATE = jtok.STATE
 
 var OBJ = STATE.CTX_OBJ
 var ARR = STATE.CTX_ARR
-var NON = STATE.CTX_NONE
+var NONE = STATE.CTX_NONE
 var BEFORE = STATE.BEFORE
 var AFTER = STATE.AFTER
 var INSIDE = STATE.INSIDE
@@ -215,7 +215,7 @@ test('state_to_str', function (t) {
     [ OBJ | AFTER | VAL,              'in object, after value' ],
     [ OBJ | INSIDE | FIRST | VAL,     'in object, inside first value' ],
     [ ARR | INSIDE | FIRST | VAL,     'in array, inside first value' ],
-    [ NON | BEFORE | VAL,             'before value' ],
+    [ NONE | BEFORE | VAL,            'before value' ],
     [ 0,                              'value' ],
   ], function (state) {
     var ret = jtok.state_to_str(state)
@@ -232,7 +232,7 @@ test('state_to_obj', function (t) {
     [ OBJ|AFTER|VAL,                      { ctx: 'obj', pos: 'after', first: false, key: false } ],
     [ OBJ|INSIDE|FIRST|VAL,               { ctx: 'obj', pos: 'inside', first: true, key: false }],
     [ ARR|INSIDE|FIRST|VAL,               { ctx: 'arr', pos: 'inside', first: true, key: false } ],
-    [ NON|BEFORE|VAL,                     { ctx: 'none', pos: 'before', first: false, key: false } ],
+    [ NONE|BEFORE|VAL,                     { ctx: 'none', pos: 'before', first: false, key: false } ],
     [ 0,                                  { ctx: 'undefined', pos: 'undefined', first: false, key: false } ],
   ], function (state) {
     return qbobj.select(jtok.state_to_obj(state), ['ctx', 'pos', 'first', 'key'])
@@ -248,9 +248,61 @@ test('restore', function (t) {
   ], function (input, off, lim, state, stack, tok) {
     var hector = t.hector()
     var cb = format_callback({log: hector})
-    jtok.tokenize(cb, utf8.buffer(input), off, lim, {restore: {state: state, stack: stack, tok: tok}})
+    jtok.tokenize(utf8.buffer(input), cb, {off: off, lim: lim, restore: {state: state, stack: stack, tok: tok}})
     return hector.arg(0)
   })
 })
 
+function err (msg) { throw Error(msg) }
+
+test('incremental state', function (t) {
+  t.table_assert([
+    [ 'input',                'exp' ],
+    [ '"abc"',                null ],
+    [ '[ 83 ]',               null ],
+    [ '[ 83, "a" ]',          null ],
+    [ '3.23e12',              null ],
+    [ '{ a: 3 }',             null ],
+    [ '{ a: 3, "b": 8 }',     null ],
+    [ '{ a: 3, "b": [1,2] }', null ],
+    [ 'null',                 null ],
+    [ ' 7E4 ',                null ],
+    [ '',                     null ],
+    [ '"',                    { koff: -1, klim: -1, idx: 1, state: NONE|INSIDE|FIRST|VAL, tok: 34, stack: [] } ],
+    [ '"abc',                 { koff: -1, klim: -1, idx: 4, state: NONE|INSIDE|FIRST|VAL, tok: 34, stack: [] } ],
+    [ '"abc", ',              { koff: -1, klim: -1, idx: 7, state: NONE|BEFORE|VAL, tok: 32, stack: [] } ],
+    [ '[',                    { koff: -1, klim: -1, idx: 1, state: ARR|BEFORE|FIRST|VAL, tok: 91, stack: [ 91 ] } ],
+    [ '[ 83',                 { koff: -1, klim: -1, idx: 4, state: ARR|INSIDE|FIRST|VAL, tok: 78, stack: [ 91 ] } ],
+    [ '[ 83 ',                { koff: -1, klim: -1, idx: 5, state: ARR|AFTER|VAL, tok: 32, stack: [ 91 ] } ],
+    [ '[ 83,',                { koff: -1, klim: -1, idx: 5, state: ARR|BEFORE|VAL, tok: 44, stack: [ 91 ] } ],
+    [ '[ 83, "',              { koff: -1, klim: -1, idx: 7, state: ARR|INSIDE|VAL, tok: 34, stack: [ 91 ] } ],
+    [ '[ 83, "a"',            { koff: -1, klim: -1, idx: 9, state: ARR|AFTER|VAL, tok: 34, stack: [ 91 ] } ],
+    [ '[ 83, "a",',           { koff: -1, klim: -1, idx: 10, state: ARR|BEFORE|VAL, tok: 44, stack: [ 91 ] } ],
+    [ '{',                    { koff: -1, klim: -1, idx: 1, state: OBJ|BEFORE|FIRST|KEY, tok: 123, stack: [ 123 ] } ],
+    [ '{ "',                  { koff: -1, klim: -1, idx: 3, state: OBJ|INSIDE|FIRST|KEY, tok: 34, stack: [ 123 ] } ],
+    [ '{ "a',                 { koff: -1, klim: -1, idx: 4, state: OBJ|INSIDE|FIRST|KEY, tok: 34, stack: [ 123 ] } ],
+    [ '{ "a"',                { koff: 2, klim: 5, idx: 5, state: OBJ|AFTER|KEY, tok: 34, stack: [ 123 ] } ],
+    [ '{ "a":',               { koff: 2, klim: 5, idx: 6, state: OBJ|BEFORE|VAL, tok: 58, stack: [ 123 ] } ],
+    [ '{ "a": 9',             { koff: 2, klim: 5, idx: 8, state: OBJ|INSIDE|VAL, tok: 78, stack: [ 123 ] } ],
+    [ '{ "a": 9, ',           { koff: -1, klim: -1, idx: 10, state: OBJ|BEFORE|KEY, tok: 32, stack: [ 123 ] } ],
+    [ '{ "a": 9, "',          { koff: -1, klim: -1, idx: 11, state: OBJ|INSIDE|KEY, tok: 34, stack: [ 123 ] } ],
+    [ '{ "a": 9, "b"',        { koff: 10, klim: 13, idx: 13, state: OBJ|AFTER|KEY, tok: 34, stack: [ 123 ] } ],
+    [ '{ "a": 9, "b": ',      { koff: 10, klim: 13, idx: 15, state: OBJ|BEFORE|VAL, tok: 32, stack: [ 123 ] } ],
+    [ '{ "a": 9, "b": [',     { koff: -1, klim: -1, idx: 16, state: ARR|BEFORE|FIRST|VAL, tok: 91, stack: [ 123, 91 ] } ],
+    [ '{ "a": 9, "b": [ 4',   { koff: -1, klim: -1, idx: 18, state: ARR|INSIDE|FIRST|VAL, tok: 78, stack: [ 123, 91 ] } ],
+  ], function (input) {
+    var src = utf8.buffer(input)
+    var ret = jtok.tokenize(src, function () {}, {incremental: true})
+    if (ret) {
+      ret.src === src || err('src not set')
+      ret.off === 0 || err('off not set')
+      ret.lim === src.length || err('lim not set')
+      console.log(jtok.state_to_str(ret.state))
+      delete ret.src
+      delete ret.off
+      delete ret.lim
+    }
+    return ret
+  })
+})
 

@@ -33,7 +33,7 @@ sense as a new package once done.  Very fast JSON parsing under a complete valid
 
 # API
 
-## tokenize (callback, src, off, lim, opt)
+## tokenize (src, callback, opt)
   
 Tokenize the given source array or buffer, sending all results to the given callback function. (the
 process can be controlled/stopped via the function return value)
@@ -83,7 +83,9 @@ process can be controlled/stopped via the function return value)
                         returning anything else (undefined, null, negative number) - will cause 
                                 processing to continue.
                      
-    opt             
+    opt
+        off         offset into src to start parsing (default is 0)
+        lim         limit in src to stop parsing (default is src.length)             
         state       (integer - to continue parsing at another point, you can provide a state
     for incremental parsing, you can pass the state object returned by the end callback into this argument.
 

@@ -191,11 +191,11 @@ function skip_str (src, off, lim) {
   return -1
 }
 
-function tokenize (cb, src, off, lim, opt) {
+function tokenize (src, cb, opt) {
   opt = opt || {}
   var rst = opt.restore || {}
-  off = off || 0
-  lim = lim == null ? src.length : lim
+  var off = opt.off || 0
+  var lim = opt.lim == null ? src.length : opt.lim
 
   var states = STATE_MAP
   var inside = INSIDE
@@ -211,8 +211,8 @@ function tokenize (cb, src, off, lim, opt) {
   var all_num_chars = ALL_NUM_CHARS
 
   var idx = off                     // current index offset into buf
-  var koff = -1
-  var klim = -1
+  var koff = -1                     // key start index
+  var klim = -1                     // key limit index
   var voff = -1                     // value start index
   var state0 = rst.state || ctx_none|before|FIRST|VAL  // state we are transitioning from. see state_map()
   var state1 = 0                    // new state to transition into
@@ -322,27 +322,29 @@ function tokenize (cb, src, off, lim, opt) {
     errstate = 0
   }  // end main_loop: while(idx < lim) {...
 
-  if (errstate === 0 && stack.length === 0) {
+  if (errstate === 0 && (state0 === (CTX_NONE|BEFORE|FIRST|VAL) || state0 === (CTX_NONE|AFTER|VAL))) {
     // clean finish
     if (cbres !== 0 && idx >= lim) {
       cb(src, -1, -1, TOK.END, lim, lim, null)
     }
+    return null
+  }
+  // unclean finish - a truncation from reaching lim or from client request (zero)
+  var state = errstate || state0
+  if (opt.incremental) {
+    //  caller requested increment information, truncation is not an error
+    var end_info = { src: src, off: off, lim: lim, koff: koff, klim: klim, idx: idx, state: state, tok: tok, stack: stack }
+    cb(src, koff, klim, TOK.END, idx, idx, end_info)
+    return end_info
   } else {
-    // truncation from reaching lim or from client request (zero)
-    var state = errstate || state0
-    if (opt.incremental) {
-      // return state-recovery information to the callback and to the caller of the tokenize() function
-      var end_info = { src: src, off: off, lim: lim, koff: koff, klim: klim, idx: idx, state: state, tok: tok, stack: stack }
-      cb(src, koff, klim, TOK.END, idx, idx, end_info)
-      return end_info
-    } else {
-      if (cbres !== 0) {
-        cbres = cb(src, koff, klim, 0, voff, idx, info_for_unfinished(koff, state, tok, stack))
-        if (idx >= lim && cbres !== 0) {
-          cb(src, -1, -1, TOK.END, lim, lim, null)
-        }
-      } // else, client requested stop without incremental info - don't report
-    }
+    // call did not request increment information, report trunction error and end
+    if (cbres !== 0) {
+      cbres = cb(src, koff, klim, 0, voff, idx, info_for_unfinished(koff, state, tok, stack))
+      if (idx >= lim && cbres !== 0) {
+        cb(src, -1, -1, TOK.END, lim, lim, null)
+      }
+    } // else, client requested stop without incremental info - don't report
+    return null
   }
 }
 
