@@ -154,11 +154,18 @@ function map_ascii (s, code) {
 var WHITESPACE = map_ascii('\n\t\r ', 1)
 var ALL_NUM_CHARS = map_ascii('-0123456789+.eE', 1)
 
-function inf (state, tok, stack) {
+function info_for_unexpected (state, tok, stack) {
   var tokstr = (tok > 31 && tok < 127 && tok !== 34) ? '"' + String.fromCharCode(tok) + '"' : String(tok)
   var msg = 'unexpected character, ' + state_to_str(state) + ', tok: ' + tokstr
+  return {msg: msg, state: state, tok: tok, stack: stack}
+}
+
+function info_for_unfinished (koff, state, tok, stack) {
+  var msg
   if ((state & POS_MASK) === INSIDE) {
-    msg = tok === TOK.NUM ? 'unterminated number' : 'unterminated string'
+    msg = 'truncated ' + (tok === TOK.NUM ? 'number' : (koff === -1 ? 'string' : 'key'))
+  } else {
+    msg = 'unfinished ' + (stack[stack.length-1] === TOK.ARR_BEG ? 'array' : 'object')
   }
   return {msg: msg, state: state, tok: tok, stack: stack}
 }
@@ -190,17 +197,17 @@ function tokenize (cb, src, off, lim, opt) {
   var koff = -1
   var klim = -1
   var voff = -1                     // value start index
-  var info = null                   // extra information about errors or split values
   var state0 = rst.state || CTX_NONE|BEFORE|FIRST|VAL  // state we are transitioning from. see state_map()
   var state1 = 0                    // new state to transition into
   var stack = rst.stack || []       // collection of array and object open braces (for checking matched braces)
   var tok = rst.tok || -1           // current token/byte being handled
   var errstate = 0                    // error state - if set, then an error will be sent
+  var cbres = -1                     // callback result (integer indicating stop, continue or jump to new index)
 
+  // note that BEG and END are the only token values with zero length (voff === vlim)
   cb(src, -1, -1, TOK.BEG, off, off)                      // 'B' - BEGIN
 
   while (idx < lim) {
-    info = null
     voff = idx
     tok = src[idx++]
     switch (tok) {
@@ -208,7 +215,7 @@ function tokenize (cb, src, off, lim, opt) {
         if (WHITESPACE[src[idx]] && idx < lim) {
           while (WHITESPACE[src[++idx]] === 1 && idx < lim) {}
         }
-        voff = -1
+        voff = idx
         continue
 
       // placing (somewhat redundant) logic below this point allows fast skip of whitespace (above)
@@ -218,22 +225,35 @@ function tokenize (cb, src, off, lim, opt) {
         state1 = STATES[state0|tok]
         if (!state1) { errstate = state0; break }
         state0 = state1
-        voff = -1
+        voff = idx
         continue
 
       case 34:                                  // "    QUOTE
         state1 = STATES[state0|tok]
         if (!state1) { errstate = state0; break }
         idx = skip_str(src, idx, lim, 34, 92)
-        if (idx === -1) { idx = lim; errstate = state0|INSIDE; break }
+        if (idx === -1) { idx = lim; errstate = state0|INSIDE; continue }
         idx++    // skip quote
 
         // key
         if ((state0 & (POS_MASK|KEYVAL_MASK)) === (BEFORE|KEY)) {
           koff = voff
           klim = idx
-          voff = -1                   // indicate no value
+          voff = idx
+          state0 = state1
+          continue
         }
+        state0 = state1
+        break
+
+      case 48:case 49:case 50:case 51:case 52:   // digits 0-4
+      case 53:case 54:case 55:case 56:case 57:   // digits 5-9
+      case 45:                                   // '-'   ('+' is not legal here)
+        state1 = STATES[state0|tok]
+        if (!state1) { errstate = state0; break }
+        tok = TOK.NUM                                 // N  Number
+        while (ALL_NUM_CHARS[src[idx]] === 1 && idx < lim) {idx++}
+        if (idx === lim && (state0 & CTX_MASK) !== CTX_NONE) { errstate = state0|INSIDE; continue }
         state0 = state1
         break
 
@@ -269,45 +289,49 @@ function tokenize (cb, src, off, lim, opt) {
         state0 = state1
         break
 
-      case 48:case 49:case 50:case 51:case 52:   // digits 0-4
-      case 53:case 54:case 55:case 56:case 57:   // digits 5-9
-      case 45:                                   // '-'   ('+' is not legal here)
-        state1 = STATES[state0|tok]
-        if (!state1) { errstate = state0; break }
-        tok = TOK.NUM                                 // N  Number
-        while (ALL_NUM_CHARS[src[idx]] === 1 && idx < lim) {idx++}
-        if (idx === lim && (state0 & CTX_MASK) !== CTX_NONE) { errstate = state0 | INSIDE }
-        state0 = state1
-        break
-
       default:
         errstate = state0
     }
-    if (errstate !== 0) {
-      info = inf(errstate,  tok, stack)
-      tok = 0
-      errstate = 0
-    }
 
-    if (voff !== -1) {
-      var cbres = cb(src, koff, klim, tok, voff, idx, info)
-      koff = -1
-      klim = -1
-      if (cbres > 0) {
-        idx = cbres
-      } else if (cbres === 0) {
-        // cb requested stop
-        return { state: state0, tok: tok, stack: stack }
-      }
+    if (errstate !== 0) {
+      // errors for which idx !== lim (all except string and number truncation)
+      cbres = cb(src, koff, klim, 0, voff, idx, info_for_unexpected(errstate, tok, stack))
+    } else {
+      cbres = cb(src, koff, klim, tok, voff, idx, null)
     }
+    if (cbres === 0) {
+      break
+    }
+    if (cbres > 0) {
+      idx = cbres
+    }
+    koff = -1
+    klim = -1
+    errstate = 0
   }  // end main_loop: while(idx < lim) {...
 
-  if (koff !== -1) {
-    info = inf(state0, tok, stack)
-    cb(src, koff, klim, 0, lim, lim, info)           // push out pending key
+  if (errstate === 0 && stack.length === 0) {
+    // clean finish
+    if (cbres !== 0 && idx >= lim) {
+      cb(src, -1, -1, TOK.END, lim, lim, null)
+    }
+  } else {
+    // truncation from reaching lim or from client request (zero)
+    var state = errstate || state0
+    if (opt.incremental) {
+      // return state-recovery information to the callback and to the caller of the tokenize() function
+      var end_info = { src: src, off: off, lim: lim, koff: koff, klim: klim, idx: idx, state: state, tok: tok, stack: stack }
+      cb(src, koff, klim, TOK.END, idx, idx, end_info)
+      return end_info
+    } else {
+      if (cbres !== 0) {
+        cbres = cb(src, koff, klim, 0, voff, idx, info_for_unfinished(koff, state, tok, stack))
+        if (idx >= lim && cbres !== 0) {
+          cb(src, -1, -1, TOK.END, lim, lim, null)
+        }
+      } // else, client requested stop without incremental info - don't report
+    }
   }
-
-  cb(src, -1, -1, TOK.END, idx, idx)        // END
 }
 
 // ascii tokens as well as special codes for number, error, begin and end.
