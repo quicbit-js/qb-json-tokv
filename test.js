@@ -100,14 +100,14 @@ test('tokenize', function (t) {
   )
 })
 
-test.only('tokenize - errors', function (t) {
+test('tokenize - errors', function (t) {
   t.tableAssert(
     [
       [ 'input',                    'cb_opt',                 'exp' ],
       [ '"ab',                       null,                    [ 'B@0', 'truncated string, at idx 3' ]  ],
       [ '{"a" : ',                   null,                    [ 'B@0', '{@0', 'K3@1:unfinished state, in object, before value, at idx 7' ] ],
       [ '{"a"',                      null,                    [ 'B@0', '{@0', 'K3@1:unfinished state, in object, after key, at idx 4' ] ],
-      [ '{"a" ',                     null,                    [ 'B@0', '{@0', 'K3@1:unfinished state, in object, after key, at idx 5' ]
+      [ '{"a" ',                     null,                    [ 'B@0', '{@0', 'K3@1:unfinished state, in object, after key, at idx 5' ] ],
       [ '"\\\\\\"',                  null,                    [ 'B@0', 'truncated string, at idx 5' ] ],
       [ '0*',                        null,                    [ 'B@0', 'N1@0', '!1@1 after value, tok: "*"', 'E@2' ]  ],
       [ '0{',                        null,                    [ 'B@0', 'N1@0', '!1@1 after value, tok: "{"', 'E@2' ]  ],
