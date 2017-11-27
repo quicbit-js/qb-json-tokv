@@ -98,7 +98,7 @@ test('tokenize', function (t) {
     function (input, off, lim) {
       var hector = t.hector()
       var cb = format_callback({log: hector})
-      jtok.tokenize(utf8.buffer(input), cb, {off:off, lim:lim })
+      jtok.tokenize(utf8.buffer(input), {off: off, lim: lim}, cb)
       return hector.arg(0)
     }
   )
@@ -136,7 +136,7 @@ test('tokenize - errors', function (t) {
       var hector = t.hector()
       cb_opt.log = hector
       var cb = format_callback(cb_opt)
-      jtok.tokenize(utf8.buffer(input), cb)
+      jtok.tokenize(utf8.buffer(input), null, cb)
       return hector.arg(0)
     }
   )
@@ -144,26 +144,21 @@ test('tokenize - errors', function (t) {
 
 var STATE = jtok.STATE
 
-var OBJ = STATE.CTX_OBJ
-var ARR = STATE.CTX_ARR
-var NONE = STATE.CTX_NONE
+var IN_OBJ = STATE.IN_OBJ
+var IN_ARR = STATE.IN_ARR
 var BEFORE = STATE.BEFORE
 var AFTER = STATE.AFTER
-var INSIDE = STATE.INSIDE
 var VAL = STATE.VAL
 var KEY = STATE.KEY
 var FIRST = STATE.FIRST
 
 test('state_to_str', function (t) {
   t.table_assert([
-    [ 'state',                        'exp' ],
-    [ null,                           'undefined' ],
-    [ OBJ | BEFORE | FIRST | KEY,     'in object, before first key' ],
-    [ OBJ | AFTER | VAL,              'in object, after value' ],
-    [ OBJ | INSIDE | FIRST | VAL,     'in object, inside first value' ],
-    [ ARR | INSIDE | FIRST | VAL,     'in array, inside first value' ],
-    [ NONE | BEFORE | VAL,            'before value' ],
-    [ 0,                              'value' ],
+    [ 'state',                    'exp' ],
+    [ null,                       'undefined' ],
+    [ IN_OBJ|BEFORE|FIRST|KEY,    'in object, before first key' ],
+    [        BEFORE|VAL,          'before value' ],
+    [ IN_OBJ|AFTER|VAL,           'in object, after value' ],
   ], function (state) {
     var ret = jtok.state_to_str(state)
     ret === jtok.state_to_obj(state).toString() || err('mismatched output')
@@ -173,30 +168,14 @@ test('state_to_str', function (t) {
 
 test('state_to_obj', function (t) {
   t.table_assert([
-    [ 'state',                            'exp' ],
-    [ null,                               {} ],
-    [ OBJ|BEFORE|FIRST|KEY,               { ctx: 'obj', pos: 'before', first: true, key: true } ],
-    [ OBJ|AFTER|VAL,                      { ctx: 'obj', pos: 'after', first: false, key: false } ],
-    [ OBJ|INSIDE|FIRST|VAL,               { ctx: 'obj', pos: 'inside', first: true, key: false }],
-    [ ARR|INSIDE|FIRST|VAL,               { ctx: 'arr', pos: 'inside', first: true, key: false } ],
-    [ NONE|BEFORE|VAL,                     { ctx: 'none', pos: 'before', first: false, key: false } ],
-    [ 0,                                  { ctx: 'undefined', pos: 'undefined', first: false, key: false } ],
+    [ 'state',                               'exp' ],
+    [ null,                                  {} ],
+    [ IN_OBJ|BEFORE|FIRST|KEY,               { ctx: 'obj', pos: 'before', first: true, key: true } ],
+    [ IN_OBJ|AFTER|VAL,                      { ctx: 'obj', pos: 'after', first: false, key: false } ],
+    [ IN_ARR|AFTER|FIRST|VAL,                { ctx: 'arr', pos: 'inside', first: true, key: false } ],
+    [        BEFORE|VAL,                     { ctx: 'none', pos: 'before', first: false, key: false } ],
   ], function (state) {
     return qbobj.select(jtok.state_to_obj(state), ['ctx', 'pos', 'first', 'key'])
-  })
-})
-
-test('restore', function (t) {
-  var o = 123
-  var a = 91
-  t.table_assert([
-    [ 'input',          'off',      'lim',  'state',          'stack', 'tok',      'exp' ],
-    [ '{"a": 3.3}',         4,      null,   OBJ|AFTER|KEY,    [o],      TOK.STR,   [ 'B@4', 'N3@6', '}@9', 'E@10' ] ],
-  ], function (input, off, lim, state, stack, tok) {
-    var hector = t.hector()
-    var cb = format_callback({log: hector})
-    jtok.tokenize(utf8.buffer(input), cb, {off: off, lim: lim, restore: {state: state, stack: stack, tok: tok}})
-    return hector.arg(0)
   })
 })
 
@@ -215,41 +194,58 @@ test('incremental state', function (t) {
     [ 'null',                 null ],
     [ ' 7E4 ',                null ],
     [ '',                     null ],
-    [ '"',                    { koff: -1, klim: -1, idx: 1,  state: NONE|INSIDE|FIRST|VAL, tok: 34,  stack: [] } ],
-    [ '"abc',                 { koff: -1, klim: -1, idx: 4,  state: NONE|INSIDE|FIRST|VAL, tok: 34,  stack: [] } ],
-    [ '"abc", ',              { koff: -1, klim: -1, idx: 7,  state: NONE|BEFORE|VAL,       tok: 32,  stack: [] } ],
-    [ '[',                    { koff: -1, klim: -1, idx: 1,  state: ARR|BEFORE|FIRST|VAL,  tok: 91,  stack: [ 91 ] } ],
-    [ '[ 83',                 { koff: -1, klim: -1, idx: 4,  state: ARR|INSIDE|FIRST|VAL,  tok: 78,  stack: [ 91 ] } ],
-    [ '[ 83 ',                { koff: -1, klim: -1, idx: 5,  state: ARR|AFTER|VAL,         tok: 32,  stack: [ 91 ] } ],
-    [ '[ 83,',                { koff: -1, klim: -1, idx: 5,  state: ARR|BEFORE|VAL,        tok: 44,  stack: [ 91 ] } ],
-    [ '[ 83, "',              { koff: -1, klim: -1, idx: 7,  state: ARR|INSIDE|VAL,        tok: 34,  stack: [ 91 ] } ],
-    [ '[ 83, "a"',            { koff: -1, klim: -1, idx: 9,  state: ARR|AFTER|VAL,         tok: 34,  stack: [ 91 ] } ],
-    [ '[ 83, "a",',           { koff: -1, klim: -1, idx: 10, state: ARR|BEFORE|VAL,        tok: 44,  stack: [ 91 ] } ],
-    [ '{',                    { koff: -1, klim: -1, idx: 1,  state: OBJ|BEFORE|FIRST|KEY,  tok: 123, stack: [ 123 ] } ],
-    [ '{ "',                  { koff: -1, klim: -1, idx: 3,  state: OBJ|INSIDE|FIRST|KEY,  tok: 34,  stack: [ 123 ] } ],
-    [ '{ "a',                 { koff: -1, klim: -1, idx: 4,  state: OBJ|INSIDE|FIRST|KEY,  tok: 34,  stack: [ 123 ] } ],
-    [ '{ "a"',                { koff:  2, klim:  5, idx: 5,  state: OBJ|AFTER|KEY,         tok: 34,  stack: [ 123 ] } ],
-    [ '{ "a":',               { koff:  2, klim:  5, idx: 6,  state: OBJ|BEFORE|VAL,        tok: 58,  stack: [ 123 ] } ],
-    [ '{ "a": 9',             { koff:  2, klim:  5, idx: 8,  state: OBJ|INSIDE|VAL,        tok: 78,  stack: [ 123 ] } ],
-    [ '{ "a": 9, ',           { koff: -1, klim: -1, idx: 10, state: OBJ|BEFORE|KEY,        tok: 32,  stack: [ 123 ] } ],
-    [ '{ "a": 9, "',          { koff: -1, klim: -1, idx: 11, state: OBJ|INSIDE|KEY,        tok: 34,  stack: [ 123 ] } ],
-    [ '{ "a": 9, "b"',        { koff: 10, klim: 13, idx: 13, state: OBJ|AFTER|KEY,         tok: 34,  stack: [ 123 ] } ],
-    [ '{ "a": 9, "b": ',      { koff: 10, klim: 13, idx: 15, state: OBJ|BEFORE|VAL,        tok: 32,  stack: [ 123 ] } ],
-    [ '{ "a": 9, "b": [',     { koff: -1, klim: -1, idx: 16, state: ARR|BEFORE|FIRST|VAL,  tok: 91,  stack: [ 123, 91 ] } ],
-    [ '{ "a": 9, "b": [ 4',   { koff: -1, klim: -1, idx: 18, state: ARR|INSIDE|FIRST|VAL,  tok: 78,  stack: [ 123, 91 ] } ],
+    [ '"abc", ',              { idx: 7,  state:        BEFORE|VAL,        stack: [] } ],
+    [ '[',                    { idx: 1,  state: IN_ARR|BEFORE|FIRST|VAL,  stack: [ 91 ] } ],
+    [ '[ 83 ',                { idx: 5,  state: IN_ARR|AFTER|VAL,         stack: [ 91 ] } ],
+    [ '[ 83,',                { idx: 5,  state: IN_ARR|BEFORE|VAL,        stack: [ 91 ] } ],
+    [ '[ 83, "a"',            { idx: 9,  state: IN_ARR|AFTER|VAL,         stack: [ 91 ] } ],
+    [ '[ 83, "a",',           { idx: 10, state: IN_ARR|BEFORE|VAL,        stack: [ 91 ] } ],
+    [ '{',                    { idx: 1,  state: IN_OBJ|BEFORE|FIRST|KEY,  stack: [ 123 ] } ],
+    [ '{ "a"',                { idx: 5,  state: IN_OBJ|AFTER|KEY,         stack: [ 123 ] } ],
+    [ '{ "a":',               { idx: 6,  state: IN_OBJ|BEFORE|VAL,        stack: [ 123 ] } ],
+    [ '{ "a": 9, ',           { idx: 10, state: IN_OBJ|BEFORE|KEY,        stack: [ 123 ] } ],
+    [ '{ "a": 9, "b"',        { idx: 13, state: IN_OBJ|AFTER|KEY,         stack: [ 123 ] } ],
+    [ '{ "a": 9, "b": ',      { idx: 15, state: IN_OBJ|BEFORE|VAL,        stack: [ 123 ] } ],
+    [ '{ "a": 9, "b": [',     { idx: 16, state: IN_ARR|BEFORE|FIRST|VAL,  stack: [ 123, 91 ] } ],
   ], function (input) {
     var src = utf8.buffer(input)
-    var ret = jtok.tokenize(src, function () {return true}, {incremental: true})
-    if (ret) {
-      ret.src === src || err('src not set')
-      ret.off === 0 || err('off not set')
-      ret.lim === src.length || err('lim not set')
-      console.log(jtok.state_to_str(ret.state))
-      delete ret.src
-      delete ret.off
-      delete ret.lim
-    }
-    return ret
+    return jtok.tokenize(src, {incremental: true}, function () {return true} )
+    // if (ret) {
+    //   console.log(jtok.state_to_str(ret.state))
+    // }
+  })
+})
+
+test('initial state', function (t) {
+  var o = 123
+  var a = 91
+  t.table_assert([
+    [ 'input',          'off',  'lim',  'src', 'state',                  'stack',  'exp' ],
+    [ ' "abc"',         0,      null,   null,  BEFORE|FIRST|VAL,    [],       [ 'B@0', 'S5@1', 'E@6' ] ],
+    [ ' "a',            0,      null,   null,  BEFORE|FIRST|VAL,    [],       [ 'B@0', '!2@1 inside first value, tok: """', 'E@3' ] ],
+    // [ '{"a": 3.3}',     4,      null,   OBJ|AFTER|KEY,    [o],      TOK.STR,   [ 'B@4', 'N3@6', '}@9', 'E@10' ] ],
+  ], function (input, off, lim, state, stack) {
+    var hector = t.hector()
+    var cb = format_callback({log: hector})
+    jtok.tokenize(utf8.buffer(input), { off: off, lim: lim, init: { state: state, stack: stack } }, cb)
+    return hector.arg(0)
+  })
+})
+
+test('incremental processing', function (t) {
+  t.table_assert([
+    [ 'inputs',                         'exp' ],
+    [ ['"ab',    'c"' ],                [] ],
+    // [ ['{ "a": ', '23 }']],
+  ], function (inputs) {
+    var opt = {incremental: 1, init: null}
+    var hector = t.hector()
+    var cb = format_callback({log: hector})
+    inputs.forEach(function (input) {
+      var src = utf8.buffer(input)
+      opt.init = jtok.tokenize(src, opt, cb)
+    })
+    return hector.arg(0)
   })
 })
 

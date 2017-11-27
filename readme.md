@@ -33,14 +33,24 @@ sense as a new package once done.  Very fast JSON parsing under a complete valid
 
 # API
 
-## tokenize (src, callback, opt)
+## tokenize (src, opt, callback)
   
 Tokenize the given source array or buffer, sending all results to the given callback function. (the
 process can be controlled/stopped via the function return value)
 
-    src        A UTF-8 encoded array containing ANY JSON value such as an object, quoted
+    src        A UTF-8 encoded buffer or array containing ANY JSON value such as an object, quoted
                string, array, or valid JSON number.  IOW, it doesn't have to be a {...} object.
+               The values may also be a comma-separated list such as  '"abc", 37, 42.8, "hi"'
                
+    opt
+        off         offset into src to start processing
+        lim         limit in src to stop processing
+        init        (object) if provided, parse state will be initialized to these values to continue parsing.
+            src         if a key or value was truncated, this will hold the truncated portion
+            state0      integer holding context, position, and type (key or value). the section below has examples
+            stack       array of '[' or '{' ascii codes (91 and 123) representing parse depth
+                    
+    
     callback   A function called for each token encountered.
     
         src         the buffer being parsed
@@ -72,15 +82,9 @@ process can be controlled/stopped via the function return value)
         info        (object) if tok === TOK.ERR or tok === TOK.END, then info holds details that can be 
                     used to recover or handle values split across buffers.
                      
-        return      truthy to continue processing, falsey to halt processing (returning a true boolean may be 
-                    slighty faster than other truthy values)
+        return      return truthy to continue processing, falsey to halt processing (returning a true boolean may be 
+                    slighty faster than other values)
                      
-    opt
-        off         offset into src to start parsing (default is 0)
-        lim         limit in src to stop parsing (default is src.length)             
-        state       (integer - to continue parsing at another point, you can provide a state
-        
-    for incremental parsing, you can pass the state object returned by the end callback into this argument.
 
 ## TOK
 
@@ -275,7 +279,7 @@ are considered a VALUES when describing position.
        {  name : "Samuel", tags : [ "Sam", "Sammy" ]   }
         
 
-There are 3 possible *positions*, **BEFORE**, **AFTER**, and **INSIDE**, that define parse position relative to a key 
+There are 2 possible *positions* **BEFORE**, and **AFTER**, that define parse position relative to a key 
 or value plus a **FIRST** indicator to indicate if it is the first item in a new context: 
 
     CTX_NONE|BEFORE|FIRST|VAL 
@@ -286,39 +290,39 @@ or value plus a **FIRST** indicator to indicate if it is the first item in a new
       |  |    |
       |  |    | CTX_OBJ|BEFORE|FIRST|VAL
       |  |    | |
-      |  |    | | CTX_OBJ|INSIDE|FIRST|VAL
-      |  |    | | |
-      |  |    | | |       CTX_OBJ|AFTER|FIRST|VAL
-      |  |    | | |       |
-      |  |    | | |       | CTX_OBJ|BEFORE|KEY         (notice it is no longer FIRST)
-      |  |    | | |       | |
-      |  |    | | |       | | CTX_OBJ|INSIDE|KEY
-      |  |    | | |       | | |
-      |  |    | | |       | | |  CTX_OBJ|AFTER|KEY
-      |  |    | | |       | | |  |
-      |  |    | | |       | | |  | CTX_OBJ|BEFORE|VAL
-      |  |    | | |       | | |  | |
-      |  |    | | |       | | |  | | CTX_ARR|BEFORE|FIRST|VAL
-      |  |    | | |       | | |  | | |
-      |  |    | | |       | | |  | | |  CTX_ARR|INSIDE|FIRST|VAL
-      |  |    | | |       | | |  | | |   |
-      |  |    | | |       | | |  | | |   | CTX_ARR|AFTER|FIRST|VAL
-      |  |    | | |       | | |  | | |   | |
-      |  |    | | |       | | |  | | |   | |CTX_ARR|BEFORE|VAL
-      |  |    | | |       | | |  | | |   | ||
-      |  |    | | |       | | |  | | |   | ||CTX_ARR|INSIDE|VAL
-      |  |    | | |       | | |  | | |   | |||  
-      |  |    | | |       | | |  | | |   | |||      CTX_ARR|AFTER|VAL
-      |  |    | | |       | | |  | | |   | |||      | 
-      |  |    | | |       | | |  | | |   | |||      | CTX_OBJ|AFTER|VAL
-      |  |    | | |       | | |  | | |   | |||      | |        CTX_NONE|AFTER|FIRST|VAL
-      |  |    | | |       | | |  | | |   | |||      | |        |
-      |  |    | | |       | | |  | | |   | |||      | |        | CTX_NONE|BEFORE|VAL
-      |  |    | | |       | | |  | | |   | |||      | |        | |
-      |  |    | | |       | | |  | | |   | |||      | |        | | CTX_NONE|INSIDE|VAL
-      |  |    | | |       | | |  | | |   | |||      | |        | | |
-      |  |    | | |       | | |  | | |   | |||      | |        | | |              CTX_NONE|AFTER|VAL
-      |  |    | | |       | | |  | | |   | |||      | |        | | |              |
+      |  |    | | 
+      |  |    | |  
+      |  |    | |         CTX_OBJ|AFTER|FIRST|VAL
+      |  |    | |         |
+      |  |    | |         | CTX_OBJ|BEFORE|KEY         (notice it is no longer FIRST)
+      |  |    | |         | |
+      |  |    | |         | | 
+      |  |    | |         | |  
+      |  |    | |         | |    CTX_OBJ|AFTER|KEY
+      |  |    | |         | |    |
+      |  |    | |         | |    | CTX_OBJ|BEFORE|VAL
+      |  |    | |         | |    | |
+      |  |    | |         | |    | | CTX_ARR|BEFORE|FIRST|VAL
+      |  |    | |         | |    | | |
+      |  |    | |         | |    | | |  
+      |  |    | |         | |    | | |    
+      |  |    | |         | |    | | |     CTX_ARR|AFTER|FIRST|VAL
+      |  |    | |         | |    | | |     |
+      |  |    | |         | |    | | |     |CTX_ARR|BEFORE|VAL
+      |  |    | |         | |    | | |     ||
+      |  |    | |         | |    | | |     ||
+      |  |    | |         | |    | | |     ||   
+      |  |    | |         | |    | | |     ||       CTX_ARR|AFTER|VAL
+      |  |    | |         | |    | | |     ||       | 
+      |  |    | |         | |    | | |     ||       | CTX_OBJ|AFTER|VAL
+      |  |    | |         | |    | | |     ||       | |        CTX_NONE|AFTER|FIRST|VAL
+      |  |    | |         | |    | | |     ||       | |        |
+      |  |    | |         | |    | | |     ||       | |        | CTX_NONE|BEFORE|VAL
+      |  |    | |         | |    | | |     ||       | |        | |
+      |  |    | |         | |    | | |     ||       | |        | | 
+      |  |    | |         | |    | | |     ||       | |        | |  
+      |  |    | |         | |    | | |     ||       | |        | |                CTX_NONE|AFTER|VAL
+      |  |    | |         | |    | | |     ||       | |        | |                |
        {  name :  "Samuel" , tags : [ "Sam", "Sammy" ]        } ,  "another value"
     
 
