@@ -16,13 +16,7 @@
 
 function state_to_str (state) {
   if (state == null) { return 'undefined' }
-  var ctx = ''
-  switch (state & CTX_MASK) {
-    case IN_OBJ: ctx = 'in object'; break
-    case IN_ARR: ctx = 'in array'; break
-    // case none
-  }
-
+  var ctx = (state & IN_ARR) ? 'in array' : (state & IN_OBJ) ? 'in object' : ''
   var pos = []
   pos.push((state & AFTER) ? 'after' : 'before')
   if (state & FIRST) { pos.push('first') }
@@ -41,18 +35,12 @@ State.prototype = {
     switch (this.state & CTX_MASK) {
       case IN_OBJ: return 'obj'
       case IN_ARR: return 'arr'
-      case CTX_NONE: return 'none'
-      default: return 'undefined'
+      default: return 'none'
     }
   },
   get pos () {
     if (this.state == null) { return null }
-    switch (this.state & POS_MASK) {
-      case BEFORE: return 'before'
-      case AFTER: return 'after'
-      case INSIDE: return 'inside'
-      default: return 'undefined'
-    }
+    return (this.state & AFTER) ? 'after' : 'before'
   },
   get first () {
     if (this.state == null) { return null }
@@ -60,7 +48,7 @@ State.prototype = {
   },
   get key () {
     if (this.state == null) { return null }
-    return !!(this.state & KEY)
+    return !(this.state & VAL)
   },
   toString: function () {
     return state_to_str(this.state)
@@ -68,15 +56,17 @@ State.prototype = {
 }
 
 // STATES   - LSB is reserved for token ascii value.  see readme
-var IN_ARR =  0x1000
-var IN_OBJ =  0x0800
-
-var BEFORE =  0x0000    // just for readability CTX_OBJ|BEFORE|FIRST|KEY, etc...
-var AFTER =   0x0400
-var FIRST =   0x0200    // is first value in an object or array
-
-var KEY =     0x0000    // not necessary, but easier to read: BEFORE|FIRST|VAL, AFTER|FIRST|KEY, etc.
-var VAL =     0x0100
+var CTX_MASK = 0x1800
+var IN_ARR =   0x1000
+var IN_OBJ =   0x0800
+               
+var BEFORE =   0x0000    // just for readability CTX_OBJ|BEFORE|FIRST|KEY, etc...
+var AFTER =    0x0400
+               
+var FIRST =    0x0200    // is first value in an object or array
+               
+var KEY =      0x0000    // not necessary, but easier to read: BEFORE|FIRST|VAL, AFTER|FIRST|KEY, etc.
+var VAL =      0x0100
 
 // create an int-int map from (state + tok) -- to --> (new state)
 function state_map () {
@@ -213,15 +203,11 @@ function restore (src, opt, cb) {
   return ret
 }
 
-var TRUNC_ERR = 1     // truncation error.  src limit reached before multi-byte value could be finished.
-
 function tokenize (src, opt, cb) {
   // localized constants for faster access
   var states = STATE_MAP
   var in_arr = IN_ARR
   var in_obj = IN_OBJ
-  var before = BEFORE
-  var key = KEY
   var whitespace = WHITESPACE
   var all_num_chars = ALL_NUM_CHARS
 
@@ -263,6 +249,7 @@ function tokenize (src, opt, cb) {
       case 58:                                  // :    COLON
         state1 = states[state0|tok]
         if (state1 === 0) { break main_loop }
+        idx++
         state0 = state1
         continue
 
@@ -274,7 +261,7 @@ function tokenize (src, opt, cb) {
         idx++    // skip quote
 
         // key
-        if ((state0 & (pos_mask|key)) === (before|key)) {
+        if ((state0 & 0x500) === 0) {     // (before|key) === 0
           koff = voff
           klim = idx
           state0 = state1
@@ -304,6 +291,7 @@ function tokenize (src, opt, cb) {
         state1 = states[state0|tok]
         if (state1 === 0) { break main_loop }
         stack.pop()
+        idx++
         // state1 context is unset after closing brace (see state map).  we set it here.
         if (stack.length !== 0) { state1 |= (stack[stack.length - 1] === 91 ? in_arr : in_obj)}
         break
@@ -356,11 +344,11 @@ function tokenize (src, opt, cb) {
     ret.state = state1
     // info.tok has token that was used to transition into this state
 
-    if (state0 !== (CTX_NONE|BEFORE|FIRST|VAL) && state0 !== (CTX_NONE|AFTER|VAL)) {
+    if (state0 !== (BEFORE|FIRST|VAL) && state0 !== (AFTER|VAL)) {
       // parsing ok, but incomplete (in object or array, trailing comma...)
       if (cb_continue) {
         ret.msg = 'unexpected end ' + state_to_str(state0)
-        cb(src, koff, klim, opt.incremental ? TOK.END : TOK.ERR, voff, idx, ret)
+        cb(src, koff, klim, opt.incremental ? TOK.END : TOK.ERR, idx, idx, ret)
       } else {
         ret.msg = 'client requested stop'
         // no callback
@@ -368,6 +356,7 @@ function tokenize (src, opt, cb) {
     } else {
       // clean finish
       idx === lim || err('internal error - expected to reach src limit')
+      cb(src, koff, klim, TOK.END, lim, lim, null)
       ret = null
     }
   }
