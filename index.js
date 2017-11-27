@@ -14,47 +14,6 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-function state_to_str (state) {
-  if (state == null) { return 'undefined' }
-  var ctx = (state & IN_ARR) ? 'in array' : (state & IN_OBJ) ? 'in object' : ''
-  var pos = []
-  pos.push((state & AFTER) ? 'after' : 'before')
-  if (state & FIRST) { pos.push('first') }
-  pos.push((state & VAL) ? 'value' : 'key')
-  var ret = pos.join(' ')
-  return ctx ? ctx + ', ' + ret : ret
-}
-
-function State (s) {
-  this.state = s
-}
-State.prototype = {
-  constructor: State,
-  get ctx () {
-    if (this.state == null) { return null }
-    switch (this.state & CTX_MASK) {
-      case IN_OBJ: return 'obj'
-      case IN_ARR: return 'arr'
-      default: return 'none'
-    }
-  },
-  get pos () {
-    if (this.state == null) { return null }
-    return (this.state & AFTER) ? 'after' : 'before'
-  },
-  get first () {
-    if (this.state == null) { return null }
-    return !!(this.state & FIRST)
-  },
-  get key () {
-    if (this.state == null) { return null }
-    return !(this.state & VAL)
-  },
-  toString: function () {
-    return state_to_str(this.state)
-  }
-}
-
 // STATES   - LSB is reserved for token ascii value.  see readme
 var CTX_MASK = 0x1800
 var IN_ARR =   0x1000
@@ -325,43 +284,88 @@ function tokenize (src, opt, cb) {
   }  // end main_loop: while(idx < lim) {...
 
   // same return info is returned (and passed to callbacks) in most of these cases (with different msg and state filled in)
-  var ret = { msg: null, src: src, idx: idx, lim: lim, state: 0, tok: tok, stack: stack }
+  var new_info = function (state, err) {
+    return new Info(src, idx, lim, state, tok, stack, err)
+  }
+  var info = null
 
   if (state1 === 0) {
     // transition error
-    var tokstr = (tok > 31 && tok < 127 && tok !== 34) ? '"' + String.fromCharCode(tok) + '"' : String(tok)
-    ret.msg = 'unexpected character, ' + state_to_str(state0) + ', tok: ' + tokstr
-    ret.state = state0
-    cb(src, koff, klim, TOK.ERR, voff, idx, ret)
+    info = new_info(state0, ERR.UNEXPECTED)
+    // info.tok has the unexpected byte
+    cb(src, koff, klim, TOK.ERR, voff, idx, info)
   } else if (state1 !== state0) {
     // truncation error
-    ret.msg = 'truncated ' + (koff === -1 ? (tok === TOK.NUM ? 'number' : 'string') : 'key')
-    ret.state = state1
-    // info.tok indicates to token that failed to finish
-    cb(src, koff, klim, opt.incremental ? TOK.END : TOK.ERR, voff, idx, ret)
+    info = new_info(state1, ERR.TRUNCATED)
+    // info.tok has the token for the value failed to finish (string, number...)
+    cb(src, koff, klim, opt.incremental ? TOK.END : TOK.ERR, voff, idx, info)
   } else {
     // state1 === state0     transition / parsing is OK.
-    ret.state = state1
     // info.tok has token that was used to transition into this state
 
     if (state0 !== (BEFORE|FIRST|VAL) && state0 !== (AFTER|VAL)) {
-      // parsing ok, but incomplete (in object or array, trailing comma...)
+      // parsing ok, but not finished (in object or array, trailing comma...)
       if (cb_continue) {
-        ret.msg = 'unexpected end ' + state_to_str(state0)
-        cb(src, koff, klim, opt.incremental ? TOK.END : TOK.ERR, idx, idx, ret)
+        info = new_info(state0, ERR.UNFINISHED)
+        cb(src, koff, klim, opt.incremental ? TOK.END : TOK.ERR, idx, idx, info)
       } else {
-        ret.msg = 'client requested stop'
+        info = new_info(state0, ERR.NONE)
         // no callback
       }
     } else {
       // clean finish
       idx === lim || err('internal error - expected to reach src limit')
       cb(src, koff, klim, TOK.END, lim, lim, null)
-      ret = null
     }
   }
 
-  return ret
+  return info
+}
+
+function Info (src, idx, lim, state, tok, stack, err) {
+  this.src = src
+  this.idx = idx
+  this.lim = lim
+  this.state = state
+  this.tok = tok
+  this.stack = stack
+  this.err = err
+}
+Info.prototype = {
+  constructor: Info,
+  state_str: function () {
+    var state = this.state
+    var err = this.err
+    if (state == null) { return 'undefined' }
+    var ctx = (state & IN_ARR) ? 'in array' : (state & IN_OBJ) ? 'in object' : ''
+    var pos = []
+    pos.push(err === ERR.TRUNCATED ? 'inside' : (state & AFTER) ? 'after' : 'before')
+    if (state & FIRST) { pos.push('first') }
+    pos.push((state & VAL) ? 'value' : 'key')
+    var ret = pos.join(' ')
+    return ctx ? ctx + ', ' + ret : ret
+  },
+  toString: function () {
+    var idx = this.idx
+    var tok = this.tok
+    var state = this.state
+    var ret
+    switch (this.err) {
+      case ERR.TRUNCATED:
+        ret = 'truncated ' + ((state & VAL) ? (tok === TOK.NUM ? 'number' : 'string') : 'key')
+        break
+      case ERR.UNEXPECTED:
+        ret = 'unexpected byte ' + String(tok) + ', ' + this.state_str()
+        break
+      case ERR.UNFINISHED:
+        ret = 'unfinished state, ' + this.state_str()
+        break
+      default:
+        ret = this.state_str()
+    }
+    // var tokstr = (tok > 31 && tok < 127 && tok !== 34) ? '"' + String.fromCharCode(tok) + '"' : String(tok)
+    return ret + ', at idx ' + idx
+  }
 }
 
 function err (msg ) { throw Error(msg) }
@@ -385,6 +389,13 @@ var TOK = {
   END: 69,        // 'E' - end -   buffer limit reached
 }
 
+var ERR = {
+  NONE: 0,
+  UNEXPECTED: 1,
+  UNFINISHED: 2,
+  TRUNCATED: 3,
+}
+
 var STATE = {
   IN_OBJ:      IN_OBJ,
   IN_ARR:      IN_ARR,
@@ -400,8 +411,6 @@ var STATE = {
 
 module.exports = {
   tokenize: tokenize,
-  state_to_str: state_to_str,
-  state_to_obj: function (state) { return new State(state) },
   TOK: TOK,
   STATE: STATE,
 }
