@@ -269,6 +269,7 @@ function tokenize (src, opt, cb) {
         break
 
       default:
+        state1 = 0          // no legal transition for this token
         break main_loop
     }
 
