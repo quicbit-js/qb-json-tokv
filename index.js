@@ -424,16 +424,21 @@ function Info (src, lim, koff, klim, tok, voff, idx, state, stack, err) {
 Info.prototype = {
   constructor: Info,
   state_str: function () {
+    if (this.state == null) {
+      return 'undefined'
+    }
+    var ctx = this.context()
+    if (ctx) { ctx += ', '}
+    return ctx + this.position()
+  },
+  context: function () {
+    return (this.state & STATE.IN_ARR) ? 'in array' : (this.state & STATE.IN_OBJ) ? 'in object' : ''
+  },
+  position: function() {
     var state = this.state
-    var err = this.err
-    if (state == null) { return 'undefined' }
-    var ctx = (state & STATE.IN_ARR) ? 'in array' : (state & STATE.IN_OBJ) ? 'in object' : ''
-    var pos = []
-    pos.push(err === ERR.TRUNCATED_TOK ? 'inside' : (state & AFTER) ? 'after' : 'before')
-    if (state & FIRST) { pos.push('first') }
-    pos.push((state & VAL) ? 'value' : 'key')
-    var ret = pos.join(' ')
-    return ctx ? ctx + ', ' + ret : ret
+    return (err === ERR.TRUNCATED_TOK ? 'inside' : (state & AFTER) ? 'after' : 'before') + ' ' +
+      ((state & FIRST) ? 'first ' : '') +
+      ((state & VAL) ? 'value' : 'key')
   },
   toString: function () {
     var tok = this.tok
