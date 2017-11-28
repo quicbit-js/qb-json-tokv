@@ -51,7 +51,7 @@ var TOK = {
 }
 
 var ERR = {
-  UNEXPECTED_TOK: -1,       // Same as state === 0. token is valid, but not expected
+  UNEXPECTED_VAL: -1,       // Same as state === 0. token is valid, but not expected
   UNEXPECTED_BYTE: -2,      // encountered invalid byte - not a token or legal number value
   TRUNCATED_VAL: -3,        // a multi-byte value (string, number, true, false, null, object-key) doesn't complete
   TRUNCATED_SRC: -4,        // src is valid, but does not complete (still in object, in array, or trailing comma, ...)
@@ -61,7 +61,7 @@ var ERR = {
 // create an int-int map from (state + tok) -- to --> (new state)
 function state_map () {
   var ret = []
-  var max = 0x18FF      // accommodate all possible byte values
+  var max = 0x1AFF      // accommodate all possible byte values
   for (var i=0; i <= max; i++) {
     ret[i] = 0
   }
@@ -358,12 +358,14 @@ function tokenize (src, opt, cb) {
     // error states
     //
     case 0:
+      var sep_chars = ascii_to_code('{[]},:"', 1)
       var is_separate =
         voff === (opt.off || 0) ||
-        ascii_to_code('{[]},:', 1)[tok] ||
-        ascii_to_code('\'\\n\\t\\r \'{[]},:"', 1)[src[voff-1]]
+          sep_chars[tok] ||
+          sep_chars[src[voff-1]] ||
+          WHITESPACE[src[voff-1]]
 
-      info = new_info(state0, is_separate ? ERR.UNEXPECTED_TOK : ERR.UNEXPECTED_BYTE)
+      info = new_info(state0, is_separate ? ERR.UNEXPECTED_VAL : ERR.UNEXPECTED_BYTE)
       cb(src, koff, klim, TOK.ERR, voff, idx, info)
       break
 
@@ -453,6 +455,13 @@ Info.prototype = {
       default: return false
     }
   },
+  tok_type: function () {
+      switch (this.tok) {
+        case TOK.NUM: return 'number'
+        case TOK.STR: return 'string'
+        default: return 'token'
+      }
+  },
   position: function () {
     // can't just map state to strings - need to take this.err into account for 'inside' case.
     return this.rposition() + ' ' + (this.first() ? 'first ' : '') + (this.key() ? 'key' : 'value')
@@ -462,7 +471,6 @@ Info.prototype = {
     var src = this.src
     var idx = this.idx
     var voff = this.voff
-    var state = this.state
 
     var from = voff
     var thru = idx - 1
@@ -471,11 +479,11 @@ Info.prototype = {
       case ERR.TRUNCATED_VAL:
         ret = 'truncated ' + (this.key() ? 'key' : 'value')
         break
-      case ERR.UNEXPECTED_TOK:
-        ret = 'unexpected token "' + srcstr(src, voff, idx) + '", ' + this.state_str()
+      case ERR.UNEXPECTED_VAL:
+        ret = 'unexpected ' + this.tok_type() + ' ' + srcstr(src, voff, idx, tok) + ', ' + this.state_str()
         break
       case ERR.UNEXPECTED_BYTE:
-        ret = 'unexpected byte "' + srcstr([tok], 0, 1) + '", ' + this.state_str()
+        ret = 'unexpected byte ' + srcstr([tok], 0, 1, tok) + ', ' + this.state_str()
         from = this.idx - 1
         break
       case ERR.TRUNCATED_SRC:
@@ -491,13 +499,13 @@ Info.prototype = {
   }
 }
 
-function srcstr (src, off, lim) {
+function srcstr (src, off, lim, tok) {
   var ret = ''
   for (var i=off; i<lim; i++) {
     var b = src[i]
     ret += (b > 31 && b < 127) ? String.fromCharCode(b) : '0x' + b.toString(16)
   }
-  return ret
+  return (tok === TOK.STR || tok === TOK.NUM) ? ret : '"' + ret + '"'
 }
 
 function err (msg ) { throw Error(msg) }
