@@ -15,10 +15,6 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 // STATES   - LSB is reserved for token ascii value.  see readme
-var AFTER =    0x1000
-var FIRST =    0x0800    // is first value in an object or array
-var VAL =      0x0400
-
 var STATE = {
   IN_ARR:           0x0100,
   IN_OBJ:           0x0200,
@@ -164,6 +160,7 @@ function skip_str (src, off, lim) {
   return -1
 }
 
+/*
 function concat (src1, off1, lim1, src2, off2, lim2) {
   var len1 = lim1 - off1
   var len2 = lim2 - off2
@@ -192,7 +189,7 @@ function restore_truncated (src, init, ret, cb) {
 
   }
 }
-
+*/
 function restore (src, opt, cb) {
   var ret = {}
   var init = opt.init || {}
@@ -260,8 +257,8 @@ function tokenize (src, opt, cb) {
       case 44:                                  // ,    COMMA
       case 58:                                  // :    COLON
         state1 = states[state0|tok]
-        if (state1 === 0) { break main_loop }
         idx++
+        if (state1 === 0) { break main_loop }
         state0 = state1
         continue
 
@@ -277,7 +274,6 @@ function tokenize (src, opt, cb) {
             if (state1 !== 0) { state0 = state1; state1 = ERR.TRUNCATED_TOK }
             // else is transition error (state1 = 0)
           } else {
-            idx++   // include the bad byte in the selection (voff to idx)
             state1 = ERR.BAD_TOK
           }
           break main_loop
@@ -367,7 +363,12 @@ function tokenize (src, opt, cb) {
     // error states
     //
     case 0:
-      info = new_info(state0, ERR.UNEXPECTED_TOK)
+      var is_separate =
+        voff === (opt.off || 0) ||
+        ascii_to_code('{[]},:', 1)[tok] ||
+        ascii_to_code('\'\\n\\t\\r \'{[]},:"', 1)[src[voff-1]]
+
+      info = new_info(state0, is_separate ? ERR.UNEXPECTED_TOK : ERR.UNEXPECTED_BYTE)
       cb(src, koff, klim, TOK.ERR, voff, idx, info)
       break
 
@@ -478,16 +479,16 @@ Info.prototype = {
     var ret
     switch (this.err) {
       case ERR.BAD_TOK:
-        ret = 'bad token ' + srcstr(src, voff, idx)
+        ret = 'bad token "' + srcstr(src, voff, idx) + '"'
         break
       case ERR.TRUNCATED_TOK:
         ret = 'truncated ' + (this.key() ? 'key' : (tok === TOK.NUM ? 'number' : 'string'))
         break
       case ERR.UNEXPECTED_TOK:
-        ret = 'unexpected token ' + srcstr(src, voff, idx) + ', ' + this.state_str()
+        ret = 'unexpected token "' + srcstr(src, voff, idx) + '", ' + this.state_str()
         break
       case ERR.UNEXPECTED_BYTE:
-        ret = 'unexpected byte ' + String(tok) + ', ' + this.state_str()
+        ret = 'unexpected byte "' + srcstr([tok], 0, 1) + '", ' + this.state_str()
         from = this.idx - 1
         break
       case ERR.TRUNCATED_SRC:

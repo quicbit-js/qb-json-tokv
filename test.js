@@ -44,11 +44,11 @@ test('tokenize', function (t) {
       [ '-3.05',           1,       null,          [ 'B@1', 'N4@1', 'E@5' ]                          ],
       [ '  true',          0,       null,          [ 'B@0', 't@2', 'E@6' ]                           ],
       [ ' false  ',        0,       null,          [ 'B@0', 'f@1', 'E@8' ]                           ],
-      [ ' false  ',        1,       null,          [ 'B@1', 'f@1', 'E@8' ]                           ],
+      [ ' false   ',       1,       null,          [ 'B@1', 'f@1', 'E@9' ]                           ],
       [ '[3.05E-2]',       0,       null,          [ 'B@0', '[@0', 'N7@1', ']@8', 'E@9' ]            ],
       [ '[3.05E-2]',       4,       5,             [ 'B@4', 'N1@4', 'E@5' ]            ],
       [ '{"a":1}',         0,       null,          [ 'B@0', '{@0', 'K3@1:N1@5', '}@6', 'E@7' ]         ],
-      [ '{"a" :1}',        0,       null,          [ 'B@0', '{@0', 'K3@1:N1@6', '}@7', 'E@8' ]         ],
+      [ '{"a"  :1}',       0,       null,          [ 'B@0', '{@0', 'K3@1:N1@7', '}@8', 'E@9' ]         ],
       [ '{ "a" : 1 }',     0,       null,          [ 'B@0', '{@0', 'K3@2:N1@8', '}@10', 'E@11' ]     ],
       [ '"\\""',           0,       null,          [ 'B@0', 'S4@0', 'E@4' ]                          ],
       [ '"\\\\"',          0,       null,          [ 'B@0', 'S4@0', 'E@4' ]                          ],
@@ -75,18 +75,32 @@ test('tokenize - errors', function (t) {
   t.tableAssert(
     [
       [ 'input',            'exp' ],
-      [ '0{',               [ 'B@0', 'N1@0', '!1@1: unexpected token {, after value, at 1' ] ],
-      [ '0*',               [ 'B@0', 'N1@0', '!1@1: unexpected byte 42, after value, at 1' ] ],
+      // unexpected bytes
+      [ '0*',               [ 'B@0', 'N1@0', '!1@1: unexpected byte "*", after value, at 1' ] ],
+      [ '{"a":3^6}',        [ 'B@0', '{@0', 'K3@1:N1@5', '!1@6: unexpected byte "^", in object, after value, at 6' ] ],
+      [ ' 1f',              [ 'B@0', 'N1@1', '!1@2: unexpected byte "f", after value, at 2' ] ],
+      [ '1,2n',             [ 'B@0', 'N1@0', 'N1@2', '!1@3: unexpected byte "n", after value, at 3' ] ],
+
+      // unexpected tokens
+      [ '{"a"::',           [ 'B@0', '{@0', 'K3@1:!1@5: unexpected token ":", in object, before value, at 5' ] ],
+      [ '0{',               [ 'B@0', 'N1@0', '!1@1: unexpected token "{", after value, at 1' ] ],
+      [ '{ false:',         [ 'B@0', '{@0', '!5@2: unexpected token "false", in object, before first key, at 2..6' ] ],
+      // a token truncated by limit is treated optimistically
+      [ '{ fal',            [ 'B@0', '{@0', '!3@2: unexpected token "fal", in object, before first key, at 2..4' ] ],
+
+      // bad tokens
+      [ '{ fal:',           [ 'B@0', '{@0', '!3@2: bad token "fal", at 2..4' ] ],
+
+      // truncated values
       [ '"ab',              [ 'B@0', '!3@0: truncated string, at 0..2' ] ],
+      [ '"\\\\\\"',         [ 'B@0', '!5@0: truncated string, at 0..4' ] ],
+      [ '[3.05E-2',         [ 'B@0', '[@0', '!7@1: truncated number, at 1..7' ] ],
+      [ '[3.05E-2,4.',      [ 'B@0', '[@0', 'N7@1', '!2@9: truncated number, at 9..10' ] ],
+
+      // truncated input (not an error in incremental mode)
       [ '{"a" : ',          [ 'B@0', '{@0', 'K3@1:!0@7: truncated input, in object, before value, at 7' ] ],
       [ '{"a"',             [ 'B@0', '{@0', 'K3@1:!0@4: truncated input, in object, after key, at 4' ] ],
       [ '{"a" ',            [ 'B@0', '{@0', 'K3@1:!0@5: truncated input, in object, after key, at 5' ] ],
-      [ '"\\\\\\"',         [ 'B@0', '!5@0: truncated string, at 0..4' ] ],
-      [ ' 1f',              [ 'B@0', 'N1@1', '!1@2: unexpected token f, after value, at 2' ] ],
-      [ '1,2n',             [ 'B@0', 'N1@0', 'N1@2', '!1@3: unexpected token n, after value, at 3' ] ],
-      [ '[3.05E-2',         [ 'B@0', '[@0', '!7@1: truncated number, at 1..7' ] ],
-      [ '[3.05E-2,4.',      [ 'B@0', '[@0', 'N7@1', '!2@9: truncated number, at 9..10' ] ],
-      [ '{"a":3^6}',        [ 'B@0', '{@0', 'K3@1:N1@5', '!1@6: unexpected byte 94, in object, after value, at 6' ] ],
     ],
     function (input) {
       var hector = t.hector()
