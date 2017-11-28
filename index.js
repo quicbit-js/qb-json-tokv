@@ -20,8 +20,10 @@ var FIRST =    0x0200    // is first value in an object or array
 var VAL =      0x0100
 
 var STATE = {
-  IN_OBJ: 0x8000,
+  IN_OBJ: 0x0800,
   IN_ARR: 0x1000,
+
+  POS_MASK: 0x0700,
   BEFORE_FIRST_VAL: FIRST|VAL,
   BEFORE_FIRST_KEY: FIRST,
   BEFORE_VAL: VAL,
@@ -428,17 +430,33 @@ Info.prototype = {
       return 'undefined'
     }
     var ctx = this.context()
-    if (ctx) { ctx += ', '}
-    return ctx + this.position()
+    return (ctx ? 'in ' + ctx + ', ' : '') + this.position()
   },
   context: function () {
-    return (this.state & STATE.IN_ARR) ? 'in array' : (this.state & STATE.IN_OBJ) ? 'in object' : ''
+    return (this.state & STATE.IN_ARR) ? 'array' : (this.state & STATE.IN_OBJ) ? 'object' : null
+  },
+  rposition: function () {
+    if (this.err === ERR.TRUNCATED_TOK) { return 'inside' }
+    switch (this.state & STATE.POS_MASK) {
+      case STATE.AFTER_KEY: case STATE.AFTER_VAL: return 'after'
+      default: return 'before'
+    }
+  },
+  first: function () {
+    switch (this.state & STATE.POS_MASK) {
+      case STATE.BEFORE_FIRST_KEY: case STATE.BEFORE_FIRST_VAL: return true
+      default: return false
+    }
+  },
+  key: function () {
+    switch (this.state & STATE.POS_MASK) {
+      case STATE.BEFORE_FIRST_KEY: case STATE.BEFORE_KEY: case STATE.AFTER_KEY: return true
+      default: return false
+    }
   },
   position: function() {
-    var state = this.state
-    return (err === ERR.TRUNCATED_TOK ? 'inside' : (state & AFTER) ? 'after' : 'before') + ' ' +
-      ((state & FIRST) ? 'first ' : '') +
-      ((state & VAL) ? 'value' : 'key')
+    // can't just map state to strings - need to take this.err into account for 'inside' case.
+    return this.rposition() + ' ' + (this.first() ? 'first ' : '') + (this.key() ? 'key' : 'value')
   },
   toString: function () {
     var tok = this.tok
