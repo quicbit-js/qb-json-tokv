@@ -20,14 +20,14 @@ var FIRST =    0x0200    // is first value in an object or array
 var VAL =      0x0100
 
 var STATE = {
-  IN_OBJ: 0x0800,
   IN_ARR: 0x1000,
+  IN_OBJ: 0x0800,
 
   POS_MASK: 0x0700,
   BEFORE_FIRST_VAL: FIRST|VAL,
   BEFORE_FIRST_KEY: FIRST,
   BEFORE_VAL: VAL,
-  BEFORE_KEY: 0,
+  BEFORE_KEY: 0,                  // key states can be zero because they always occurs with IN_OBJ context (which is non-zero)
   AFTER_VAL: AFTER|VAL,
   AFTER_KEY: AFTER,
 }
@@ -294,7 +294,7 @@ function tokenize (src, opt, cb) {
         if (state1 === 0) { break main_loop }
 
         // key
-        if ((state0 & 0x500) === 0) {     // (before|key) === 0
+        if ((state1 & STATE.POS_MASK) === STATE.AFTER_KEY) {
           koff = voff
           klim = idx
           state0 = state1
@@ -473,7 +473,7 @@ Info.prototype = {
         ret = 'bad token ' + srcstr(src, voff, idx)
         break
       case ERR.TRUNCATED_TOK:
-        ret = 'truncated ' + ((state & VAL) ? (tok === TOK.NUM ? 'number' : 'string') : 'key')
+        ret = 'truncated ' + (this.key() ? 'key' : (tok === TOK.NUM ? 'number' : 'string'))
         break
       case ERR.UNEXPECTED_TOK:
         ret = 'unexpected token ' + srcstr(src, voff, idx) + ', ' + this.state_str()
