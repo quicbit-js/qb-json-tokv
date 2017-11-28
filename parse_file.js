@@ -22,7 +22,7 @@ TokTransform.prototype = {
     constructor: TokTransform,
     _transform: function (src, enc, cb) {
         if (src && src.length) {
-            jtok.tokenize(src, this.tokcb)
+            jtok.tokenize(src, null, this.tokcb)
             this.state.bytes += src.length
             cb()
         }
