@@ -20,17 +20,19 @@ var FIRST =    0x0800    // is first value in an object or array
 var VAL =      0x0400
 
 var STATE = {
-  IN_ARR: 0x0100,
-  IN_OBJ: 0x0200,
+  IN_ARR:           0x0100,
+  IN_OBJ:           0x0200,
+  // 0x0 means no context
 
-  POS_MASK: 0x1C00,
-  BEFORE_FIRST_KEY: FIRST,
-  BEFORE_KEY: 0,                  // key states can be zero because they always occur IN_OBJ context (which is non-zero)
-  BEFORE_FIRST_VAL: FIRST|VAL,
-  BEFORE_VAL: VAL,
+  // use bits 9,10,11 for the six possible positions (sqeeze max value down to 0x18FF)
+  POS_MASK:         0x1C00,
 
-  AFTER_VAL: AFTER|VAL,
-  AFTER_KEY: AFTER,
+  BEFORE_FIRST_KEY: 0x0400,
+  BEFORE_KEY:       0x0800,   // key states can be zero because they always occur IN_OBJ context (which is non-zero)
+  BEFORE_FIRST_VAL: 0x0C00,
+  BEFORE_VAL:       0x1000,
+  AFTER_VAL:        0x1400,
+  AFTER_KEY:        0x1800,
 }
 
 // ascii tokens as well as special codes for number, error, begin and end.
@@ -64,7 +66,7 @@ var ERR = {
 // create an int-int map from (state + tok) -- to --> (new state)
 function state_map () {
   var ret = []
-  var max = 0x01FFF      // accommodate all possible byte values
+  var max = 0x18FF      // accommodate all possible byte values
   for (var i=0; i <= max; i++) {
     ret[i] = 0
   }
@@ -88,26 +90,27 @@ function state_map () {
   var a_k = STATE.AFTER_KEY
   var arr = STATE.IN_ARR
   var obj = STATE.IN_OBJ
+  var non = 0
 
   var val = '"ntf-0123456789' // all legal value starts (ascii)
 
   // 0 = no context (comma separated values)
-  // (s0 ctxs +    s0 positions + tokens) -> s1
-  map([0],          [bfv,b_v],    val,      a_v)
-  map([0],          [a_v],       ',',       b_v)
+  // (s0 ctxs +       s0 positions + tokens) -> s1
+  map([non],          [bfv,b_v],    val,      a_v)
+  map([non],          [a_v],        ',',      b_v)
 
-  map([0,arr,obj],  [bfv,b_v],   '[',       arr|bfv)
-  map([0,arr,obj],  [bfv,b_v],   '{',       obj|bfk)
+  map([non,arr,obj],  [bfv,b_v],    '[',      arr|bfv)
+  map([non,arr,obj],  [bfv,b_v],    '{',      obj|bfk)
 
-  map([arr],        [bfv,b_v],   val,       arr|a_v)
-  map([arr],        [a_v],       ',',       arr|b_v)
-  map([arr],        [bfv,a_v],   ']',       a_v)          // s1 context not set here. it is set by checking the stack
+  map([arr],          [bfv,b_v],    val,      arr|a_v)
+  map([arr],          [a_v],        ',',      arr|b_v)
+  map([arr],          [bfv,a_v],    ']',      a_v)          // s1 context not set here. it is set by checking the stack
 
-  map([obj],        [a_v],       ',',       obj|b_k)
-  map([obj],        [bfk,b_k],   '"',       obj|a_k)
-  map([obj],        [a_k],       ':',       obj|b_v)
-  map([obj],        [b_v],       val,       obj|a_v)
-  map([obj],        [bfk,a_v],   '}',       a_v)          // s1 context not set here. it is set by checking the stack
+  map([obj],          [a_v],        ',',      obj|b_k)
+  map([obj],          [bfk,b_k],    '"',      obj|a_k)
+  map([obj],          [a_k],        ':',      obj|b_v)
+  map([obj],          [b_v],        val,      obj|a_v)
+  map([obj],          [bfk,a_v],    '}',      a_v)          // s1 context not set here. it is set by checking the stack
 
   return ret
 }
@@ -212,6 +215,8 @@ function restore (src, opt, cb) {
 function tokenize (src, opt, cb) {
   // localized constants for faster access
   var states = STATE_MAP
+  var pos_mask = STATE.POS_MASK
+  var after_key = STATE.AFTER_KEY
   var in_arr = STATE.IN_ARR
   var in_obj = STATE.IN_OBJ
   var whitespace = WHITESPACE
@@ -295,7 +300,7 @@ function tokenize (src, opt, cb) {
         if (state1 === 0) { break main_loop }
 
         // key
-        if ((state1 & STATE.POS_MASK) === STATE.AFTER_KEY) {
+        if ((state1 & pos_mask) === after_key) {
           koff = voff
           klim = idx
           state0 = state1
@@ -340,10 +345,12 @@ function tokenize (src, opt, cb) {
 
     // clean transition was made from state0 to state1
     cb_continue = cb(src, koff, klim, tok, voff, idx, null)
-    state0 = state1
-    if (cb_continue === true || cb_continue) {    // === check is faster (node 6)
+    if (state0 & in_obj) {
       koff = -1
       klim = -1
+    }
+    state0 = state1
+    if (cb_continue === true || cb_continue) {    // === check is slightly faster (node 6)
       continue
     }
     break
@@ -507,7 +514,7 @@ function srcstr (src, off, lim) {
 
 function err (msg ) { throw Error(msg) }
 
-// a convenience function for summarizing/logging/debugging callback arguments
+// a convenience function for summarizing/logging/debugging callback arguments as compact strings
 function args2str(koff, klim, tok, voff, vlim, info) {
   var ret
   var vlen = vlim - voff
