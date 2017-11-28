@@ -104,12 +104,14 @@ var ST = jtok.STATE
 
 var OBJ = ST.IN_OBJ
 var ARR = ST.IN_ARR
-var BFV = ST.BEFORE_FIRST_VAL
+
 var BFK = ST.BEFORE_FIRST_KEY
-var B_V = ST.BEFORE_VAL
 var B_K = ST.BEFORE_KEY
-var A_V = ST.AFTER_VAL
 var A_K = ST.AFTER_KEY
+
+var BFV = ST.BEFORE_FIRST_VAL
+var B_V = ST.BEFORE_VAL
+var A_V = ST.AFTER_VAL
 
 test('incremental state', function (t) {
   t.table_assert([
