@@ -51,11 +51,10 @@ var TOK = {
 }
 
 var ERR = {
-  UNEXPECTED_TOK: -1,       // Same as default transition (zero). token is valid, but not expected
-  UNEXPECTED_BYTE: -2,      // invalid byte - not a token
-  TRUNCATED_TOK: -3,        // an individual value (string or number) is truncated by buffer limit
-  TRUNCATED_SRC: -4,        // src is valid, but does not complete (in object, in array, trailing comma, ...)
-  BAD_TOK: -5,              // initial byte(s) are legal, but has bad characters.  e.g. { "a": nulp }
+  UNEXPECTED_TOK: -1,       // Same as state === 0. token is valid, but not expected
+  UNEXPECTED_BYTE: -2,      // encountered invalid byte - not a token or legal number value
+  TRUNCATED_VAL: -3,        // a multi-byte value (string, number, true, false, null, object-key) doesn't complete
+  TRUNCATED_SRC: -4,        // src is valid, but does not complete (still in object, in array, or trailing comma, ...)
   NONE: 0,                  // no error
 }
 
@@ -269,13 +268,9 @@ function tokenize (src, opt, cb) {
         if (idx <= 0) {
           // not all bytes matched
           idx = -idx
-          if (idx === lim) {
-            state1 = states[state0|tok]
-            if (state1 !== 0) { state0 = state1; state1 = ERR.TRUNCATED_TOK }
-            // else is transition error (state1 = 0)
-          } else {
-            state1 = ERR.BAD_TOK
-          }
+          state1 = states[state0|tok]
+          if (state1 !== 0) { state0 = state1; state1 = ERR.TRUNCATED_VAL }
+          // else is transition error (state1 = 0)
           break main_loop
         }
         // full match
@@ -289,7 +284,7 @@ function tokenize (src, opt, cb) {
         if (idx === -1) {
           // break for bad transition (state1 === 0) or for truncation, in that order.
           idx = lim
-          if (state1 !== 0) { state0 = state1; state1 = ERR.TRUNCATED_TOK }
+          if (state1 !== 0) { state0 = state1; state1 = ERR.TRUNCATED_VAL }
           break main_loop
         }
         idx++    // skip quote
@@ -312,7 +307,7 @@ function tokenize (src, opt, cb) {
         while (all_num_chars[src[++idx]] === 1 && idx < lim) {}
         if (state1 === 0) { break main_loop }
         // the number *might* be truncated - flag it here and handle below
-        if (idx === lim) { state0 = state1; state1 = ERR.TRUNCATED_TOK; break main_loop }
+        if (idx === lim) { state0 = state1; state1 = ERR.TRUNCATED_VAL; break main_loop }
         break
 
       case 91:                                  // [    ARRAY START
@@ -377,19 +372,14 @@ function tokenize (src, opt, cb) {
       cb(src, koff, klim, TOK.ERR, voff, idx, info)
       break
 
-    case ERR.BAD_TOK:
-      info = new_info(state0, ERR.BAD_TOK)
-      cb(src, koff, klim, TOK.ERR, voff, idx, info)
-      break
-
-    case ERR.TRUNCATED_TOK:
+    case ERR.TRUNCATED_VAL:
       if (tok === TOK.NUM && (state0 === (STATE.BEFORE_FIRST_VAL) || state0 === (STATE.AFTER_VAL))) {
         // numbers outside of object or array context are not considered truncated: '3.23' or '1, 2, 3'
         cb(src, koff, klim, tok, voff, idx, null)
         cb(src, -1, -1, TOK.END, idx, idx, null)
         info = null
       } else {
-        info = new_info(state1, ERR.TRUNCATED_TOK)
+        info = new_info(state1, ERR.TRUNCATED_VAL)
         cb(src, koff, klim, opt.incremental ? TOK.END : TOK.ERR, voff, idx, info)
       }
       break
@@ -445,7 +435,7 @@ Info.prototype = {
     return (this.state & STATE.IN_ARR) ? 'array' : (this.state & STATE.IN_OBJ) ? 'object' : null
   },
   rposition: function () {
-    if (this.err === ERR.TRUNCATED_TOK) { return 'inside' }
+    if (this.err === ERR.TRUNCATED_VAL) { return 'inside' }
     switch (this.state & STATE.POS_MASK) {
       case STATE.AFTER_KEY: case STATE.AFTER_VAL: return 'after'
       default: return 'before'
@@ -463,7 +453,7 @@ Info.prototype = {
       default: return false
     }
   },
-  position: function() {
+  position: function () {
     // can't just map state to strings - need to take this.err into account for 'inside' case.
     return this.rposition() + ' ' + (this.first() ? 'first ' : '') + (this.key() ? 'key' : 'value')
   },
@@ -478,11 +468,8 @@ Info.prototype = {
     var thru = idx - 1
     var ret
     switch (this.err) {
-      case ERR.BAD_TOK:
-        ret = 'bad token "' + srcstr(src, voff, idx) + '"'
-        break
-      case ERR.TRUNCATED_TOK:
-        ret = 'truncated ' + (this.key() ? 'key' : (tok === TOK.NUM ? 'number' : 'string'))
+      case ERR.TRUNCATED_VAL:
+        ret = 'truncated ' + (this.key() ? 'key' : 'value')
         break
       case ERR.UNEXPECTED_TOK:
         ret = 'unexpected token "' + srcstr(src, voff, idx) + '", ' + this.state_str()

@@ -71,7 +71,7 @@ test('tokenize', function (t) {
   )
 })
 
-test('tokenize - errors', function (t) {
+test.only('tokenize - errors', function (t) {
   t.tableAssert(
     [
       [ 'input',            'exp' ],
@@ -87,15 +87,15 @@ test('tokenize - errors', function (t) {
       [ '{ false:',         [ 'B@0', '{@0', '!5@2: unexpected token "false", in object, before first key, at 2..6' ] ],
       // a token truncated by limit is treated optimistically
       [ '{ fal',            [ 'B@0', '{@0', '!3@2: unexpected token "fal", in object, before first key, at 2..4' ] ],
+      [ '{ fal:',           [ 'B@0', '{@0', '!3@2: unexpected token "fal", in object, before first key, at 2..4' ] ],
 
-      // bad tokens
-      [ '{ fal:',           [ 'B@0', '{@0', '!3@2: bad token "fal", at 2..4' ] ],
-
-      // truncated values
-      [ '"ab',              [ 'B@0', '!3@0: truncated string, at 0..2' ] ],
-      [ '"\\\\\\"',         [ 'B@0', '!5@0: truncated string, at 0..4' ] ],
-      [ '[3.05E-2',         [ 'B@0', '[@0', '!7@1: truncated number, at 1..7' ] ],
-      [ '[3.05E-2,4.',      [ 'B@0', '[@0', 'N7@1', '!2@9: truncated number, at 9..10' ] ],
+      // truncated values / keys
+      [ 'fal',              [ 'B@0', '!3@0: truncated value, at 0..2' ] ],
+      [ '"ab',              [ 'B@0', '!3@0: truncated value, at 0..2' ] ],
+      [ '"\\\\\\"',         [ 'B@0', '!5@0: truncated value, at 0..4' ] ],
+      [ '[3.05E-2',         [ 'B@0', '[@0', '!7@1: truncated value, at 1..7' ] ],
+      [ '[3.05E-2,4.',      [ 'B@0', '[@0', 'N7@1', '!2@9: truncated value, at 9..10' ] ],
+      [ '{"a": t,',         [ 'B@0', '{@0', 'K3@1:!1@6: truncated value, at 6' ] ],
 
       // truncated input (not an error in incremental mode)
       [ '{"a" : ',          [ 'B@0', '{@0', 'K3@1:!0@7: truncated input, in object, before value, at 7' ] ],
