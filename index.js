@@ -15,8 +15,8 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 // STATES   - LSB is reserved for token ascii value.  see readme
-var IN_ARR =   0x1000
-var IN_OBJ =   0x0800
+var ARR =   0x1000
+var OBJ =   0x0800
 
 var BEFORE =   0x0000    // just for readability CTX_OBJ|BEFORE|FIRST|KEY, etc...
 var AFTER =    0x0400
@@ -34,43 +34,43 @@ function state_map () {
     ret[i] = 0
   }
 
-  // map ( [state0], tokens ) => state1
-  var map = function (s0_arr, chars, s1) {
-    s0_arr.forEach(function (s0) {
-      for (var i = 0; i < chars.length; i++) {
-        ret[s0 | chars.charCodeAt(i)] = s1
-      }
+  // map ( [ctx], [state0], tokens ) => state1
+  var map = function (ctx_arr, s0_arr, chars, s1) {
+    ctx_arr.forEach(function (ctx) {
+      s0_arr.forEach(function (s0) {
+        for (var i = 0; i < chars.length; i++) {
+          ret[ctx|s0|chars.charCodeAt(i)] = s1
+        }
+      })
     })
   }
 
-  var BFV = BEFORE|FIRST|VAL
-  var BV = BEFORE|VAL
-  var AV = AFTER|VAL
-  var BFK = BEFORE|FIRST|KEY
-  var BK = BEFORE|KEY
-  var AK = AFTER|KEY
+  var bfv = BEFORE|FIRST|VAL
+  var b_v = BEFORE|VAL
+  var a_v = AFTER|VAL
+  var bfk = BEFORE|FIRST|KEY
+  var b_k = BEFORE|KEY
+  var a_k = AFTER|KEY
 
-  var val = '"ntf-0123456789' // all legal value start bytes
+  var val = '"ntf-0123456789' // all legal value starts (ascii)
 
-  map([BFV, IN_ARR|BFV, IN_OBJ|BFV, BV, IN_ARR|BV, IN_OBJ|BV], '[', IN_ARR|BFV)
-  map([BFV, IN_ARR|BFV, IN_OBJ|BFV, BV, IN_ARR|BV, IN_OBJ|BV], '{', IN_OBJ|BFK)
-  map([BFV, BV], val, AV)
+  // 0 = no context (comma separated values)
+  // (s0 ctxs +    s0 positions + tokens) -> s1
+  map([0],          [bfv,b_v],    val,      a_v)
+  map([0],          [a_v],       ',',       b_v)
 
-  map([IN_ARR|BFV, IN_ARR|BV], val, IN_ARR|AV)
-  map([IN_ARR|BFV, IN_ARR|AV], ']', AV)   // empty array
+  map([0,ARR,OBJ],  [bfv,b_v],   '[',       ARR|bfv)
+  map([0,ARR,OBJ],  [bfv,b_v],   '{',       OBJ|bfk)
 
-  // end array or object. context is not set here. it will be set by checking the stack
-  map([IN_OBJ|BFK, IN_OBJ|AV], '}', AV)   // empty object
+  map([ARR],        [bfv,b_v],   val,       ARR|a_v)
+  map([ARR],        [a_v],       ',',       ARR|b_v)
+  map([ARR],        [bfv,a_v],   ']',       a_v)          // !no context for s1 - ctx is set by checking stack
 
-  // values (no context)
-  map([AV], ',', BV)
-  map([IN_ARR|AV], ',', IN_ARR|BV)
-  map([IN_OBJ|AV], ',', IN_OBJ|BK)
-
-  // object fields
-  map([IN_OBJ|BFK, IN_OBJ|BK], '"', IN_OBJ|AK)
-  map([IN_OBJ|AK], ':', IN_OBJ|BV)
-  map([IN_OBJ|BV], val, IN_OBJ|AV)
+  map([OBJ],        [a_v],       ',',       OBJ|b_k)
+  map([OBJ],        [bfk,b_k],   '"',       OBJ|a_k)
+  map([OBJ],        [a_k],       ':',       OBJ|b_v)
+  map([OBJ],        [b_v],       val,       OBJ|a_v)
+  map([OBJ],        [bfk,a_v],   '}',       a_v)          // !no context for s1 - ctx is set by checking stack
 
   return ret
 }
@@ -175,8 +175,8 @@ function restore (src, opt, cb) {
 function tokenize (src, opt, cb) {
   // localized constants for faster access
   var states = STATE_MAP
-  var in_arr = IN_ARR
-  var in_obj = IN_OBJ
+  var in_arr = ARR
+  var in_obj = OBJ
   var whitespace = WHITESPACE
   var all_num_chars = ALL_NUM_CHARS
   var tok_bytes = TOK_BYTES
@@ -393,7 +393,7 @@ Info.prototype = {
     var state = this.state
     var err = this.err
     if (state == null) { return 'undefined' }
-    var ctx = (state & IN_ARR) ? 'in array' : (state & IN_OBJ) ? 'in object' : ''
+    var ctx = (state & ARR) ? 'in array' : (state & OBJ) ? 'in object' : ''
     var pos = []
     pos.push(err === ERR_STATE.TRUNCATED_TOK ? 'inside' : (state & AFTER) ? 'after' : 'before')
     if (state & FIRST) { pos.push('first') }
@@ -502,8 +502,8 @@ var ERR_STATE = {
 }
 
 var STATE = {
-  IN_OBJ:      IN_OBJ,
-  IN_ARR:      IN_ARR,
+  IN_OBJ:      OBJ,
+  IN_ARR:      ARR,
 
   BEFORE:      BEFORE,    // zero - for readability: BEFORE|FIRST|VAL etc.
   AFTER:       AFTER,     // bit, set is after, unset is before.
