@@ -17,14 +17,48 @@
 // STATES   - LSB is reserved for token ascii value.  see readme
 var ARR =   0x1000
 var OBJ =   0x0800
-
-var BEFORE =   0x0000    // just for readability CTX_OBJ|BEFORE|FIRST|KEY, etc...
 var AFTER =    0x0400
-               
 var FIRST =    0x0200    // is first value in an object or array
-               
-var KEY =      0x0000    // not necessary, but easier to read: BEFORE|FIRST|VAL, AFTER|FIRST|KEY, etc.
 var VAL =      0x0100
+
+// ascii tokens as well as special codes for number, error, begin and end.
+var TOK = {
+  // direct ascii codes - the token is represented by the first ascii byte encountered
+  ARR_BEG: 91,    // '['
+  ARR_END: 93,    // ']'
+  OBJ_BEG: 123,   // '{'
+  OBJ_END: 125,   // '}'
+  FAL: 102,       // 'f'
+  NUL: 110,       // 'n'
+  STR: 34,        // '"'
+  TRU: 116,       // 't'
+
+  // special codes
+  NUM: 78,        // 'N'  - represents a number value starting with: -, 0, 1, ..., 9
+  ERR: 0,         // error.  check err_info for information
+  BEG: 66,        // 'B' - begin - about to process
+  END: 69,        // 'E' - end -   buffer limit reached
+}
+
+var ERR = {
+  UNEXPECTED_TOK: -1,       // Same as default transition (zero). token is valid, but not expected
+  UNEXPECTED_BYTE: -2,      // invalid byte - not a token
+  TRUNCATED_TOK: -3,        // an individual value (string or number) is truncated by buffer limit
+  TRUNCATED_SRC: -4,        // src is valid, but does not complete (in object, in array, trailing comma, ...)
+  BAD_TOK: -5,              // initial byte(s) are legal, but has bad characters.  e.g. { "a": nulp }
+  NONE: 0,                  // no error
+}
+
+var STATE = {
+  IN_OBJ: OBJ,
+  IN_ARR: ARR,
+  BEFORE_FIRST_VAL: FIRST|VAL,
+  BEFORE_FIRST_KEY: FIRST,
+  BEFORE_VAL: VAL,
+  BEFORE_KEY: 0,
+  AFTER_VAL: AFTER|VAL,
+  AFTER_KEY: AFTER,
+}
 
 // create an int-int map from (state + tok) -- to --> (new state)
 function state_map () {
@@ -45,12 +79,12 @@ function state_map () {
     })
   }
 
-  var bfv = BEFORE|FIRST|VAL
-  var b_v = BEFORE|VAL
-  var a_v = AFTER|VAL
-  var bfk = BEFORE|FIRST|KEY
-  var b_k = BEFORE|KEY
-  var a_k = AFTER|KEY
+  var bfv = STATE.BEFORE_FIRST_VAL
+  var b_v = STATE.BEFORE_VAL
+  var a_v = STATE.AFTER_VAL
+  var bfk = STATE.BEFORE_FIRST_KEY
+  var b_k = STATE.BEFORE_KEY
+  var a_k = STATE.AFTER_KEY
 
   var val = '"ntf-0123456789' // all legal value starts (ascii)
 
@@ -157,7 +191,7 @@ function restore (src, opt, cb) {
   var ret = {}
   var init = opt.init || {}
   ret.stack = init.stack || []
-  ret.state = init.state || BEFORE|FIRST|VAL
+  ret.state = init.state || STATE.BEFORE_FIRST_VAL
   ret.koff = init.koff || -1
   ret.klim = init.klim || -1
   // if (init.state) {
@@ -232,11 +266,11 @@ function tokenize (src, opt, cb) {
           idx = -idx
           if (idx === lim) {
             state1 = states[state0|tok]
-            if (state1 !== 0) { state0 = state1; state1 = ERR_STATE.TRUNCATED_TOK }
+            if (state1 !== 0) { state0 = state1; state1 = ERR.TRUNCATED_TOK }
             // else is transition error (state1 = 0)
           } else {
             idx++   // include the bad byte in the selection (voff to idx)
-            state1 = ERR_STATE.BAD_TOK
+            state1 = ERR.BAD_TOK
           }
           break main_loop
         }
@@ -251,7 +285,7 @@ function tokenize (src, opt, cb) {
         if (idx === -1) {
           // break for bad transition (state1 === 0) or for truncation, in that order.
           idx = lim
-          if (state1 !== 0) { state0 = state1; state1 = ERR_STATE.TRUNCATED_TOK }
+          if (state1 !== 0) { state0 = state1; state1 = ERR.TRUNCATED_TOK }
           break main_loop
         }
         idx++    // skip quote
@@ -274,7 +308,7 @@ function tokenize (src, opt, cb) {
         while (all_num_chars[src[++idx]] === 1 && idx < lim) {}
         if (state1 === 0) { break main_loop }
         // the number *might* be truncated - flag it here and handle below
-        if (idx === lim) { state0 = state1; state1 = ERR_STATE.TRUNCATED_TOK; break main_loop }
+        if (idx === lim) { state0 = state1; state1 = ERR.TRUNCATED_TOK; break main_loop }
         break
 
       case 91:                                  // [    ARRAY START
@@ -296,7 +330,7 @@ function tokenize (src, opt, cb) {
         break
 
       default:
-        state1 = ERR_STATE.UNEXPECTED_BYTE          // no legal transition for this token
+        state1 = ERR.UNEXPECTED_BYTE          // no legal transition for this token
         idx++
         break main_loop
     }
@@ -323,28 +357,28 @@ function tokenize (src, opt, cb) {
     // error states
     //
     case 0:
-      info = new_info(state0, ERR_STATE.UNEXPECTED_TOK)
+      info = new_info(state0, ERR.UNEXPECTED_TOK)
       cb(src, koff, klim, TOK.ERR, voff, idx, info)
       break
 
-    case ERR_STATE.UNEXPECTED_BYTE:
-      info = new_info(state0, ERR_STATE.UNEXPECTED_BYTE)
+    case ERR.UNEXPECTED_BYTE:
+      info = new_info(state0, ERR.UNEXPECTED_BYTE)
       cb(src, koff, klim, TOK.ERR, voff, idx, info)
       break
 
-    case ERR_STATE.BAD_TOK:
-      info = new_info(state0, ERR_STATE.BAD_TOK)
+    case ERR.BAD_TOK:
+      info = new_info(state0, ERR.BAD_TOK)
       cb(src, koff, klim, TOK.ERR, voff, idx, info)
       break
 
-    case ERR_STATE.TRUNCATED_TOK:
-      if (tok === TOK.NUM && (state0 === (BEFORE|FIRST|VAL) || state0 === (AFTER|VAL))) {
+    case ERR.TRUNCATED_TOK:
+      if (tok === TOK.NUM && (state0 === (STATE.BEFORE_FIRST_VAL) || state0 === (STATE.AFTER_VAL))) {
         // numbers outside of object or array context are not considered truncated: '3.23' or '1, 2, 3'
         cb(src, koff, klim, tok, voff, idx, null)
         cb(src, -1, -1, TOK.END, idx, idx, null)
         info = null
       } else {
-        info = new_info(state1, ERR_STATE.TRUNCATED_TOK)
+        info = new_info(state1, ERR.TRUNCATED_TOK)
         cb(src, koff, klim, opt.incremental ? TOK.END : TOK.ERR, voff, idx, info)
       }
       break
@@ -352,8 +386,8 @@ function tokenize (src, opt, cb) {
     //
     // complete end states
     //
-    case BEFORE|FIRST|VAL:
-    case AFTER|VAL:
+    case STATE.BEFORE_FIRST_VAL:
+    case STATE.AFTER_VAL:
       idx === lim || err('internal error - expected to reach src limit')
       cb(src, -1, -1, TOK.END, lim, lim, null)
       break
@@ -364,11 +398,11 @@ function tokenize (src, opt, cb) {
     default:
       if (cb_continue) {
         // incomplete state was not caused of the callback halting process
-        info = new_info(state1, ERR_STATE.TRUNCATED_SRC)
+        info = new_info(state1, ERR.TRUNCATED_SRC)
         cb(src, koff, klim, opt.incremental ? TOK.END : TOK.ERR, idx, idx, info)
       } else {
         // callback requested stop.  don't create end event or error, but do return state so parsing can be restarted.
-        info = new_info(state1, ERR_STATE.NONE)
+        info = new_info(state1, ERR.NONE)
       }
   }
 
@@ -395,7 +429,7 @@ Info.prototype = {
     if (state == null) { return 'undefined' }
     var ctx = (state & ARR) ? 'in array' : (state & OBJ) ? 'in object' : ''
     var pos = []
-    pos.push(err === ERR_STATE.TRUNCATED_TOK ? 'inside' : (state & AFTER) ? 'after' : 'before')
+    pos.push(err === ERR.TRUNCATED_TOK ? 'inside' : (state & AFTER) ? 'after' : 'before')
     if (state & FIRST) { pos.push('first') }
     pos.push((state & VAL) ? 'value' : 'key')
     var ret = pos.join(' ')
@@ -412,20 +446,20 @@ Info.prototype = {
     var thru = idx - 1
     var ret
     switch (this.err) {
-      case ERR_STATE.BAD_TOK:
+      case ERR.BAD_TOK:
         ret = 'bad token ' + srcstr(src, voff, idx)
         break
-      case ERR_STATE.TRUNCATED_TOK:
+      case ERR.TRUNCATED_TOK:
         ret = 'truncated ' + ((state & VAL) ? (tok === TOK.NUM ? 'number' : 'string') : 'key')
         break
-      case ERR_STATE.UNEXPECTED_TOK:
+      case ERR.UNEXPECTED_TOK:
         ret = 'unexpected token ' + srcstr(src, voff, idx) + ', ' + this.state_str()
         break
-      case ERR_STATE.UNEXPECTED_BYTE:
+      case ERR.UNEXPECTED_BYTE:
         ret = 'unexpected byte ' + String(tok) + ', ' + this.state_str()
         from = this.idx - 1
         break
-      case ERR_STATE.TRUNCATED_SRC:
+      case ERR.TRUNCATED_SRC:
         ret = 'truncated input, ' + this.state_str()
         from = thru = this.idx
         break
@@ -473,50 +507,10 @@ function args2str(koff, klim, tok, voff, vlim, info) {
   return ret
 }
 
-// ascii tokens as well as special codes for number, error, begin and end.
-var TOK = {
-  // direct ascii codes - the token is represented by the first ascii byte encountered
-  ARR_BEG: 91,    // '['
-  ARR_END: 93,    // ']'
-  OBJ_BEG: 123,   // '{'
-  OBJ_END: 125,   // '}'
-  FAL: 102,       // 'f'
-  NUL: 110,       // 'n'
-  STR: 34,        // '"'
-  TRU: 116,       // 't'
-
-  // special codes
-  NUM: 78,        // 'N'  - represents a number value starting with: -, 0, 1, ..., 9
-  ERR: 0,         // error.  check err_info for information
-  BEG: 66,        // 'B' - begin - about to process
-  END: 69,        // 'E' - end -   buffer limit reached
-}
-
-var ERR_STATE = {
-  UNEXPECTED_TOK: -1,       // Same as default transition (zero). token is valid, but not expected
-  UNEXPECTED_BYTE: -2,      // invalid byte - not a token
-  TRUNCATED_TOK: -3,        // an individual value (string or number) is truncated by buffer limit
-  TRUNCATED_SRC: -4,        // src is valid, but does not complete (in object, in array, trailing comma, ...)
-  BAD_TOK: -5,              // initial byte(s) are legal, but has bad characters.  e.g. { "a": nulp }
-  NONE: 0,                  // no error
-}
-
-var STATE = {
-  IN_OBJ:      OBJ,
-  IN_ARR:      ARR,
-
-  BEFORE:      BEFORE,    // zero - for readability: BEFORE|FIRST|VAL etc.
-  AFTER:       AFTER,     // bit, set is after, unset is before.
-
-  FIRST:       FIRST,     // bit for value or key is first in an object or array
-
-  KEY:         KEY,       // zero - for readability: AFTER|FIRST|KEY, etc.
-  VAL:         VAL,       // bit, set means value, unset means key
-}
-
 module.exports = {
   tokenize: tokenize,
   args2str: args2str,
   TOK: TOK,
   STATE: STATE,
+  ERR: ERR,
 }

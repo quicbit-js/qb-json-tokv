@@ -100,15 +100,16 @@ test('tokenize - errors', function (t) {
   )
 })
 
-var STATE = jtok.STATE
+var ST = jtok.STATE
 
-var IN_OBJ = STATE.IN_OBJ
-var IN_ARR = STATE.IN_ARR
-var BEFORE = STATE.BEFORE
-var AFTER = STATE.AFTER
-var VAL = STATE.VAL
-var KEY = STATE.KEY
-var FIRST = STATE.FIRST
+var OBJ = ST.IN_OBJ
+var ARR = ST.IN_ARR
+var BFV = ST.BEFORE_FIRST_VAL
+var BFK = ST.BEFORE_FIRST_KEY
+var B_V = ST.BEFORE_VAL
+var B_K = ST.BEFORE_KEY
+var A_V = ST.AFTER_VAL
+var A_K = ST.AFTER_KEY
 
 test('incremental state', function (t) {
   t.table_assert([
@@ -123,19 +124,19 @@ test('incremental state', function (t) {
     [ 'null',                     null ],
     [ ' 7E4 ',                    null ],
     [ '',                         null ],
-    [ '"abc", ',                  { idx: 7,  state:        BEFORE|VAL,        stack: [] } ],
-    [ '[',                        { idx: 1,  state: IN_ARR|BEFORE|FIRST|VAL,  stack: [ 91 ] } ],
-    [ '[ 83 ',                    { idx: 5,  state: IN_ARR|AFTER|VAL,         stack: [ 91 ] } ],
-    [ '[ 83,',                    { idx: 5,  state: IN_ARR|BEFORE|VAL,        stack: [ 91 ] } ],
-    [ '[ 83, "a"',                { idx: 9,  state: IN_ARR|AFTER|VAL,         stack: [ 91 ] } ],
-    [ '[ 83, "a",',               { idx: 10, state: IN_ARR|BEFORE|VAL,        stack: [ 91 ] } ],
-    [ '{',                        { idx: 1,  state: IN_OBJ|BEFORE|FIRST|KEY,  stack: [ 123 ] } ],
-    [ '{ "a"',                    { idx: 5,  state: IN_OBJ|AFTER|KEY,         stack: [ 123 ] } ],
-    [ '{ "a":',                   { idx: 6,  state: IN_OBJ|BEFORE|VAL,        stack: [ 123 ] } ],
-    [ '{ "a": 9, ',               { idx: 10, state: IN_OBJ|BEFORE|KEY,        stack: [ 123 ] } ],
-    [ '{ "a": 9, "b"',            { idx: 13, state: IN_OBJ|AFTER|KEY,         stack: [ 123 ] } ],
-    [ '{ "a": 9, "b": ',          { idx: 15, state: IN_OBJ|BEFORE|VAL,        stack: [ 123 ] } ],
-    [ '{ "a": 9, "b": [',         { idx: 16, state: IN_ARR|BEFORE|FIRST|VAL,  stack: [ 123, 91 ] } ],
+    [ '"abc", ',                  { idx: 7,  state: B_V,      stack: [] } ],
+    [ '[',                        { idx: 1,  state: ARR|BFV,  stack: [ 91 ] } ],
+    [ '[ 83 ',                    { idx: 5,  state: ARR|A_V,  stack: [ 91 ] } ],
+    [ '[ 83,',                    { idx: 5,  state: ARR|B_V,  stack: [ 91 ] } ],
+    [ '[ 83, "a"',                { idx: 9,  state: ARR|A_V,  stack: [ 91 ] } ],
+    [ '[ 83, "a",',               { idx: 10, state: ARR|B_V,  stack: [ 91 ] } ],
+    [ '{',                        { idx: 1,  state: OBJ|BFK,  stack: [ 123 ] } ],
+    [ '{ "a"',                    { idx: 5,  state: OBJ|A_K,  stack: [ 123 ] } ],
+    [ '{ "a":',                   { idx: 6,  state: OBJ|B_V,  stack: [ 123 ] } ],
+    [ '{ "a": 9, ',               { idx: 10, state: OBJ|B_K,  stack: [ 123 ] } ],
+    [ '{ "a": 9, "b"',            { idx: 13, state: OBJ|A_K,  stack: [ 123 ] } ],
+    [ '{ "a": 9, "b": ',          { idx: 15, state: OBJ|B_V,  stack: [ 123 ] } ],
+    [ '{ "a": 9, "b": [',         { idx: 16, state: ARR|BFV,  stack: [ 123, 91 ] } ],
   ], function (input) {
     var src = utf8.buffer(input)
     var ret = jtok.tokenize(src, {incremental: true}, function () {return true} )
@@ -151,9 +152,9 @@ test('initial state', function (t) {
   var a = 91
   t.table_assert([
     [ 'input',          'off',  'lim',  'src', 'state',             'stack',  'exp' ],
-    [ ' "abc"',         0,      null,   null,  BEFORE|FIRST|VAL,    [],       [ 'B@0', 'S5@1', 'E@6' ] ],
-    [ ' "a',            0,      null,   null,  BEFORE|FIRST|VAL,    [],       [ 'B@0', 'truncated string, at idx 3' ] ],
-    // [ '{"a": 3.3}',     4,      null,   OBJ|AFTER|KEY,    [o],      TOK.STR,   [ 'B@4', 'N3@6', '}@9', 'E@10' ] ],
+    [ ' "abc"',         0,      null,   null,  BFV,    [],       [ 'B@0', 'S5@1', 'E@6' ] ],
+    [ ' "a',            0,      null,   null,  BFV,    [],       [ 'B@0', 'truncated string, at idx 3' ] ],
+    // [ '{"a": 3.3}',     4,      null,   OBJ|A_K,    [o],      TOK.STR,   [ 'B@4', 'N3@6', '}@9', 'E@10' ] ],
   ], function (input, off, lim, state, stack) {
     var hector = t.hector()
     var cb = function (src, koff, klim, tok, voff, vlim, info) {
