@@ -61,13 +61,13 @@ test('tokenize', function (t) {
       [ '"x", 4\n, null, 3.2e5 , true, false',      null, null,   [ 'B@0', 'S3@0','N1@5','n@9','N5@15','t@23', 'f@29', 'E@34']         ],
       [ '["a",1.3,\n\t{ "b" : ["v", "w"]\n}\t\n ]', null, null,   [ 'B@0', '[@0','S3@1','N3@5','{@11','K3@13:[@19','S3@20','S3@25',']@28','}@30',']@34', 'E@35' ] ],
     ],
-    function (input, off, lim) {
+    function (src, off, lim) {
       var hector = t.hector()
       var cb = function (src, koff, klim, tok, voff, vlim, info) {
         hector(jtok.args2str(koff, klim, tok, voff, vlim, info))
         return true
       }
-      jtok.tokenize(utf8.buffer(input), {off: off, lim: lim}, cb)
+      jtok.tokenize(utf8.buffer(src), {off: off, lim: lim}, cb)
       return hector.arg(0)
     }
   )
@@ -113,13 +113,32 @@ test('tokenize - errors', function (t) {
       [ '{"a"',             [ 'B@0', '{@0', 'K3@1:!0@4: truncated input, in object, after key, at 4' ] ],
       [ '{"a" ',            [ 'B@0', '{@0', 'K3@1:!0@5: truncated input, in object, after key, at 5' ] ],
     ],
-    function (input) {
+    function (src) {
       var hector = t.hector()
       var cb = function (src, koff, klim, tok, voff, vlim, info) {
         hector(jtok.args2str(koff, klim, tok, voff, vlim, info))
         return true
       }
-      jtok.tokenize(utf8.buffer(input), null, cb)
+      jtok.tokenize(utf8.buffer(src), null, cb)
+      return hector.arg(0)
+    }
+  )
+})
+
+test('callback stop', function (t) {
+  t.table_assert(
+    [
+      [ 'src',                          'at',    'ret',   'exp' ],
+      [ '{ "a": 7, "b": 4 }',           0,        false,  [ 'B@0', 'E@0' ] ],
+    ],
+    function (src, at_tok, ret) {
+      var count = 0
+      var hector = t.hector()
+      var cb = function (src, koff, klim, tok, voff, vlim, info) {
+        hector(jtok.args2str(koff, klim, tok, voff, vlim, info))
+        return (count++ === at_tok) ? ret : true
+      }
+      jtok.tokenize(utf8.buffer(src), null, cb)
       return hector.arg(0)
     }
   )
@@ -138,7 +157,7 @@ var BFV = ST.BEFORE_FIRST_VAL
 var B_V = ST.BEFORE_VAL
 var A_V = ST.AFTER_VAL
 
-test('incremental state', function (t) {
+test('incremental state',         function (t) {
   t.table_assert([
     [ 'input',                    'exp' ],
     [ '"abc"',                    null ],
@@ -164,15 +183,15 @@ test('incremental state', function (t) {
     [ '{ "a": 9, "b"',            { idx: 13, state: OBJ|A_K,  stack: [ 123 ] } ],
     [ '{ "a": 9, "b": ',          { idx: 15, state: OBJ|B_V,  stack: [ 123 ] } ],
     [ '{ "a": 9, "b": [',         { idx: 16, state: ARR|BFV,  stack: [ 123, 91 ] } ],
-  ], function (input) {
-    var src = utf8.buffer(input)
-    var ret = jtok.tokenize(src, {incremental: true}, function () {return true} )
+  ], function (src) {
+    var ret = jtok.tokenize(utf8.buffer(src), {incremental: true}, function () {return true} )
     if (ret === null ) {
       return null
     }
     return qbobj.select(ret, ['idx', 'state', 'stack'])
   })
 })
+
 /*
 test('initial state', function (t) {
   var o = 123

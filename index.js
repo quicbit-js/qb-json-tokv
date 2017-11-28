@@ -234,120 +234,141 @@ function tokenize (src, opt, cb) {
                                       //    2. state1 = 0    (unsupported transition - will be later be mapped to TOK.UNEXPECTED_TOK)
                                       //    3. state1 > 0    (OK.  state1 !== state0 means callback is pending )
 
-  var cb_continue = true              // result from callback. truthy to continue processing
   var voff = idx                      // value start index
 
   // BEG and END signals are the only calls with zero length (voff === vlim)
-  cb(src, -1, -1, TOK.BEG, idx, idx)                      // 'B' - BEGIN parse
+  var cb_continue = cb(src, -1, -1, TOK.BEG, idx, idx)                      // 'B' - BEGIN parse
+  if (cb_continue) {
+    // breaking main_loop before idx == lim means we have an error
+    main_loop: while (idx < lim) {
+      voff = idx
+      tok = src[idx]
+      switch (tok) {
+        case 9:
+        case 10:
+        case 13:
+        case 32:
+          if (whitespace[src[++idx]] && idx < lim) {
+            while (whitespace[src[++idx]] === 1 && idx < lim) {}
+          }
+          continue
 
-  // breaking main_loop before idx == lim means we have an error
-  main_loop: while (idx < lim) {
-    voff = idx
-    tok = src[idx]
-    switch (tok) {
-      case 9: case 10: case 13: case 32:
-        if (whitespace[src[++idx]] && idx < lim) {
-          while (whitespace[src[++idx]] === 1 && idx < lim) {}
-        }
-        continue
+        // placing (somewhat redundant) logic below this point allows fast skip of whitespace (above)
 
-      // placing (somewhat redundant) logic below this point allows fast skip of whitespace (above)
-
-      case 44:                                  // ,    COMMA
-      case 58:                                  // :    COLON
-        state1 = states[state0|tok]
-        idx++
-        if (state1 === 0) { break main_loop }
-        state0 = state1
-        continue
-
-      case 102:
-      case 110:
-      case 116:
-        idx = skip_bytes(src, idx, lim, tok_bytes[tok])
-        if (idx <= 0) {
-          // not all bytes matched
-          idx = -idx
-          state1 = states[state0|tok]
-          if (state1 !== 0) { state0 = state1; state1 = ERR.TRUNCATED_VAL }
-          // else is transition error (state1 = 0)
-          break main_loop
-        }
-        // full match
-        state1 = states[state0|tok]
-        if (state1 === 0) { break main_loop }
-        break
-
-      case 34:                                  // "    QUOTE
-        state1 = states[state0|tok]
-        idx = skip_str(src, idx + 1, lim, 34, 92)
-        if (idx === -1) {
-          // break for bad transition (state1 === 0) or for truncation, in that order.
-          idx = lim
-          if (state1 !== 0) { state0 = state1; state1 = ERR.TRUNCATED_VAL }
-          break main_loop
-        }
-        idx++    // skip quote
-        if (state1 === 0) { break main_loop }
-
-        // key
-        if ((state1 & pos_mask) === after_key) {
-          koff = voff
-          klim = idx
+        case 44:                                  // ,    COMMA
+        case 58:                                  // :    COLON
+          state1 = states[state0 | tok]
+          idx++
+          if (state1 === 0) { break main_loop }
           state0 = state1
           continue
-        }
-        break
 
-      case 48:case 49:case 50:case 51:case 52:   // digits 0-4
-      case 53:case 54:case 55:case 56:case 57:   // digits 5-9
-      case 45:                                   // '-'   ('+' is not legal here)
-        state1 = states[state0|tok]
-        tok = 78                                // N  Number
-        while (all_num_chars[src[++idx]] === 1 && idx < lim) {}
-        if (state1 === 0) { break main_loop }
-        // the number *might* be truncated - flag it here and handle below
-        if (idx === lim) { state0 = state1; state1 = ERR.TRUNCATED_VAL; break main_loop }
-        break
+        case 102:
+        case 110:
+        case 116:
+          idx = skip_bytes(src, idx, lim, tok_bytes[tok])
+          if (idx <= 0) {
+            // not all bytes matched
+            idx = -idx
+            state1 = states[state0 | tok]
+            if (state1 !== 0) {
+              state0 = state1;
+              state1 = ERR.TRUNCATED_VAL
+            }
+            // else is transition error (state1 = 0)
+            break main_loop
+          }
+          // full match
+          state1 = states[state0 | tok]
+          if (state1 === 0) { break main_loop }
+          break
 
-      case 91:                                  // [    ARRAY START
-      case 123:                                 // {    OBJECT START
-        state1 = states[state0|tok]
-        idx++
-        if (state1 === 0) { break main_loop }
-        stack.push(tok)
-        break
+        case 34:                                  // "    QUOTE
+          state1 = states[state0 | tok]
+          idx = skip_str(src, idx + 1, lim, 34, 92)
+          if (idx === -1) {
+            // break for bad transition (state1 === 0) or for truncation, in that order.
+            idx = lim
+            if (state1 !== 0) {
+              state0 = state1;
+              state1 = ERR.TRUNCATED_VAL
+            }
+            break main_loop
+          }
+          idx++    // skip quote
+          if (state1 === 0) { break main_loop }
 
-      case 93:                                  // ]    ARRAY END
-      case 125:                                 // }    OBJECT END
-        state1 = states[state0|tok]
-        idx++
-        if (state1 === 0) { break main_loop }
-        stack.pop()
-        // state1 context is unset after closing brace (see state map).  we set it here.
-        if (stack.length !== 0) { state1 |= (stack[stack.length - 1] === 91 ? in_arr : in_obj)}
-        break
+          // key
+          if ((state1 & pos_mask) === after_key) {
+            koff = voff
+            klim = idx
+            state0 = state1
+            continue
+          }
+          break
 
-      default:
-        state1 = ERR.UNEXPECTED_BYTE          // no legal transition for this token
-        idx++
-        break main_loop
-    }
+        case 48:
+        case 49:
+        case 50:
+        case 51:
+        case 52:   // digits 0-4
+        case 53:
+        case 54:
+        case 55:
+        case 56:
+        case 57:   // digits 5-9
+        case 45:                                   // '-'   ('+' is not legal here)
+          state1 = states[state0 | tok]
+          tok = 78                                // N  Number
+          while (all_num_chars[src[++idx]] === 1 && idx < lim) {}
+          if (state1 === 0) { break main_loop }
+          // the number *might* be truncated - flag it here and handle below
+          if (idx === lim) {
+            state0 = state1;
+            state1 = ERR.TRUNCATED_VAL;
+            break main_loop
+          }
+          break
 
-    // clean transition was made from state0 to state1
-    cb_continue = cb(src, koff, klim, tok, voff, idx, null)
-    if (state0 & in_obj) {
-      koff = -1
-      klim = -1
-    }
-    state0 = state1
-    if (cb_continue === true || cb_continue) {    // === check is slightly faster (node 6)
-      continue
-    }
-    break
-  }  // end main_loop: while(idx < lim) {...
+        case 91:                                  // [    ARRAY START
+        case 123:                                 // {    OBJECT START
+          state1 = states[state0 | tok]
+          idx++
+          if (state1 === 0) { break main_loop }
+          stack.push(tok)
+          break
 
-  // same return info is passed to callbacks and returned, - only differing state/err.
+        case 93:                                  // ]    ARRAY END
+        case 125:                                 // }    OBJECT END
+          state1 = states[state0 | tok]
+          idx++
+          if (state1 === 0) { break main_loop }
+          stack.pop()
+          // state1 context is unset after closing brace (see state map).  we set it here.
+          if (stack.length !== 0) { state1 |= (stack[stack.length - 1] === 91 ? in_arr : in_obj)}
+          break
+
+        default:
+          state1 = ERR.UNEXPECTED_BYTE          // no legal transition for this token
+          idx++
+          break main_loop
+      }
+
+      // clean transition was made from state0 to state1
+      cb_continue = cb(src, koff, klim, tok, voff, idx, null)
+      if (state0 & in_obj) {
+        koff = -1
+        klim = -1
+      }
+      state0 = state1
+      if (cb_continue === true || cb_continue) {    // === check is slightly faster (node 6)
+        continue
+      }
+      break
+    }  // end main_loop: while(idx < lim) {...
+  }
+
+  // similar info is passed to callbacks as error and end events as well as returned from this function
   var new_info = function (state, err) {
     return new Info(src, lim, koff, klim, tok, voff, idx, state, stack, err)
   }
@@ -361,9 +382,9 @@ function tokenize (src, opt, cb) {
       var sep_chars = ascii_to_code('{[]},:"', 1)
       var is_separate =
         voff === (opt.off || 0) ||
-          sep_chars[tok] ||
-          sep_chars[src[voff-1]] ||
-          WHITESPACE[src[voff-1]]
+        sep_chars[tok] ||
+        sep_chars[src[voff-1]] ||
+        WHITESPACE[src[voff-1]]
 
       info = new_info(state0, is_separate ? ERR.UNEXPECTED_VAL : ERR.UNEXPECTED_BYTE)
       cb(src, koff, klim, TOK.ERR, voff, idx, info)
@@ -391,8 +412,7 @@ function tokenize (src, opt, cb) {
     //
     case STATE.BEFORE_FIRST_VAL:
     case STATE.AFTER_VAL:
-      idx === lim || err('internal error - expected to reach src limit')
-      cb(src, -1, -1, TOK.END, lim, lim, null)
+      cb(src, -1, -1, TOK.END, idx, idx, null)
       break
 
     //
