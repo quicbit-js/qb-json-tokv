@@ -145,7 +145,7 @@ test('incremental state', function (t) {
     return qbobj.select(ret, ['idx', 'state', 'stack'])
   })
 })
-
+/*
 test('initial state', function (t) {
   var o = 123
   var a = 91
@@ -185,3 +185,4 @@ test('incremental processing', function (t) {
   })
 })
 
+*/

@@ -17,7 +17,7 @@
 // STATES   - LSB is reserved for token ascii value.  see readme
 var IN_ARR =   0x1000
 var IN_OBJ =   0x0800
-               
+
 var BEFORE =   0x0000    // just for readability CTX_OBJ|BEFORE|FIRST|KEY, etc...
 var AFTER =    0x0400
                
@@ -34,53 +34,43 @@ function state_map () {
     ret[i] = 0
   }
 
-  // map ( state0, tokens ) => state1
-  var map = function (s0, chars, s1) {
-    for (var i = 0; i < chars.length; i++) {
-      ret[s0 | chars.charCodeAt(i)] = s1
-    }
+  // map ( [state0], tokens ) => state1
+  var map = function (s0_arr, chars, s1) {
+    s0_arr.forEach(function (s0) {
+      for (var i = 0; i < chars.length; i++) {
+        ret[s0 | chars.charCodeAt(i)] = s1
+      }
+    })
   }
 
-  var val = '"ntf-0123456789' // all legal value start characters
+  var BFV = BEFORE|FIRST|VAL
+  var BV = BEFORE|VAL
+  var AV = AFTER|VAL
+  var BFK = BEFORE|FIRST|KEY
+  var BK = BEFORE|KEY
+  var AK = AFTER|KEY
 
-  // start array
-  map(        BEFORE|FIRST|VAL, '[', IN_ARR|BEFORE|FIRST|VAL )
-  map( IN_ARR|BEFORE|FIRST|VAL, '[', IN_ARR|BEFORE|FIRST|VAL )
-  map( IN_OBJ|BEFORE|FIRST|VAL, '[', IN_ARR|BEFORE|FIRST|VAL )
-  map(        BEFORE|VAL,       '[', IN_ARR|BEFORE|FIRST|VAL )
-  map( IN_ARR|BEFORE|VAL,       '[', IN_ARR|BEFORE|FIRST|VAL )
-  map( IN_OBJ|BEFORE|VAL,       '[', IN_ARR|BEFORE|FIRST|VAL )
+  var val = '"ntf-0123456789' // all legal value start bytes
 
-  // start object
-  map(        BEFORE|FIRST|VAL, '{', IN_OBJ|BEFORE|FIRST|KEY )
-  map( IN_ARR|BEFORE|FIRST|VAL, '{', IN_OBJ|BEFORE|FIRST|KEY )
-  map( IN_OBJ|BEFORE|FIRST|VAL, '{', IN_OBJ|BEFORE|FIRST|KEY )
-  map(        BEFORE|VAL,       '{', IN_OBJ|BEFORE|FIRST|KEY )
-  map( IN_ARR|BEFORE|VAL,       '{', IN_OBJ|BEFORE|FIRST|KEY )
-  map( IN_OBJ|BEFORE|VAL,       '{', IN_OBJ|BEFORE|FIRST|KEY )
+  map([BFV, IN_ARR|BFV, IN_OBJ|BFV, BV, IN_ARR|BV, IN_OBJ|BV], '[', IN_ARR|BFV)
+  map([BFV, IN_ARR|BFV, IN_OBJ|BFV, BV, IN_ARR|BV, IN_OBJ|BV], '{', IN_OBJ|BFK)
+  map([BFV, BV], val, AV)
 
-  // values (no context)
-  map( BEFORE|FIRST|VAL,        val, AFTER|VAL )
-  map( AFTER|VAL,               ',', BEFORE|VAL )
-  map( BEFORE|VAL,              val, AFTER|VAL )   // etc ...
-
-  // array values
-  map( IN_ARR|BEFORE|FIRST|VAL, val, IN_ARR|AFTER|VAL )
-  map( IN_ARR|AFTER|VAL,        ',', IN_ARR|BEFORE|VAL )
-  map( IN_ARR|BEFORE|VAL,       val, IN_ARR|AFTER|VAL )   // etc ...
-
-  // object fields
-  map( IN_OBJ|BEFORE|FIRST|KEY,  '"', IN_OBJ|AFTER|KEY )
-  map( IN_OBJ|AFTER|KEY,         ':', IN_OBJ|BEFORE|VAL )
-  map( IN_OBJ|BEFORE|VAL,        val, IN_OBJ|AFTER|VAL )
-  map( IN_OBJ|AFTER|VAL,         ',', IN_OBJ|BEFORE|KEY )
-  map( IN_OBJ|BEFORE|KEY,        '"', IN_OBJ|AFTER|KEY )  // etc ...
+  map([IN_ARR|BFV, IN_ARR|BV], val, IN_ARR|AV)
+  map([IN_ARR|BFV, IN_ARR|AV], ']', AV)   // empty array
 
   // end array or object. context is not set here. it will be set by checking the stack
-  map( IN_ARR|BEFORE|FIRST|VAL,  ']', AFTER|VAL )   // empty array
-  map( IN_ARR|AFTER|VAL,         ']', AFTER|VAL )
-  map( IN_OBJ|BEFORE|FIRST|KEY,  '}', AFTER|VAL )   // empty object
-  map( IN_OBJ|AFTER|VAL,         '}', AFTER|VAL )
+  map([IN_OBJ|BFK, IN_OBJ|AV], '}', AV)   // empty object
+
+  // values (no context)
+  map([AV], ',', BV)
+  map([IN_ARR|AV], ',', IN_ARR|BV)
+  map([IN_OBJ|AV], ',', IN_OBJ|BK)
+
+  // object fields
+  map([IN_OBJ|BFK, IN_OBJ|BK], '"', IN_OBJ|AK)
+  map([IN_OBJ|AK], ':', IN_OBJ|BV)
+  map([IN_OBJ|BV], val, IN_OBJ|AV)
 
   return ret
 }
