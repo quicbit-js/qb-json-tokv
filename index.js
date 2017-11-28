@@ -15,19 +15,20 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 // STATES   - LSB is reserved for token ascii value.  see readme
-var AFTER =    0x0400
-var FIRST =    0x0200    // is first value in an object or array
-var VAL =      0x0100
+var AFTER =    0x1000
+var FIRST =    0x0800    // is first value in an object or array
+var VAL =      0x0400
 
 var STATE = {
-  IN_ARR: 0x1000,
-  IN_OBJ: 0x0800,
+  IN_ARR: 0x0100,
+  IN_OBJ: 0x0200,
 
-  POS_MASK: 0x0700,
-  BEFORE_FIRST_VAL: FIRST|VAL,
+  POS_MASK: 0x1C00,
   BEFORE_FIRST_KEY: FIRST,
+  BEFORE_KEY: 0,                  // key states can be zero because they always occur IN_OBJ context (which is non-zero)
+  BEFORE_FIRST_VAL: FIRST|VAL,
   BEFORE_VAL: VAL,
-  BEFORE_KEY: 0,                  // key states can be zero because they always occurs with IN_OBJ context (which is non-zero)
+
   AFTER_VAL: AFTER|VAL,
   AFTER_KEY: AFTER,
 }
@@ -181,7 +182,7 @@ function restore_truncated (src, init, ret, cb) {
         i++     // skip quote
         // var src = concat(init.src.slice(init.voff, init.lim), src,
         ret.off = i
-        ret.state = ((init.state & !POS_MASK) | AFTER)      // INSIDE -> AFTER
+        // ret.state = ((init.state & !POS_MASK) | AFTER)      // INSIDE -> AFTER
       }
 
       break
