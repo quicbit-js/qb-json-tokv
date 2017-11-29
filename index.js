@@ -507,8 +507,7 @@ function args2str(koff, klim, tok, voff, vlim, info) {
       ret = 'N' + vlen + '@' + voff
       break
     case TOK.ERR:
-      ret = '!' + vlen + '@' + voff
-      if (info) { ret += ': ' + info.toString()}
+      ret = '!' + vlen + '@' + voff + ': ' + info.toString()
       break
     default:
       ret = String.fromCharCode(tok) + '@' + voff
