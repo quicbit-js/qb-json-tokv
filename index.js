@@ -244,10 +244,7 @@ function tokenize (src, opt, cb) {
       voff = idx
       tok = src[idx]
       switch (tok) {
-        case 9:
-        case 10:
-        case 13:
-        case 32:
+        case 9:case 10:case 13:case 32:
           if (whitespace[src[++idx]] && idx < lim) {
             while (whitespace[src[++idx]] === 1 && idx < lim) {}
           }
@@ -263,23 +260,18 @@ function tokenize (src, opt, cb) {
           state0 = state1
           continue
 
-        case 102:
-        case 110:
-        case 116:
+        case 102:                                 // f    false
+        case 110:                                 // n    null
+        case 116:                                 // t    true
           idx = skip_bytes(src, idx, lim, tok_bytes[tok])
+          state1 = states[state0|tok]
           if (idx <= 0) {
             // not all bytes matched
             idx = -idx
-            state1 = states[state0 | tok]
-            if (state1 !== 0) {
-              state0 = state1;
-              state1 = ERR.TRUNCATED_VAL
-            }
-            // else is transition error (state1 = 0)
+            if (state1 !== 0) { state1 = ERR.TRUNCATED_VAL }
             break main_loop
           }
           // full match
-          state1 = states[state0 | tok]
           if (state1 === 0) { break main_loop }
           break
 
@@ -289,10 +281,7 @@ function tokenize (src, opt, cb) {
           if (idx === -1) {
             // break for bad transition (state1 === 0) or for truncation, in that order.
             idx = lim
-            if (state1 !== 0) {
-              state0 = state1;
-              state1 = ERR.TRUNCATED_VAL
-            }
+            if (state1 !== 0) { state1 = ERR.TRUNCATED_VAL }
             break main_loop
           }
           idx++    // skip quote
@@ -307,27 +296,15 @@ function tokenize (src, opt, cb) {
           }
           break
 
-        case 48:
-        case 49:
-        case 50:
-        case 51:
-        case 52:   // digits 0-4
-        case 53:
-        case 54:
-        case 55:
-        case 56:
-        case 57:   // digits 5-9
+        case 48:case 49:case 50:case 51:case 52:   // digits 0-4
+        case 53:case 54:case 55:case 56:case 57:   /* digits 5-9*/
         case 45:                                   // '-'   ('+' is not legal here)
           state1 = states[state0 | tok]
           tok = 78                                // N  Number
           while (all_num_chars[src[++idx]] === 1 && idx < lim) {}
           if (state1 === 0) { break main_loop }
           // the number *might* be truncated - flag it here and handle below
-          if (idx === lim) {
-            state0 = state1;
-            state1 = ERR.TRUNCATED_VAL;
-            break main_loop
-          }
+          if (idx === lim) { state1 = ERR.TRUNCATED_VAL; break main_loop }
           break
 
         case 91:                                  // [    ARRAY START
@@ -396,13 +373,14 @@ function tokenize (src, opt, cb) {
       break
 
     case ERR.TRUNCATED_VAL:
-      if (tok === TOK.NUM && (state0 === (STATE.BEFORE_FIRST_VAL) || state0 === (STATE.AFTER_VAL))) {
+      // truncated values do NOT advance state. state0 is left one step before the transition (like unexpected values)
+      if (tok === TOK.NUM && (state0 === (STATE.BEFORE_FIRST_VAL) || state0 === (STATE.BEFORE_VAL))) {
         // numbers outside of object or array context are not considered truncated: '3.23' or '1, 2, 3'
         cb(src, koff, klim, tok, voff, idx, null)
         cb(src, -1, -1, TOK.END, idx, idx, null)
         info = null
       } else {
-        info = new_info(state1, ERR.TRUNCATED_VAL)
+        info = new_info(state0, ERR.TRUNCATED_VAL)
         cb(src, koff, klim, opt.incremental ? TOK.END : TOK.ERR, voff, idx, info)
       }
       break
@@ -412,7 +390,7 @@ function tokenize (src, opt, cb) {
     //
     case STATE.BEFORE_FIRST_VAL:
     case STATE.AFTER_VAL:
-      cb(src, -1, -1, TOK.END, idx, idx, null)
+      cb(src, -1, -1, TOK.END, idx, idx, idx === lim ? null : info)
       break
 
     //
@@ -432,6 +410,7 @@ function tokenize (src, opt, cb) {
   return info
 }
 
+
 function Info (src, lim, koff, klim, tok, voff, idx, state, stack, err) {
   this.src = src
   this.lim = lim
@@ -446,45 +425,33 @@ function Info (src, lim, koff, klim, tok, voff, idx, state, stack, err) {
 }
 Info.prototype = {
   constructor: Info,
-  state_str: function () {
-    if (this.state == null) {
-      return 'undefined'
-    }
-    var ctx = this.context()
-    return (ctx ? 'in ' + ctx + ', ' : '') + this.position()
-  },
-  context: function () {
-    return (this.state & STATE.IN_ARR) ? 'array' : (this.state & STATE.IN_OBJ) ? 'object' : null
-  },
-  rposition: function () {
-    if (this.err === ERR.TRUNCATED_VAL) { return 'inside' }
-    switch (this.state & STATE.POS_MASK) {
-      case STATE.AFTER_KEY: case STATE.AFTER_VAL: return 'after'
-      default: return 'before'
-    }
-  },
-  first: function () {
-    switch (this.state & STATE.POS_MASK) {
-      case STATE.BEFORE_FIRST_KEY: case STATE.BEFORE_FIRST_VAL: return true
-      default: return false
-    }
-  },
-  key: function () {
-    switch (this.state & STATE.POS_MASK) {
-      case STATE.BEFORE_FIRST_KEY: case STATE.BEFORE_KEY: case STATE.AFTER_KEY: return true
-      default: return false
-    }
-  },
+  in_arr: function () { return !!(this.state & STATE.IN_ARR) },
+  in_obj: function () { return !!(this.state & STATE.IN_OBJ) },
+  before: function () { switch (this.state & STATE.POS_MASK) {
+    case STATE.AFTER_KEY: case STATE.AFTER_VAL: return false
+    default: return true
+  }},
+  first: function () { switch (this.state & STATE.POS_MASK) {
+    case STATE.BEFORE_FIRST_KEY: case STATE.BEFORE_FIRST_VAL: return true
+    default: return false
+  }},
+  key: function () { switch (this.state & STATE.POS_MASK) {
+    case STATE.BEFORE_FIRST_KEY: case STATE.BEFORE_KEY: case STATE.AFTER_KEY: return true
+    default: return false
+  }},
   tok_type: function () {
-      switch (this.tok) {
-        case TOK.NUM: return 'number'
-        case TOK.STR: return 'string'
-        default: return 'token'
-      }
+    switch (this.tok) {
+      case TOK.NUM: return 'number'
+      case TOK.STR: return 'string'
+      default: return 'token'
+    }
   },
-  position: function () {
-    // can't just map state to strings - need to take this.err into account for 'inside' case.
-    return this.rposition() + ' ' + (this.first() ? 'first ' : '') + (this.key() ? 'key' : 'value')
+  state_str: function () {
+    var ctx = this.in_arr() ? 'in array ' : this.in_obj() ? 'in object ' : ''
+    var pos = this.err === ERR.TRUNCATED_VAL ? '' : this.before() ? 'before ' : 'after '
+    var first = this.first() ? 'first ' : ''
+    var what = this.key() ? 'key' : 'value'
+    return ctx + pos + first + what
   },
   toString: function () {
     var tok = this.tok
@@ -497,7 +464,7 @@ Info.prototype = {
     var ret
     switch (this.err) {
       case ERR.TRUNCATED_VAL:
-        ret = 'truncated ' + (this.key() ? 'key' : 'value')
+        ret = 'truncated ' + this.tok_type() + ','
         break
       case ERR.UNEXPECTED_VAL:
         ret = 'unexpected ' + this.tok_type() + ' ' + srcstr(src, voff, idx, tok) + ', ' + this.state_str()
@@ -511,11 +478,11 @@ Info.prototype = {
         from = thru = this.idx
         break
       default:
-        ret = this.state_str()
+        ret = this.tok_type()
         thru = idx
     }
     // var tokstr = (tok > 31 && tok < 127 && tok !== 34) ? '"' + String.fromCharCode(tok) + '"' : String(tok)
-    return ret + ', at ' + ((from === thru) ? from : from + '..' + thru)
+    return ret + ' at ' + ((from === thru) ? from : from + '..' + thru)
   }
 }
 
