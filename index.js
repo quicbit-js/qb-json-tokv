@@ -16,19 +16,19 @@
 
 // STATES   - LSB is reserved for token ascii value.  see readme
 var STATE = {
-  IN_ARR:           0x0100,
-  IN_OBJ:           0x0200,
+  IN_ARR: 0x0100,
+  IN_OBJ: 0x0200,
   // 0x0 means no context
 
   // use bits 9,10,11 for the six possible positions (sqeeze max value down to 0x18FF)
-  POS_MASK:         0x1C00,
+  POS_MASK: 0x1C00,
 
   BEFORE_FIRST_KEY: 0x0400,
-  BEFORE_KEY:       0x0800,   // key states can be zero because they always occur IN_OBJ context (which is non-zero)
+  BEFORE_KEY: 0x0800,   // key states can be zero because they always occur IN_OBJ context (which is non-zero)
   BEFORE_FIRST_VAL: 0x0C00,
-  BEFORE_VAL:       0x1000,
-  AFTER_VAL:        0x1400,
-  AFTER_KEY:        0x1800,
+  BEFORE_VAL: 0x1000,
+  AFTER_VAL: 0x1400,
+  AFTER_KEY: 0x1800
 }
 
 // ascii tokens as well as special codes for number, error, begin and end.
@@ -47,7 +47,7 @@ var TOK = {
   NUM: 78,        // 'N'  - represents a number value starting with: -, 0, 1, ..., 9
   ERR: 0,         // error.  check err_info for information
   BEG: 66,        // 'B' - begin - about to process
-  END: 69,        // 'E' - end -   buffer limit reached
+  END: 69        // 'E' - end -   buffer limit reached
 }
 
 var ERR = {
@@ -55,14 +55,14 @@ var ERR = {
   UNEXP_BYTE: -2,   // encountered invalid byte - not a token or legal number value
   TRUNC_VAL: -3,    // a multi-byte value (string, number, true, false, null, object-key) doesn't complete
   TRUNC_SRC: -4,    // src is valid, but does not complete (still in object, in array, or trailing comma, ...)
-  NONE: 0,          // no error
+  NONE: 0          // no error
 }
 
 // create an int-int map from (state + tok) -- to --> (new state)
 function state_map () {
   var ret = []
   var max = 0x1AFF      // accommodate all possible byte values
-  for (var i=0; i <= max; i++) {
+  for (var i = 0; i <= max; i++) {
     ret[i] = 0
   }
 
@@ -71,7 +71,7 @@ function state_map () {
     ctx_arr.forEach(function (ctx) {
       s0_arr.forEach(function (s0) {
         for (var i = 0; i < chars.length; i++) {
-          ret[ctx|s0|chars.charCodeAt(i)] = s1
+          ret[ctx | s0 | chars.charCodeAt(i)] = s1
         }
       })
     })
@@ -91,21 +91,21 @@ function state_map () {
 
   // 0 = no context (comma separated values)
   // (s0 ctxs +       s0 positions + tokens) -> s1
-  map([non],          [bfv,b_v],    val,      a_v)
-  map([non],          [a_v],        ',',      b_v)
+  map([non], [bfv, b_v], val, a_v)
+  map([non], [a_v], ',', b_v)
 
-  map([non,arr,obj],  [bfv,b_v],    '[',      arr|bfv)
-  map([non,arr,obj],  [bfv,b_v],    '{',      obj|bfk)
+  map([non, arr, obj], [bfv, b_v], '[', arr | bfv)
+  map([non, arr, obj], [bfv, b_v], '{', obj | bfk)
 
-  map([arr],          [bfv,b_v],    val,      arr|a_v)
-  map([arr],          [a_v],        ',',      arr|b_v)
-  map([arr],          [bfv,a_v],    ']',      a_v)          // s1 context not set here. it is set by checking the stack
+  map([arr], [bfv, b_v], val, arr | a_v)
+  map([arr], [a_v], ',', arr | b_v)
+  map([arr], [bfv, a_v], ']', a_v)          // s1 context not set here. it is set by checking the stack
 
-  map([obj],          [a_v],        ',',      obj|b_k)
-  map([obj],          [bfk,b_k],    '"',      obj|a_k)
-  map([obj],          [a_k],        ':',      obj|b_v)
-  map([obj],          [b_v],        val,      obj|a_v)
-  map([obj],          [bfk,a_v],    '}',      a_v)          // s1 context not set here. it is set by checking the stack
+  map([obj], [a_v], ',', obj | b_k)
+  map([obj], [bfk, b_k], '"', obj | a_k)
+  map([obj], [a_k], ':', obj | b_v)
+  map([obj], [b_v], val, obj | a_v)
+  map([obj], [bfk, a_v], '}', a_v)          // s1 context not set here. it is set by checking the stack
 
   return ret
 }
@@ -129,7 +129,6 @@ var WHITESPACE = ascii_to_code('\n\t\r ', 1)
 var ALL_NUM_CHARS = ascii_to_code('-0123456789+.eE', 1)
 var TOK_BYTES = ascii_to_bytes({ f: 'false', t: 'true', n: 'null' })
 
-
 // skip as many bytes of src that match bsrc, up to lim.
 // return
 //     idx    the new index after all bytes are matched (past matched bytes)
@@ -138,7 +137,7 @@ function skip_bytes (src, off, lim, bsrc) {
   var blen = bsrc.length
   if (blen > lim - off) { blen = lim - off }
   var i = 0
-  while (bsrc[i] === src[i + off] && i < blen) {i++}
+  while (bsrc[i] === src[i + off] && i < blen) { i++ }
   return blen === bsrc.length ? i + off : -(i + off)
 }
 
@@ -264,7 +263,7 @@ function tokenize (src, opt, cb) {
         case 110:                                 // n    null
         case 116:                                 // t    true
           idx = skip_bytes(src, idx, lim, tok_bytes[tok])
-          state1 = states[state0|tok]
+          state1 = states[state0 | tok]
           if (idx <= 0) {
             // not all bytes matched
             idx = -idx
@@ -297,7 +296,7 @@ function tokenize (src, opt, cb) {
           break
 
         case 48:case 49:case 50:case 51:case 52:   // digits 0-4
-        case 53:case 54:case 55:case 56:case 57:   /* digits 5-9*/
+        case 53:case 54:case 55:case 56:case 57:   /* digits 5-9 */
         case 45:                                   // '-'   ('+' is not legal here)
           state1 = states[state0 | tok]
           tok = 78                                // N  Number
@@ -322,7 +321,7 @@ function tokenize (src, opt, cb) {
           if (state1 === 0) { break main_loop }
           stack.pop()
           // state1 context is unset after closing brace (see state map).  we set it here.
-          if (stack.length !== 0) { state1 |= (stack[stack.length - 1] === 91 ? in_arr : in_obj)}
+          if (stack.length !== 0) { state1 |= (stack[stack.length - 1] === 91 ? in_arr : in_obj) }
           break
 
         default:
@@ -360,8 +359,8 @@ function tokenize (src, opt, cb) {
       var is_separate =
         voff === (opt.off || 0) ||
         sep_chars[tok] ||
-        sep_chars[src[voff-1]] ||
-        WHITESPACE[src[voff-1]]
+        sep_chars[src[voff - 1]] ||
+        WHITESPACE[src[voff - 1]]
 
       info = new_info(state0, is_separate ? ERR.UNEXP_VAL : ERR.UNEXP_BYTE)
       cb(src, koff, klim, TOK.ERR, voff, idx, info)
@@ -410,7 +409,6 @@ function tokenize (src, opt, cb) {
   return info
 }
 
-
 function Info (src, lim, koff, klim, tok, voff, idx, state, stack, err) {
   this.src = src
   this.lim = lim
@@ -427,18 +425,24 @@ Info.prototype = {
   constructor: Info,
   in_arr: function () { return !!(this.state & STATE.IN_ARR) },
   in_obj: function () { return !!(this.state & STATE.IN_OBJ) },
-  before: function () { switch (this.state & STATE.POS_MASK) {
-    case STATE.AFTER_KEY: case STATE.AFTER_VAL: return false
-    default: return true
-  }},
-  first: function () { switch (this.state & STATE.POS_MASK) {
-    case STATE.BEFORE_FIRST_KEY: case STATE.BEFORE_FIRST_VAL: return true
-    default: return false
-  }},
-  key: function () { switch (this.state & STATE.POS_MASK) {
-    case STATE.BEFORE_FIRST_KEY: case STATE.BEFORE_KEY: case STATE.AFTER_KEY: return true
-    default: return false
-  }},
+  before: function () {
+    switch (this.state & STATE.POS_MASK) {
+      case STATE.AFTER_KEY: case STATE.AFTER_VAL: return false
+      default: return true
+    }
+  },
+  first: function () {
+    switch (this.state & STATE.POS_MASK) {
+      case STATE.BEFORE_FIRST_KEY: case STATE.BEFORE_FIRST_VAL: return true
+      default: return false
+    }
+  },
+  key: function () {
+    switch (this.state & STATE.POS_MASK) {
+      case STATE.BEFORE_FIRST_KEY: case STATE.BEFORE_KEY: case STATE.AFTER_KEY: return true
+      default: return false
+    }
+  },
   tok_type: function () {
     switch (this.tok) {
       case TOK.NUM: return 'number'
@@ -488,7 +492,7 @@ Info.prototype = {
 
 function srcstr (src, off, lim, tok) {
   var ret = ''
-  for (var i=off; i<lim; i++) {
+  for (var i = off; i < lim; i++) {
     var b = src[i]
     ret += (b > 31 && b < 127) ? String.fromCharCode(b) : '0x' + b.toString(16)
   }
@@ -496,7 +500,7 @@ function srcstr (src, off, lim, tok) {
 }
 
 // a convenience function for summarizing/logging/debugging callback arguments as compact strings
-function args2str(koff, klim, tok, voff, vlim, info) {
+function args2str (koff, klim, tok, voff, vlim, info) {
   var ret
   var vlen = vlim - voff
   switch (tok) {
@@ -523,5 +527,5 @@ module.exports = {
   args2str: args2str,
   TOK: TOK,
   STATE: STATE,
-  ERR: ERR,
+  ERR: ERR
 }
