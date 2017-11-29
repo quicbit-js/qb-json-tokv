@@ -249,13 +249,13 @@ If that made sense, I encourage looking at the code - it is just as understandab
 To make the graph tolerate trailing commas in arrays <code>[1,2,3,]</code>, add an array-end rule where a 
 value is expected (before-value):
 
-      map( CTX_ARR | BEFORE_VAL,        ']',  AFTER_VAL )    // whenever an object or array is ended, we don't set context - that is done using the stack
+      map( IN_ARR | BEFORE_VAL,        ']',  AFTER_VAL )    // whenever an object or array is ended, we don't set context - that is done using the stack
       
       
 To make the graph also tolerate trailing commas in an empty array <code>[,]</code>, add an array-comma rule where 
 a first value is expected (before-first-value):
 
-      map( CTX_ARR | BEFORE_FIRST_VAL,  ',',  CTX_ARR | BEFORE_VAL )
+      map( IN_ARR | BEFORE_FIRST_VAL,  ',',  IN_ARR | BEFORE_VAL )
 
 Still not clear?  See the example in the next section that maps these states to an exmaple JSON snippet.
 
@@ -276,9 +276,9 @@ This simple mechanism works for all state transitions, except when we leave cont
 When a '}' or ']' is encountered, the new state will have no context set (you can see this for yourself in
 the Adding Custom Rules to Parsing section, above).
 
-When closing an object or array, the 'stack' is used to supplement missing context:
+When closing an object or array, the 'stack' is used to supplement missing context (91 is ascii for array-close):
 
-   state1 |= stack.length === 0 ? CTX_NONE : (stack[stack.length - 1] === 91 ? CTX_ARR : IN_OBJ)
+    if (stack.length !== 0) { state1 |= (stack[stack.length - 1] === 91 ? in_arr : in_obj) }
  
 
 ### The 'stack'
@@ -297,7 +297,7 @@ the open unmatched ascii braces.
 ### The Components of the 'state' Integer
  
 Each state integer holds context information about the current parsing context is in the JSON document.  
-There are three possible  *contexts*: **IN_OBJ**, **CTX_ARR**, **CTX_NONE** that define the type of 
+There are three possible  *contexts*: **IN_OBJ**, **IN_ARR**, **CTX_NONE** that define the type of 
 container the parser is within: 
 
     no context |           IN_OBJ            |     IN_ARR     |  IN_OBJ   |  no context...
