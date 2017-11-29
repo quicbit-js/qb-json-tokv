@@ -359,7 +359,7 @@ or value plus a **FIRST** indicator to indicate if it is the first item in a new
       |  
       |  IN_OBJ|BEFORE_FIRST_KEY        // object context...
       |  |
-      |  |    IN_OBJ|AFTER|KEY
+      |  |    IN_OBJ|AFTER_KEY
       |  |    |
       |  |    | IN_OBJ|BEFORE_VAL
       |  |    | |
