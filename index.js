@@ -33,7 +33,7 @@ var STATE = {
 
 // ascii tokens as well as special codes for number, error, begin and end.
 var TOK = {
-  // direct ascii codes - the token is represented by the first ascii byte encountered
+  // ascii codes - the token is represented by the first ascii byte encountered
   ARR_BEG: 91,    // '['
   ARR_END: 93,    // ']'
   OBJ_BEG: 123,   // '{'
@@ -66,7 +66,7 @@ function state_map () {
     ret[i] = 0
   }
 
-  // map ( [ctx], [state0], tokens ) => state1
+  // map ( [ctx], [state0], [ascii] ) => state1
   var map = function (ctx_arr, s0_arr, chars, s1) {
     ctx_arr.forEach(function (ctx) {
       s0_arr.forEach(function (s0) {

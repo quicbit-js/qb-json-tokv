@@ -21,7 +21,7 @@ A fast, zero-dependency, *validating* JSON parser (~300 MB/sec running node 6 on
 **qb-json-tokv introduces validation and incremental parsing!**
 
 qb-json-tokv started out as an update to qb-json-tok (which is faster but with no validation), but winded up making more
-sense as a new package once done.  Very fast JSON parsing under a complete validating parse-graph.
+sense as a new package.  Very fast JSON parsing under a complete validating parse-graph.
 
 **Complies with the 100% test coverage and minimum dependency requirements** of 
 [qb-standard](http://github.com/quicbit-js/qb-standard) . 
@@ -61,16 +61,19 @@ process can be controlled/stopped via the function return value)
                     The TOK property defines these token codes by name:
                         
                     var TOK = {
+                      // ascii codes - the token is represented by the first ascii byte encountered
                       ARR_BEG: 91,    // '['
                       ARR_END: 93,    // ']'
                       OBJ_BEG: 123,   // '{'
                       OBJ_END: 125,   // '}'
                       FAL: 102,       // 'f'
                       NUL: 110,       // 'n'
-                      NUM: 78,        // 'N'
                       STR: 34,        // '"'
                       TRU: 116,       // 't'
-                      ERR: 0,         // error.  check err_info for information
+                      
+                      // special codes
+                      NUM: 78,        // 'N'  - represents a number value starting with: -, 0, 1, ..., 9
+                      ERR: 0,         // error.  check callback info argument for information
                       BEG: 66,        // 'B' - begin - about to process
                       END: 69,        // 'E' - end -   buffer limit reached
                     }
@@ -79,8 +82,15 @@ process can be controlled/stopped via the function return value)
         voff        index of value offset (inclusive) in current object or array
         vlim        index of value limit (non-inclusive) in current object or array
         
-        info        (object) if tok === TOK.ERR or tok === TOK.END, then info holds details that can be 
-                    used to recover or handle values split across buffers.
+        info        (object) if tok === TOK.ERR or tok === TOK.END, then info holds all the details that can be 
+                    used to recover or handle values split across buffers.  info.toString() gives 
+                    useful details as well as methods that report the state in readable form such as:
+                    
+                        info.before()        true if state was positioned 'before' a key or value
+                        info.key()           true if the state was positioned relative to a 'key' rather than 'value'
+                        in_obj()             true if context was within an object
+                        in_arr()             true if context was within an array 
+                            (false for both in_arr() and in_obj() mean that parse state was in plain csv context)
                      
         return      return truthy to continue processing, falsey to halt processing (returning a true boolean may be 
                     slighty faster than other values)
@@ -92,9 +102,15 @@ Tokens passed to the callback by name (see the token callback parameter, above, 
 
 ### Special tokens BEG(IN), END, ERR(OR)
 
-When tokenizer begins or ends processing of a source buffer, it sends BEG and END tokens along with information
-in the 'info' parameter.  When a value terminates unexpectedly, an ERR token is sent 
-statement, error and end cases will fall into the default case instead of being forgotten and unchecked.
+When tokenizer begins processing of a source buffer, it sends a BEG begin token.  When it ends processing of a 
+source buffer, it sends an END token along with information
+in the 'info' parameter about the parse state.  When a value terminates unexpectedly, an ERR token is sent, 
+again with an info object.
+
+Even if you have an aversion to switch statements, this approach is handy because so long as there is 
+a default handler, errors and other events won't be accidentally forgotten.  Switching on integers is
+also the fastest multiway branching that can be achieved in javascript along with integer
+array access.
 
     function callback (src, koff, klim, tok, voff, vlim, info) {
         switch (tok) {
@@ -107,13 +123,13 @@ statement, error and end cases will fall into the default case instead of being 
             case TOK.END:
                 ...
             default:
-                error('case not handled')       // we didn't have to remember to handle TOK.ERR - it fell into the default case
+                error('case not handled')    
         }
     }
 
 ### info
     
-When tok is set to TOK.ERR or TOK.END, then the 'info' parameter will hold more
+When tok is set to TOK.ERR or TOK.END, then the 'info' parameter will hold full
 information about the parse state.  In conjuction with the return-control to 
 reset parsing position, info allows you to define recovery strategies for error cases and parsing 
 values split across buffers.
@@ -130,96 +146,116 @@ fields:
       tok:    the token that was last processed before the end or error occured
     }
 
-## state_to_str (state)
-
-Convert a state integer to a human-readable string:
-
-    var qbtok = require('qb-json-tokv')
-    qbtok(13568)
-    > 'in object, before first key'
-    
-## state_to_obj (state) 
-
-Convert a state integer to an object with accessors.  NOTE that the accessors are functions, not iterable properties.
-
-    var qbtok = require('qb-json-tokv')
-    qbtok(13568)
-    > { ctx: 'obj', pos: 'before', first: true, key: true }
-    
-
 ## Adding Custom Rules to Parsing
 
 Though qb-json-tokv uses bit manipulation, we have tried to make the rules as readable as possible so even if
 you aren't comfortable with bit twiddling, you may understand and modify the parse rules.  Can you see how
 to make parsing tolerant of trailing commas by looking at the states below? (the answer is at the bottom of this section).
     
-    // create an int-int map from (state + tok) -- to --> (new state)
+First, the setup.  We create an integer-to-integer mapping of all the allowed states.  The full parse graph is 
+defined in 15 lines:
+
+    // (s0 ctxs +       s0 positions + tokens) -> s1
+    map([non],          [bfv,b_v],    val,      a_v)
+    map([non],          [a_v],        ',',      b_v)
+  
+    map([non,arr,obj],  [bfv,b_v],    '[',      arr|bfv)
+    map([non,arr,obj],  [bfv,b_v],    '{',      obj|bfk)
+  
+    map([arr],          [bfv,b_v],    val,      arr|a_v)
+    map([arr],          [a_v],        ',',      arr|b_v)
+    map([arr],          [bfv,a_v],    ']',      a_v)          // special... see comment
+  
+    map([obj],          [a_v],        ',',      obj|b_k)
+    map([obj],          [bfk,b_k],    '"',      obj|a_k)
+    map([obj],          [a_k],        ':',      obj|b_v)
+    map([obj],          [b_v],        val,      obj|a_v)
+    map([obj],          [bfk,a_v],    '}',      a_v)          // special... see comment  
+
+
+That's pretty dense, and the codes look cryptic, but it is easy to see the 'big picture' once
+you understand the abbreviations.  'non', 'arr', and 'obj' are contexts, for when we parsing is immediately
+within an array, object - or nothing (zero depth - CSV parsing).
+
+Parse positions are 
+    
+    before-first-value  'bfv'
+    before-value        'bv'
+    after-value         'av'
+    
+    before-first-key    'bfk'
+    before-key          'bk'
+    after-key           'ak'
+    
+    'val' holds all the legal ascii start values: 
+    
+        '"ntf-0123456789'
+    
+So the mappings can be read like this:
+    
+    map([non,arr,obj],  [bfv,b_v],    '[',      arr|bfv)
+    
+    // means:
+
+    for contexts (none, in-array and in-object)            
+        for positions (before-first-value and before-value) 
+            for token ('[')
+    
+                allow transition to state:
+            
+                    in-array, before-first-value
+
+
+    // and this mapping:
+    
+    map([arr],          [bfv,b_v],    val,      arr|a_v)
+    
+    // means:
+    
+    for the context (array-context)
+        for positions (before-first-value, before-value)
+            for tokens ('"ntf-0123456789')                  (all legal value start ascii)
+            
+                allow transition to state:
+                    
+                    in-array-after-value
+                    
+    and so on...           
+        
+                
+If that made sense, I encourage looking at the code - it is just as understandable as that... 
+
+    // create an int-int map from (state | tok) -- to --> (new state)
     function state_map () {
       var ret = []
-    
-      // map ( state0, tokens, state1)
-      var map = function (s0, chars, s1) {
-        for (var i=0; i<chars.length; i++) {
-          ret[s0 | chars.charCodeAt(i)] = s1
-        }
+      var max = 0x1AFF      // accommodate all possible byte values
+      for (var i=0; i <= max; i++) {
+        ret[i] = 0
       }
     
-      var val = '"ntf-0123456789' // all legal value start characters
+      // map ( [ctx], [state0], [ascii] ) => state1
+      var map = function (ctx_arr, s0_arr, chars, s1) {
+      ctx_arr.forEach(function (ctx) {
+        s0_arr.forEach(function (s0) {
+          for (var i = 0; i < chars.length; i++) {
+            ret[ctx|s0|chars.charCodeAt(i)] = s1
+          }
+        })
+      })
     
-      // start array
-      map( CTX_NONE | BEFORE|FIRST|VAL, '[',  CTX_ARR | BEFORE|FIRST|VAL )
-      map( CTX_ARR  | BEFORE|FIRST|VAL, '[',  CTX_ARR | BEFORE|FIRST|VAL )
-      map( CTX_OBJ  | BEFORE|FIRST|VAL, '[',  CTX_ARR | BEFORE|FIRST|VAL )
-      map( CTX_NONE | BEFORE|VAL,       '[',  CTX_ARR | BEFORE|FIRST|VAL )
-      map( CTX_ARR  | BEFORE|VAL,       '[',  CTX_ARR | BEFORE|FIRST|VAL )
-      map( CTX_OBJ  | BEFORE|VAL,       '[',  CTX_ARR | BEFORE|FIRST|VAL )
-    
-      // start object
-      map( CTX_NONE | BEFORE|FIRST|VAL, '{',  CTX_OBJ | BEFORE|FIRST|KEY )
-      map( CTX_ARR  | BEFORE|FIRST|VAL, '{',  CTX_OBJ | BEFORE|FIRST|KEY )
-      map( CTX_OBJ  | BEFORE|FIRST|VAL, '{',  CTX_OBJ | BEFORE|FIRST|KEY )
-      map( CTX_NONE | BEFORE|VAL,       '{',  CTX_OBJ | BEFORE|FIRST|KEY )
-      map( CTX_ARR  | BEFORE|VAL,       '{',  CTX_OBJ | BEFORE|FIRST|KEY )
-      map( CTX_OBJ  | BEFORE|VAL,       '{',  CTX_OBJ | BEFORE|FIRST|KEY )
-    
-      // values (no context)
-      map( CTX_NONE | BEFORE|FIRST|VAL, val,  CTX_NONE | AFTER|VAL )
-      map( CTX_NONE | AFTER|VAL,        ',',  CTX_NONE | BEFORE|VAL )
-      map( CTX_NONE | BEFORE|VAL,       val,  CTX_NONE | AFTER|VAL )   // etc ...
-                                              
-      // array values
-      map( CTX_ARR | BEFORE|FIRST|VAL,  val,  CTX_ARR | AFTER|VAL )
-      map( CTX_ARR | AFTER|VAL,         ',',  CTX_ARR | BEFORE|VAL )
-      map( CTX_ARR | BEFORE|VAL,        val,  CTX_ARR | AFTER|VAL )   // etc ...
-    
-      // object fields
-      map( CTX_OBJ | BEFORE|FIRST|KEY,  '"',  CTX_OBJ | AFTER|KEY )
-      map( CTX_OBJ | AFTER|KEY,         ':',  CTX_OBJ | BEFORE|VAL )
-      map( CTX_OBJ | BEFORE|VAL,        val,  CTX_OBJ | AFTER|VAL )
-      map( CTX_OBJ | AFTER|VAL,         ',',  CTX_OBJ | BEFORE|KEY )
-      map( CTX_OBJ | BEFORE|KEY,        '"',  CTX_OBJ | AFTER|KEY )  // etc ...
-    
-      // end array or object. context is not set here. it will be set by checking the stack
-      map( CTX_ARR | BEFORE|FIRST|VAL,  ']',  AFTER|VAL )   // empty array
-      map( CTX_ARR | AFTER|VAL,         ']',  AFTER|VAL )
-      map( CTX_OBJ | BEFORE|FIRST|KEY,  '}',  AFTER|VAL )   // empty object
-      map( CTX_OBJ | AFTER|VAL,         '}',  AFTER|VAL )
-    
-      return ret
-    }
-
+    ...
 
 
 To make the graph tolerate trailing commas in arrays <code>[1,2,3,]</code>, add an array-end rule where a 
 value is expected (before-value):
 
-      map( CTX_ARR | BEFORE|VAL,        ']',  AFTER|VAL )    // whenever an object or array is ended, we don't set context - that is done using the stack
+      map( CTX_ARR | BEFORE_VAL,        ']',  AFTER_VAL )    // whenever an object or array is ended, we don't set context - that is done using the stack
       
       
 To make the graph also tolerate trailing commas in an empty array <code>[,]</code>, add an array-comma rule where 
 a first value is expected (before-first-value):
 
-      map( CTX_ARR | BEFORE|FIRST|VAL,  ',',  CTX_ARR | BEFORE|VAL )
+      map( CTX_ARR | BEFORE_FIRST_VAL,  ',',  CTX_ARR | BEFORE_VAL )
 
 Still not clear?  See the example in the next section that maps these states to an exmaple JSON snippet.
 
@@ -242,7 +278,7 @@ the Adding Custom Rules to Parsing section, above).
 
 When closing an object or array, the 'stack' is used to supplement missing context:
 
-   state1 |= stack.length === 0 ? CTX_NONE : (stack[stack.length - 1] === 91 ? CTX_ARR : CTX_OBJ)
+   state1 |= stack.length === 0 ? CTX_NONE : (stack[stack.length - 1] === 91 ? CTX_ARR : IN_OBJ)
  
 
 ### The 'stack'
@@ -261,12 +297,12 @@ the open unmatched ascii braces.
 ### The Components of the 'state' Integer
  
 Each state integer holds context information about the current parsing context is in the JSON document.  
-There are three possible  *contexts*: **CTX_OBJ**, **CTX_ARR**, **CTX_NONE** that define the type of 
+There are three possible  *contexts*: **IN_OBJ**, **CTX_ARR**, **CTX_NONE** that define the type of 
 container the parser is within: 
 
-    CTX_NONE  |           CTX_OBJ           |     CTX_ARR    |  CTX_OBJ  |  CTX_NONE
-              |                             |                |           |          
-              { "name" : "Samuel", "tags" : [ "Sam", "Sammy" ]           }
+    no context |           IN_OBJ            |     IN_ARR     |  IN_OBJ   |  no context...
+               |                             |                |           |          
+               { "name" : "Samuel", "tags" : [ "Sam", "Sammy" ]           }
 
 State also describes which of the 2 item types: **KEY** or **VAL**(UE) the position of the parser is near.  Note that
 bothe the start and end of arrays and objects
@@ -282,48 +318,48 @@ are considered a VALUES when describing position.
 There are 2 possible *positions* **BEFORE**, and **AFTER**, that define parse position relative to a key 
 or value plus a **FIRST** indicator to indicate if it is the first item in a new context: 
 
-    CTX_NONE|BEFORE|FIRST|VAL 
+    BEFORE_FIRST_VAL (no context)
       |  
-      |  CTX_OBJ|BEFORE|FIRST|KEY
+      |  IN_OBJ|BEFORE_FIRST_KEY        // object context...
       |  |
-      |  |    CTX_OBJ|AFTER|FIRST|KEY
+      |  |    IN_OBJ|AFTER|KEY
       |  |    |
-      |  |    | CTX_OBJ|BEFORE|FIRST|VAL
+      |  |    | IN_OBJ|BEFORE_VAL
       |  |    | |
       |  |    | | 
       |  |    | |  
-      |  |    | |         CTX_OBJ|AFTER|FIRST|VAL
+      |  |    | |         IN_OBJ|AFTER_VAL
       |  |    | |         |
-      |  |    | |         | CTX_OBJ|BEFORE|KEY         (notice it is no longer FIRST)
+      |  |    | |         | IN_OBJ|BEFORE_KEY        
       |  |    | |         | |
       |  |    | |         | | 
       |  |    | |         | |  
-      |  |    | |         | |    CTX_OBJ|AFTER|KEY
+      |  |    | |         | |    IN_OBJ|AFTER_KEY
       |  |    | |         | |    |
-      |  |    | |         | |    | CTX_OBJ|BEFORE|VAL
+      |  |    | |         | |    | IN_OBJ|BEFORE_VAL
       |  |    | |         | |    | |
-      |  |    | |         | |    | | CTX_ARR|BEFORE|FIRST|VAL
+      |  |    | |         | |    | | IN_ARR|BEFORE_FIRST_VAL    // array context...
       |  |    | |         | |    | | |
       |  |    | |         | |    | | |  
       |  |    | |         | |    | | |    
-      |  |    | |         | |    | | |     CTX_ARR|AFTER|FIRST|VAL
+      |  |    | |         | |    | | |     IN_ARR|AFTER_VAL
       |  |    | |         | |    | | |     |
-      |  |    | |         | |    | | |     |CTX_ARR|BEFORE|VAL
+      |  |    | |         | |    | | |     |IN_ARR|BEFORE_VAL
       |  |    | |         | |    | | |     ||
       |  |    | |         | |    | | |     ||
       |  |    | |         | |    | | |     ||   
-      |  |    | |         | |    | | |     ||       CTX_ARR|AFTER|VAL
+      |  |    | |         | |    | | |     ||       IN_ARR|AFTER_VAL
       |  |    | |         | |    | | |     ||       | 
-      |  |    | |         | |    | | |     ||       | CTX_OBJ|AFTER|VAL
-      |  |    | |         | |    | | |     ||       | |        CTX_NONE|AFTER|FIRST|VAL
-      |  |    | |         | |    | | |     ||       | |        |
-      |  |    | |         | |    | | |     ||       | |        | CTX_NONE|BEFORE|VAL
-      |  |    | |         | |    | | |     ||       | |        | |
-      |  |    | |         | |    | | |     ||       | |        | | 
-      |  |    | |         | |    | | |     ||       | |        | |  
-      |  |    | |         | |    | | |     ||       | |        | |                CTX_NONE|AFTER|VAL
-      |  |    | |         | |    | | |     ||       | |        | |                |
-       {  name :  "Samuel" , tags : [ "Sam", "Sammy" ]        } ,  "another value"
+      |  |    | |         | |    | | |     ||       | IN_OBJ|AFTER_VAL  // object context...
+      |  |    | |         | |    | | |     ||       | |           AFTER_VAL  // no context... (basic CSV is supported)
+      |  |    | |         | |    | | |     ||       | |           |
+      |  |    | |         | |    | | |     ||       | |           | BEFORE_VAL
+      |  |    | |         | |    | | |     ||       | |           | |
+      |  |    | |         | |    | | |     ||       | |           | | 
+      |  |    | |         | |    | | |     ||       | |           | |  
+      |  |    | |         | |    | | |     ||       | |           | |                AFTER_VAL
+      |  |    | |         | |    | | |     ||       | |           | |                |
+       {  name :  "Samuel" , tags : [ "Sam", "Sammy" ]        }    ,  "another value"
     
 
 So state management is the matter of a bitwise-or and one or two array lookups per token.
