@@ -190,8 +190,36 @@ Parse positions are
     'val' holds all the legal ascii start values: 
     
         '"ntf-0123456789'
+        
+For example:
+        
+        
+        arr|before-first-value    // array context...
+        |
+        |  
+        |    
+        |     arr|after-value
+        |     |
+        |     |arr|before-value
+        |     ||
+        |     ||
+        |     ||   
+        |     ||       arr|after-value
+        |     ||       | 
+        |     ||       | 
+        |     ||       | 
+        |     ||       | 
+        |     ||       | 
+        |     ||       | 
+        |     ||       |  
+        |     ||       |   
+        |     ||       | 
+        |     ||       | 
+       [ "Sam", "Sammy" ]
+        
+(See the section below: The Components of the 'state' Integer, for more examples)        
     
-So the mappings can be read like this:
+So mappings are read like this:
     
     map([non,arr,obj],  [bfv,b_v],    '[',      arr|bfv)
     
@@ -249,13 +277,22 @@ If that made sense, I encourage looking at the code - it is just as understandab
 To make the graph tolerate trailing commas in arrays <code>[1,2,3,]</code>, add an array-end rule where a 
 value is expected (before-value):
 
-      map( IN_ARR | BEFORE_VAL,        ']',  AFTER_VAL )    // whenever an object or array is ended, we don't set context - that is done using the stack
+      map([arr],    [b_v],        ']',     a_v )    // note that we don't set a context for ending array or objects - that is done for us using the stack
+      
+  In fact, if you look above, this looks extremely similar to the existing 'bfv' + ']' rule that allows arrays to close without
+  any content at all:
+
+      map([arr],    [bfv, a_v],   ']',     a_v)        
+      
+      ... and we could have just added our case to that rule instead, if we liked
+      
+      map([arr],    [bfv, b_v, a_v],   ']',     a_v)        
       
       
 To make the graph also tolerate trailing commas in an empty array <code>[,]</code>, add an array-comma rule where 
 a first value is expected (before-first-value):
 
-      map( IN_ARR | BEFORE_FIRST_VAL,  ',',  IN_ARR | BEFORE_VAL )
+      map([arr], [bfv], ',',  arr|b_v )
 
 Still not clear?  See the example in the next section that maps these states to an exmaple JSON snippet.
 
