@@ -51,11 +51,11 @@ var TOK = {
 }
 
 var ERR = {
-  UNEXPECTED_VAL: -1,       // Same as state === 0. token is valid, but not expected
-  UNEXPECTED_BYTE: -2,      // encountered invalid byte - not a token or legal number value
-  TRUNCATED_VAL: -3,        // a multi-byte value (string, number, true, false, null, object-key) doesn't complete
-  TRUNCATED_SRC: -4,        // src is valid, but does not complete (still in object, in array, or trailing comma, ...)
-  NONE: 0,                  // no error
+  UNEXP_VAL: -1,    // token is well-formed, but not expected.  i.e. (state0 + tok) -> 0.
+  UNEXP_BYTE: -2,   // encountered invalid byte - not a token or legal number value
+  TRUNC_VAL: -3,    // a multi-byte value (string, number, true, false, null, object-key) doesn't complete
+  TRUNC_SRC: -4,    // src is valid, but does not complete (still in object, in array, or trailing comma, ...)
+  NONE: 0,          // no error
 }
 
 // create an int-int map from (state + tok) -- to --> (new state)
@@ -268,7 +268,7 @@ function tokenize (src, opt, cb) {
           if (idx <= 0) {
             // not all bytes matched
             idx = -idx
-            if (state1 !== 0) { state1 = ERR.TRUNCATED_VAL }
+            if (state1 !== 0) { state1 = ERR.TRUNC_VAL }
             break main_loop
           }
           // full match
@@ -281,7 +281,7 @@ function tokenize (src, opt, cb) {
           if (idx === -1) {
             // break for bad transition (state1 === 0) or for truncation, in that order.
             idx = lim
-            if (state1 !== 0) { state1 = ERR.TRUNCATED_VAL }
+            if (state1 !== 0) { state1 = ERR.TRUNC_VAL }
             break main_loop
           }
           idx++    // skip quote
@@ -304,7 +304,7 @@ function tokenize (src, opt, cb) {
           while (all_num_chars[src[++idx]] === 1 && idx < lim) {}
           if (state1 === 0) { break main_loop }
           // the number *might* be truncated - flag it here and handle below
-          if (idx === lim) { state1 = ERR.TRUNCATED_VAL; break main_loop }
+          if (idx === lim) { state1 = ERR.TRUNC_VAL; break main_loop }
           break
 
         case 91:                                  // [    ARRAY START
@@ -326,7 +326,7 @@ function tokenize (src, opt, cb) {
           break
 
         default:
-          state1 = ERR.UNEXPECTED_BYTE          // no legal transition for this token
+          state1 = ERR.UNEXP_BYTE          // no legal transition for this token
           idx++
           break main_loop
       }
@@ -363,16 +363,16 @@ function tokenize (src, opt, cb) {
         sep_chars[src[voff-1]] ||
         WHITESPACE[src[voff-1]]
 
-      info = new_info(state0, is_separate ? ERR.UNEXPECTED_VAL : ERR.UNEXPECTED_BYTE)
+      info = new_info(state0, is_separate ? ERR.UNEXP_VAL : ERR.UNEXP_BYTE)
       cb(src, koff, klim, TOK.ERR, voff, idx, info)
       break
 
-    case ERR.UNEXPECTED_BYTE:
-      info = new_info(state0, ERR.UNEXPECTED_BYTE)
+    case ERR.UNEXP_BYTE:
+      info = new_info(state0, ERR.UNEXP_BYTE)
       cb(src, koff, klim, TOK.ERR, voff, idx, info)
       break
 
-    case ERR.TRUNCATED_VAL:
+    case ERR.TRUNC_VAL:
       // truncated values do NOT advance state. state0 is left one step before the transition (like unexpected values)
       if (tok === TOK.NUM && (state0 === (STATE.BEFORE_FIRST_VAL) || state0 === (STATE.BEFORE_VAL))) {
         // numbers outside of object or array context are not considered truncated: '3.23' or '1, 2, 3'
@@ -380,7 +380,7 @@ function tokenize (src, opt, cb) {
         cb(src, -1, -1, TOK.END, idx, idx, null)
         info = null
       } else {
-        info = new_info(state0, ERR.TRUNCATED_VAL)
+        info = new_info(state0, ERR.TRUNC_VAL)
         cb(src, koff, klim, opt.incremental ? TOK.END : TOK.ERR, voff, idx, info)
       }
       break
@@ -399,7 +399,7 @@ function tokenize (src, opt, cb) {
     default:
       if (cb_continue) {
         // incomplete state was not caused of the callback halting process
-        info = new_info(state1, ERR.TRUNCATED_SRC)
+        info = new_info(state1, ERR.TRUNC_SRC)
         cb(src, koff, klim, opt.incremental ? TOK.END : TOK.ERR, idx, idx, info)
       } else {
         // callback requested stop.  don't create end event or error, but do return state so parsing can be restarted.
@@ -448,7 +448,7 @@ Info.prototype = {
   },
   state_str: function () {
     var ctx = this.in_arr() ? 'in array ' : this.in_obj() ? 'in object ' : ''
-    var pos = this.err === ERR.TRUNCATED_VAL ? '' : this.before() ? 'before ' : 'after '
+    var pos = this.err === ERR.TRUNC_VAL ? '' : this.before() ? 'before ' : 'after '
     var first = this.first() ? 'first ' : ''
     var what = this.key() ? 'key' : 'value'
     return ctx + pos + first + what
@@ -463,17 +463,17 @@ Info.prototype = {
     var thru = idx - 1
     var ret
     switch (this.err) {
-      case ERR.TRUNCATED_VAL:
+      case ERR.TRUNC_VAL:
         ret = 'truncated ' + this.tok_type() + ','
         break
-      case ERR.UNEXPECTED_VAL:
+      case ERR.UNEXP_VAL:
         ret = 'unexpected ' + this.tok_type() + ' ' + srcstr(src, voff, idx, tok) + ', ' + this.state_str()
         break
-      case ERR.UNEXPECTED_BYTE:
+      case ERR.UNEXP_BYTE:
         ret = 'unexpected byte ' + srcstr([tok], 0, 1, tok) + ', ' + this.state_str()
         from = this.idx - 1
         break
-      case ERR.TRUNCATED_SRC:
+      case ERR.TRUNC_SRC:
         ret = 'truncated input, ' + this.state_str()
         from = thru = this.idx
         break
@@ -494,8 +494,6 @@ function srcstr (src, off, lim, tok) {
   }
   return (tok === TOK.STR || tok === TOK.NUM) ? ret : '"' + ret + '"'
 }
-
-function err (msg ) { throw Error(msg) }
 
 // a convenience function for summarizing/logging/debugging callback arguments as compact strings
 function args2str(koff, klim, tok, voff, vlim, info) {
