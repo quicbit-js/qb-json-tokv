@@ -444,7 +444,7 @@ function tokenize (src, opt, cb) {
 
 //
 //
-// packet info:
+// packet start and end information.
 //
 //                  (across packets)      /         (local to packet)
 //
@@ -474,6 +474,11 @@ function tokenize (src, opt, cb) {
 // begin 4          4 / 15.184            /         0.0 /   { / bv
 // end   4          4 / 18.193            /         3.9 /   - / av      // clean end state
 //
+// EndInfo holds the "local-to-packet" information, plus any unfinished/truncated value needed
+// to process the next packet, or no truncated value if parsing ended unambiguously outside of a value.
+// The "across packets" data is managed outside of tokenize by adding up the packet values.
+//
+// ErrInfo holds the same information as EndInfo including any unfinished last-value, but with an error code.
 function Info (val_str, tok_str, voff, idx, state, stack, err) {
   this.val_str = val_str
   this.tok_str = tok_str
