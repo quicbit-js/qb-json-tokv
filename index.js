@@ -379,7 +379,7 @@ function tokenize (src, opt, cb) {
   var new_info = function (state, err) {
     var val_str = srcstr(src, voff, idx, tok)
     // if (err === ERR_CODE.UNEXP_BYTE) {}
-    return new Info(val_str, lim, tok, voff, idx, state, stack, err)
+    return new Info(val_str, tok, voff, idx, state, stack, err)
   }
   var info = null
 
@@ -442,9 +442,8 @@ function tokenize (src, opt, cb) {
   return info
 }
 
-function Info (val_str, lim, tok, voff, idx, state, stack, err) {
+function Info (val_str, tok, voff, idx, state, stack, err) {
   this.val_str = val_str
-  this.lim = lim
   this.tok = tok
   this.voff = voff
   this.idx = idx
@@ -456,8 +455,6 @@ function Info (val_str, lim, tok, voff, idx, state, stack, err) {
 }
 Info.prototype = {
   constructor: Info,
-  ctx_str: function (long) { return ctx_str(this.stack, long) },
-  pos_str: function (long) { return pos_str(this.pos, long) },
   state_str: function (long) { return state_str(this.stack, this.pos, long) },
   tok_type: function () {
     switch (this.tok) {
@@ -467,29 +464,17 @@ Info.prototype = {
     }
   },
   toString: function () {
-    var from = this.voff
-    var thru = this.idx - 1
-    var ret
     switch (this.err) {
-      case ERR.TRUNC_VAL:
-        ret = 'truncated ' + this.tok_type() + ','
-        break
-      case ERR.UNEXP_VAL:
-        ret = 'unexpected ' + this.tok_type() + ' ' + this.val_str + ', ' + this.state_str(true)
-        break
-      case ERR.UNEXP_BYTE:
-        ret = 'unexpected byte ' + this.val_str + ', ' + this.state_str(true)
-        break
-      case ERR.TRUNC_SRC:
-        ret = 'truncated input, ' + this.state_str(true)
-        from = thru = this.idx
-        break
-      default:
-        ret = this.tok_type()
+      case ERR.TRUNC_VAL:return 'truncated ' + this.tok_type() + ',' + ' at ' + rangestr(this.voff, this.idx)
+      case ERR.UNEXP_VAL:return 'unexpected ' + this.tok_type() + ' ' + this.val_str + ', ' + this.state_str(true) + ' at ' + rangestr(this.voff, this.idx)
+      case ERR.UNEXP_BYTE:return 'unexpected byte ' + this.val_str + ', ' + this.state_str(true) + ' at ' + (this.idx - 1)
+      case ERR.TRUNC_SRC:return 'truncated input, ' + this.state_str(true) + ' at ' + this.idx
     }
-    // var tokstr = (tok > 31 && tok < 127 && tok !== 34) ? '"' + String.fromCharCode(tok) + '"' : String(tok)
-    return ret + ' at ' + ((from === thru) ? from : from + '..' + thru)
   }
+}
+
+function rangestr(off, lim) {
+  return (off === lim - 1) ? off : off + '..' + (lim - 1)
 }
 
 function ctx_str (stack, long) {
