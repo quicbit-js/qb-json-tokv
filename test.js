@@ -195,7 +195,7 @@ test('incremental', function (t) {
   t.table_assert(
     [
       [ 'input',                  'exp' ],
-      [ '"abc", ',                [ 'B@0,S5@0,E@7',               [ 7,      'B_V', '',  TRUNC_SRC  ] ] ],
+      [ '"abc", ',                [ 'B@0,S5@0,E@7',               [ 7,      'B_V', '-', TRUNC_SRC  ] ] ],
       [ '[',                      [ 'B@0,[@0,E@1',                [ 1,  'ARR_BFV', '[', TRUNC_SRC ] ] ],
       [ '[ 83 ',                  [ '[@0,N2@2,E@5',               [ 5,  'ARR_A_V', '[', TRUNC_SRC ] ] ],
       [ '[ 83,',                  [ '[@0,N2@2,E@5',               [ 5,  'ARR_B_V', '[', TRUNC_SRC ] ] ],
@@ -221,7 +221,6 @@ test('incremental', function (t) {
         return true
       }
       var info = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
-      var last = hector.args[hector.args.length-1]            // last call (end)
       info = [ info.idx, info.state_str(), info.stack, info.err ]
       var argstr = hector.args.map(function (args) { return jtok.args2str.apply(null, args) }).slice(-3).join(',')
       return [ argstr, info ]
@@ -229,7 +228,7 @@ test('incremental', function (t) {
   )
 })
 
-var A_K = POS.A_Ks
+var A_K = POS.A_K
 var BFV = POS.BFV
 var OBJ = CTX.OBJ
 

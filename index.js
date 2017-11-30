@@ -376,7 +376,7 @@ function tokenize (src, opt, cb) {
   }
 
   // same info is passed to callbacks as error and end events as well as returned from this function
-  var stackstr = stack.map(function (b) { return String.fromCharCode(b) }).join('')
+  var stackstr = stack.map(function (b) { return String.fromCharCode(b) }).join('') || '-'
   var end_info = function (state, err) {
     return new EndInfo(idx, state, stackstr, err)
   }
@@ -539,9 +539,7 @@ function rangestr(off, lim) {
 }
 
 function ctx_str (stack, long) {
-  if (stack.length === 0) {
-    return ''
-  }
+  if (stack === '-') { return '' }
   var in_obj = stack[stack.length-1] === '{'
   return in_obj ? (long ? 'in object' : 'OBJ') : (long ? 'in array' : 'ARR')
 }
