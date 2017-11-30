@@ -376,13 +376,14 @@ function tokenize (src, opt, cb) {
   }
 
   // same info is passed to callbacks as error and end events as well as returned from this function
+  var stackstr = stack.map(function (b) { return String.fromCharCode(b) }).join('')
   var end_info = function (state, err) {
-    return new EndInfo(idx, state, stack, err)
+    return new EndInfo(idx, state, stackstr, err)
   }
   var err_info = function (state, err) {
     var val_str = srcstr(src, voff, idx, tok)
     var tok_str = tok === TOK.NUM ? 'number' : (tok === TOK.STR ? 'string' : 'token')
-    return new ErrInfo(val_str, tok_str, voff, idx, state, stack, err)
+    return new ErrInfo(val_str, tok_str, voff, idx, state, stackstr, err)
   }
 
   var info = null
@@ -496,7 +497,7 @@ function tokenize (src, opt, cb) {
 // ErrInfo holds the same information as EndInfo including any unfinished last-value, but with an error code.
 function EndInfo (idx, state, stack, err) {
   this.idx = idx
-  this.stack = stack.map(function (b) { return String.fromCharCode(b) }).join('')
+  this.stack = stack
   this.err = err
   // new state
   this.pos = state & POS_MASK
@@ -514,7 +515,7 @@ function ErrInfo (val_str, tok_str, voff, idx, state, stack, err) {
   this.tok_str = tok_str
   this.voff = voff
   this.idx = idx
-  this.stack = stack.map(function (b) { return String.fromCharCode(b) }).join('')
+  this.stack = stack
   this.err = err
 
   // new state
