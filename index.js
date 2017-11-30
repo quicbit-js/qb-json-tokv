@@ -168,7 +168,7 @@ function skip_str (src, off, lim) {
   return -1
 }
 
-/*
+
 function concat (src1, off1, lim1, src2, off2, lim2) {
   var len1 = lim1 - off1
   var len2 = lim2 - off2
@@ -178,29 +178,33 @@ function concat (src1, off1, lim1, src2, off2, lim2) {
   return ret
 }
 
+function err (msg) { throw Error(msg) }
 function restore_truncated (src, init, ret, cb) {
   switch (init.tok) {
     case TOK.STR:
       var i = skip_str(src, init.off, init.lim)
-      if (i === -1) {
-        ret.lim = init.lim
-        // state is still INSIDE string
-      } else {
-        // found end of string
-        i++     // skip quote
-        // var src = concat(init.src.slice(init.voff, init.lim), src,
-        ret.off = i
-        // ret.state = ((init.state & !POS_MASK) | AFTER)      // INSIDE -> AFTER
-      }
+      i !== -1 || err('could not complete truncated value')
+      i++     // skip quote
+      // var src = concat(init.src.slice(init.voff, init.lim), src,
+      ret.off = i
+      // ret.state = ((init.state & !POS_MASK) | AFTER)      // INSIDE -> AFTER
 
       break
 
   }
 }
-*/
+
 function restore (src, opt, cb) {
   var ret = {}
   var init = opt.init || {}
+  if (init.err) {
+    switch (init.err) {
+      case ERR.TRUNC_VAL:
+        restore_truncated(src, init, ret, cb)
+        break
+    }
+  }
+  ret.soff = init.soff || 0   // src offset
   ret.stack = init.stack || []
   ret.state = init.state || POS.BFV
   ret.koff = init.koff || -1
@@ -354,7 +358,7 @@ function tokenize (src, opt, cb) {
     }  // end main_loop: while(idx < lim) {...
   }
 
-  // similar info is passed to callbacks as error and end events as well as returned from this function
+  // same info is passed to callbacks as error and end events as well as returned from this function
   var new_info = function (state, err) {
     return new Info(src, lim, koff, klim, tok, voff, idx, state, stack, err)
   }
@@ -423,21 +427,23 @@ function Info (src, lim, koff, klim, tok, voff, idx, state, stack, err) {
   this.src = src
   this.lim = lim
   this.koff = koff
-  this.klim = klim
   this.tok = tok
   this.voff = voff
   this.idx = idx
-  this.state = state
   this.stack = stack
   this.err = err
+
+  // new state
+  this.pos = state & POS_MASK
+  this.ctx = state & CTX_MASK
 }
 Info.prototype = {
   constructor: Info,
-  in_arr: function () { return !!(this.state & CTX.ARR) },
-  in_obj: function () { return !!(this.state & CTX.OBJ) },
-  ctx_str: function (long) { return ctx_str(this.state, long) },
-  pos_str: function (long) { return pos_str(this.state, long) },
-  state_str: function (long) { return state_str(this.state, long) },
+  in_arr: function () { return this.ctx === CTX.ARR },
+  in_obj: function () { return this.ctx === CTX.OBJ },
+  ctx_str: function (long) { return ctx_str(this.ctx, long) },
+  pos_str: function (long) { return pos_str(this.pos, long) },
+  state_str: function (long) { return state_str(this.ctx, this.pos, long) },
   tok_type: function () {
     switch (this.tok) {
       case TOK.NUM: return 'number'
@@ -463,7 +469,6 @@ Info.prototype = {
         break
       case ERR.UNEXP_BYTE:
         ret = 'unexpected byte ' + srcstr([tok], 0, 1, tok) + ', ' + this.state_str(true)
-        from = this.idx - 1
         break
       case ERR.TRUNC_SRC:
         ret = 'truncated input, ' + this.state_str(true)
@@ -471,7 +476,6 @@ Info.prototype = {
         break
       default:
         ret = this.tok_type()
-        thru = idx
     }
     // var tokstr = (tok > 31 && tok < 127 && tok !== 34) ? '"' + String.fromCharCode(tok) + '"' : String(tok)
     return ret + ' at ' + ((from === thru) ? from : from + '..' + thru)
@@ -479,8 +483,7 @@ Info.prototype = {
 }
 
 var POS_NAMES = Object.keys(POS).reduce(function (a,n) { a[POS[n]] = n; return a }, [])
-function pos_str (state, long) {
-  var pos = state & POS_MASK
+function pos_str (pos, long) {
   if (long) {
     switch (pos) {
       case POS.BFV: return 'before first value'
@@ -496,19 +499,19 @@ function pos_str (state, long) {
   }
 }
 
-function ctx_str (state, long) {
-  var ctx = state & CTX_MASK
-    switch (ctx) {
+function ctx_str (ctx, long) {
+  switch (ctx) {
     case CTX.ARR: return long ? 'in array' : 'ARR'
     case CTX.OBJ: return long ? 'in object' : 'OBJ'
     default: return ''
   }
 }
 
-function state_str (state, long) {
-  var ctx = ctx_str(state, long)
+function state_str (ctx, pos, long) {
+  var ctxstr = ctx_str(ctx, long)
+  var posstr = pos_str(pos, long)
   var sep = long ? ' ' : '_'
-  return (ctx ? ctx + sep : '') + pos_str(state, long)
+  return (ctxstr ? ctxstr + sep : '') + posstr
 }
 
 function srcstr (src, off, lim, tok) {

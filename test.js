@@ -19,6 +19,8 @@ var utf8 = require('qb-utf8-ez')
 var jtok = require('.')
 var ERR = jtok.ERR
 var TOK = jtok.TOK
+var POS = jtok.POS
+var CTX = jtok.CTX
 
 // other tokens are intuitive - they are the same char code as the first byte parsed
 // 't' for true
@@ -220,9 +222,6 @@ test('incremental', function (t) {
       }
       var info = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
       var last = hector.args[hector.args.length-1]            // last call (end)
-      info.lim === info.idx || err('unexpected lim')
-      info.koff === last[0] || err('unexpected koff')
-      info.klim === last[1] || err('unexpected klim')
       info = [ info.idx, info.state_str(), info.stack, info.err, info.tok ]
       var argstr = hector.args.map(function (args) { return jtok.args2str.apply(null, args) }).slice(-3).join(',')
       return [ argstr, info ]
@@ -230,27 +229,33 @@ test('incremental', function (t) {
   )
 })
 
+var A_K = POS.A_Ks
+var BFV = POS.BFV
+var OBJ = CTX.OBJ
+
+
+
 function err (msg) { throw Error(msg) }
-/*
 test('initial state', function (t) {
   var o = 123
   var a = 91
   t.table_assert([
-    [ 'input',          'off',  'lim',  'src', 'state',             'stack',  'exp' ],
-    [ ' "abc"',         0,      null,   null,  BFV,    [],       [ 'B@0', 'S5@1', 'E@6' ] ],
-    [ ' "a',            0,      null,   null,  BFV,    [],       [ 'B@0', 'truncated string, at idx 3' ] ],
-    // [ '{"a": 3.3}',     4,      null,   OBJ|A_K,    [o],      TOK.STR,   [ 'B@4', 'N3@6', '}@9', 'E@10' ] ],
-  ], function (input, off, lim, state, stack) {
+    [ 'input',          'off',  'lim',  'src', 'state', 'err',    'stack',  'exp' ],
+    [ '"abc"',         0,      null,   null,  BFV,      0,        [],     [ 'B@0', 'S5@0', 'E@5' ] ],
+    [ '"a',            0,      null,   null,  BFV,      0,        [],     [ 'B@0', '!2@0: truncated string, at 0..1' ] ],
+    // [ 'bc"',           0,      null,   null,  BFV,     TRUNC_VAL, [],     [ 'B@0', '!2@1: truncated string, at 1..2' ] ],
+    // [ '{"a": 3.3}',     4,      null,   null,  OBJ|A_K, TRUNC_VAL, [o],     [ 'B@4', 'N3@6', '}@9', 'E@10' ] ],
+  ], function (input, off, lim, state, err, stack) {
     var hector = t.hector()
     var cb = function (src, koff, klim, tok, voff, vlim, info) {
       hector(jtok.args2str(koff, klim, tok, voff, vlim, info))
       return true
     }
-    jtok.tokenize(utf8.buffer(input), { off: off, lim: lim, init: { state: state, stack: stack } }, cb)
+    jtok.tokenize(utf8.buffer(input), { off: off, lim: lim, init: { state: state, stack: stack, err: err } }, cb)
     return hector.arg(0)
   })
 })
-
+/*
 test('incremental processing', function (t) {
   t.table_assert([
     [ 'inputs',                         'exp' ],
@@ -270,5 +275,4 @@ test('incremental processing', function (t) {
     return hector.arg(0)
   })
 })
-
 */
