@@ -551,10 +551,6 @@ function state_str (stack, pos, long) {
   return (ctxstr ? ctxstr + sep : '') + posstr
 }
 
-function tok_str (tok) {
-  if (tok < 32 || tok > 126) { return String(tok) }
-  return '"' + String.fromCharCode(tok) + '"'
-}
 function srcstr (src, off, lim, tok) {
   var ret = ''
   for (var i = off; i < lim; i++) {
