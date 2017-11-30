@@ -32,6 +32,22 @@ var POS = {
   A_K: 0x1800,
 }
 
+// state upper range uses these error codes:
+var ERR_CODE = {
+  UNEXP_VAL: 0x2001,    // token is well-formed, but not expected.  i.e. (state0 + tok) -> 0.
+  UNEXP_BYTE: 0x2002,   // encountered invalid byte - not a token or legal number value
+  TRUNC_VAL: 0x2003,    // a multi-byte value (string, number, true, false, null, object-key) doesn't complete
+  TRUNC_SRC: 0x2004,    // src is valid, but does not complete (still in object, in array, or trailing comma, ...)
+  NONE: 0               // no error
+}
+
+var ERR = {
+  UNEXP_VAL: 'UNEXP_VAL',
+  UNEXP_BYTE: 'UNEXP_BYTE',
+  TRUNC_VAL: 'TRUNC_VAL',
+  TRUNC_SRC: 'TRUNC_SRC',
+  NONE: 'NONE',
+}
 
 // ascii tokens as well as special codes for number, error, begin and end.
 var TOK = {
@@ -50,14 +66,6 @@ var TOK = {
   ERR: 0,         // error.  check err_info for information
   BEG: 66,        // 'B' - begin - about to process
   END: 69        // 'E' - end -   buffer limit reached
-}
-
-var ERR = {
-  UNEXP_VAL: -1,    // token is well-formed, but not expected.  i.e. (state0 + tok) -> 0.
-  UNEXP_BYTE: -2,   // encountered invalid byte - not a token or legal number value
-  TRUNC_VAL: -3,    // a multi-byte value (string, number, true, false, null, object-key) doesn't complete
-  TRUNC_SRC: -4,    // src is valid, but does not complete (still in object, in array, or trailing comma, ...)
-  NONE: 0          // no error
 }
 
 // create an int-int map from (state + tok) -- to --> (new state)
@@ -269,7 +277,7 @@ function tokenize (src, opt, cb) {
           if (idx <= 0) {
             // not all bytes matched
             idx = -idx
-            if (state1 !== 0) { state1 = ERR.TRUNC_VAL }
+            if (state1 !== 0) { state1 = ERR_CODE.TRUNC_VAL }
             break main_loop
           }
           // full match
@@ -282,7 +290,7 @@ function tokenize (src, opt, cb) {
           if (idx === -1) {
             // break for bad transition (state1 === 0) or for truncation, in that order.
             idx = lim
-            if (state1 !== 0) { state1 = ERR.TRUNC_VAL }
+            if (state1 !== 0) { state1 = ERR_CODE.TRUNC_VAL }
             break main_loop
           }
           idx++    // skip quote
@@ -305,7 +313,7 @@ function tokenize (src, opt, cb) {
           while (all_num_chars[src[++idx]] === 1 && idx < lim) {}
           if (state1 === 0) { break main_loop }
           // the number *might* be truncated - flag it here and handle below
-          if (idx === lim) { state1 = ERR.TRUNC_VAL; break main_loop }
+          if (idx === lim) { state1 = ERR_CODE.TRUNC_VAL; break main_loop }
           break
 
         case 91:                                  // [    ARRAY START
@@ -327,7 +335,7 @@ function tokenize (src, opt, cb) {
           break
 
         default:
-          state1 = ERR.UNEXP_BYTE          // no legal transition for this token
+          state1 = ERR_CODE.UNEXP_BYTE          // no legal transition for this token
           idx++
           break main_loop
       }
@@ -368,12 +376,12 @@ function tokenize (src, opt, cb) {
       cb(src, koff, klim, TOK.ERR, voff, idx, info)
       break
 
-    case ERR.UNEXP_BYTE:
+    case ERR_CODE.UNEXP_BYTE:
       info = new_info(state0, ERR.UNEXP_BYTE)
       cb(src, koff, klim, TOK.ERR, voff, idx, info)
       break
 
-    case ERR.TRUNC_VAL:
+    case ERR_CODE.TRUNC_VAL:
       // truncated values do NOT advance state. state0 is left one step before the transition (like unexpected values)
       if (tok === TOK.NUM && (state0 === (POS.BFV) || state0 === (POS.B_V))) {
         // numbers outside of object or array context are not considered truncated: '3.23' or '1, 2, 3'
