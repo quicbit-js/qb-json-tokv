@@ -450,11 +450,11 @@ function tokenize (src, opt, cb) {
 //
 //                  packet num
 //                  |
-//                  |      val-count (total)
+//                  |      value-count (total)
 //                  |      |
 //                  |      | byte-count (total)
 //                  |      | |
-//                  |      | |                      val-count ( local - in packet )
+//                  |      | |                      value-count ( local - in packet )
 //                  |      | |                      |
 //                  |      | |                      | byte-count (local - in packet )
 //                  |      | |                      | |
