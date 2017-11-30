@@ -378,8 +378,8 @@ function tokenize (src, opt, cb) {
   // same info is passed to callbacks as error and end events as well as returned from this function
   var new_info = function (state, err) {
     var val_str = srcstr(src, voff, idx, tok)
-    // if (err === ERR_CODE.UNEXP_BYTE) {}
-    return new Info(val_str, tok, voff, idx, state, stack, err)
+    var tok_str = tok === TOK.NUM ? 'number' : (tok === TOK.STR ? 'string' : 'token')
+    return new Info(val_str, tok_str, voff, idx, state, stack, err)
   }
   var info = null
 
@@ -442,9 +442,9 @@ function tokenize (src, opt, cb) {
   return info
 }
 
-function Info (val_str, tok, voff, idx, state, stack, err) {
+function Info (val_str, tok_str, voff, idx, state, stack, err) {
   this.val_str = val_str
-  this.tok = tok
+  this.tok_str = tok_str
   this.voff = voff
   this.idx = idx
   this.stack = stack.map(function (b) { return String.fromCharCode(b) }).join('')
@@ -456,19 +456,12 @@ function Info (val_str, tok, voff, idx, state, stack, err) {
 Info.prototype = {
   constructor: Info,
   state_str: function (long) { return state_str(this.stack, this.pos, long) },
-  tok_type: function () {
-    switch (this.tok) {
-      case TOK.NUM: return 'number'
-      case TOK.STR: return 'string'
-      default: return 'token'
-    }
-  },
   toString: function () {
     switch (this.err) {
-      case ERR.TRUNC_VAL:  return 'truncated ' + this.tok_type() + ','        + ' at ' + rangestr(this.voff, this.idx)
+      case ERR.TRUNC_VAL:  return 'truncated ' + this.tok_str + ','           + ' at ' + rangestr(this.voff, this.idx)
       case ERR.TRUNC_SRC:  return 'truncated input, ' + this.state_str(true)  + ' at ' + this.idx
-      case ERR.UNEXP_VAL:  return 'unexpected ' + this.tok_type() + ' ' + this.val_str + ', ' + this.state_str(true) + ' at ' + rangestr(this.voff, this.idx)
-      case ERR.UNEXP_BYTE: return 'unexpected byte '                    + this.val_str + ', ' + this.state_str(true) + ' at ' + (this.idx - 1)
+      case ERR.UNEXP_VAL:  return 'unexpected ' + this.tok_str + ' ' + this.val_str + ', ' + this.state_str(true) + ' at ' + rangestr(this.voff, this.idx)
+      case ERR.UNEXP_BYTE: return 'unexpected byte '                 + this.val_str + ', ' + this.state_str(true) + ' at ' + (this.idx - 1)
     }
   }
 }
