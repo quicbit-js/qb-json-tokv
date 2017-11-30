@@ -442,6 +442,38 @@ function tokenize (src, opt, cb) {
   return info
 }
 
+//
+//
+// packet info:
+//
+//                  (across packets)      /         (local to packet)
+//
+//                  packet num
+//                  |
+//                  |      val-count (total)
+//                  |      |
+//                  |      | byte-count (total)
+//                  |      | |
+//                  |      | |                      val-count ( local - in packet )
+//                  |      | |                      |
+//                  |      | |                      | byte-count (local - in packet )
+//                  |      | |                      | |
+//                  |      | |                      | |     stack (inside object, array, object...)
+//                  |      | |                      | |     |
+//                  |      | |                      | |     |   position (before-value, after-key, etc)
+//                  |      | |                      | |     |   |
+// begin 1          1 /    0.0            /         0.0 /   - / bfv     // before-first-value (no context)
+// end   1          1 /   3.53            /        3.53 /  {[ / bv      // before-value (inside array)
+//
+// begin 2          2 /   3.53            /         0.0 /  {[ / bfv
+// end   2          2 /  8.103            /        5.50 / {[{ / ak      // after-key
+//
+// begin 3          3 /  8.103            /        0.00 / {[{ / ak
+// end   3          3 / 15.184            /        7.81 /   { / bv      // before-value
+//
+// begin 4          4 / 15.184            /         0.0 /   { / bv
+// end   4          4 / 18.193            /         3.9 /   - / av      // clean end state
+//
 function Info (val_str, tok_str, voff, idx, state, stack, err) {
   this.val_str = val_str
   this.tok_str = tok_str
