@@ -377,9 +377,7 @@ function tokenize (src, opt, cb) {
 
   // same info is passed to callbacks as error and end events as well as returned from this function
   var end_info = function (state, err) {
-    var val_str = srcstr(src, voff, idx, tok)
-    var tok_str = tok === TOK.NUM ? 'number' : (tok === TOK.STR ? 'string' : 'token')
-    return new EndInfo(val_str, tok_str, voff, idx, state, stack, err)
+    return new EndInfo(voff, idx, state, stack, err)
   }
   var err_info = function (state, err) {
     var val_str = srcstr(src, voff, idx, tok)
@@ -496,9 +494,7 @@ function tokenize (src, opt, cb) {
 // The "across packets" data is managed outside of tokenize by adding up the packet values.
 //
 // ErrInfo holds the same information as EndInfo including any unfinished last-value, but with an error code.
-function EndInfo (val_str, tok_str, voff, idx, state, stack, err) {
-  this.val_str = val_str
-  this.tok_str = tok_str
+function EndInfo (voff, idx, state, stack, err) {
   this.voff = voff
   this.idx = idx
   this.stack = stack.map(function (b) { return String.fromCharCode(b) }).join('')
@@ -534,7 +530,7 @@ ErrInfo.prototype = {
       case ERR.TRUNC_VAL:  return 'truncated ' + this.tok_str + ','           + ' at ' + rangestr(this.voff, this.idx)
       case ERR.TRUNC_SRC:  return 'truncated input, ' + this.state_str(true)  + ' at ' + this.idx
       case ERR.UNEXP_VAL:  return 'unexpected ' + this.tok_str + ' ' + this.val_str + ', ' + this.state_str(true) + ' at ' + rangestr(this.voff, this.idx)
-      case ERR.UNEXP_BYTE: return 'unexpected byte '                 + this.val_str + ', ' + this.state_str(true) + ' at ' + (this.idx - 1)
+      case ERR.UNEXP_BYTE: return 'unexpected byte '                 + this.val_str + ', ' + this.state_str(true) + ' at ' + this.voff
     }
   }
 }
