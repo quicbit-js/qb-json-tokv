@@ -491,15 +491,15 @@ function tokenize (src, opt, cb) {
 // begin 4          4 / 15.184            /         0.0 /   { / bv
 // end   4          4 / 18.193            /         3.9 /   - / av      // clean end state
 //
-// EndInfo holds the "local-to-packet" information, plus any unfinished/truncated value needed
+// EndInfo holds the "local-to-packet" information, plus any unfinished "truncated" value needed
 // to process the next packet, or no truncated value if parsing ended unambiguously outside of a value.
 // The "across packets" data is managed outside of tokenize by adding up the packet values.
 //
 // ErrInfo holds the same information as EndInfo including any unfinished last-value, but with an error code.
-function EndInfo (idx, state, stack, trunc) {
-  this.idx = idx
+function EndInfo (off, state, stack, trunc) {
+  this.off = off
   this.stack = stack
-  this.trunc = trunc
+  this.trunc = trunc    // truncated value as a string (if a value was incomplete)
   // new state
   this.pos = state & POS_MASK
 }

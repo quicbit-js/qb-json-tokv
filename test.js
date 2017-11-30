@@ -220,7 +220,7 @@ test('incremental', function (t) {
         return true
       }
       var info = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
-      info = [ info.idx, info.state_str(), info.stack, info.trunc ]
+      info = [ info.off, info.state_str(), info.stack, info.trunc ]
       var argstr = hector.args.map(function (args) { return jtok.args2str.apply(null, args) }).slice(-3).join(',')
       return [ argstr, info ]
     }
