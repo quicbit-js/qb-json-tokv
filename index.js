@@ -376,11 +376,17 @@ function tokenize (src, opt, cb) {
   }
 
   // same info is passed to callbacks as error and end events as well as returned from this function
-  var new_info = function (state, err) {
+  var end_info = function (state, err) {
     var val_str = srcstr(src, voff, idx, tok)
     var tok_str = tok === TOK.NUM ? 'number' : (tok === TOK.STR ? 'string' : 'token')
-    return new Info(val_str, tok_str, voff, idx, state, stack, err)
+    return new EndInfo(val_str, tok_str, voff, idx, state, stack, err)
   }
+  var err_info = function (state, err) {
+    var val_str = srcstr(src, voff, idx, tok)
+    var tok_str = tok === TOK.NUM ? 'number' : (tok === TOK.STR ? 'string' : 'token')
+    return new ErrInfo(val_str, tok_str, voff, idx, state, stack, err)
+  }
+
   var info = null
 
   switch (state1) {
@@ -388,6 +394,7 @@ function tokenize (src, opt, cb) {
     // error states
     //
     case 0:
+      // failed transition (state0 + tok => state1) === 0
       var sep_chars = ascii_to_code('{[]},:"', 1)
       var is_separate =
         voff === (opt.off || 0) ||
@@ -395,12 +402,12 @@ function tokenize (src, opt, cb) {
         sep_chars[src[voff - 1]] ||
         WHITESPACE[src[voff - 1]]
 
-      info = new_info(state0, is_separate ? ERR.UNEXP_VAL : ERR.UNEXP_BYTE)
+      info = err_info(state0, is_separate ? ERR.UNEXP_VAL : ERR.UNEXP_BYTE)
       cb(src, koff, klim, TOK.ERR, voff, idx, info)
       break
 
     case ERR_CODE.UNEXP_BYTE:
-      info = new_info(state0, ERR.UNEXP_BYTE)
+      info = err_info(state0, ERR.UNEXP_BYTE)
       cb(src, koff, klim, TOK.ERR, voff, idx, info)
       break
 
@@ -412,8 +419,13 @@ function tokenize (src, opt, cb) {
         cb(src, -1, -1, TOK.END, idx, idx, null)
         info = null
       } else {
-        info = new_info(state0, ERR.TRUNC_VAL)
-        cb(src, koff, klim, opt.incremental ? TOK.END : TOK.ERR, voff, idx, info)
+        if (opt.incremental) {
+          info = end_info(state0, ERR.TRUNC_VAL)
+          cb(src, koff, klim, TOK.END, voff, idx, info)
+        } else {
+          info = err_info(state0, ERR.TRUNC_VAL)
+          cb(src, koff, klim, TOK.ERR, voff, idx, info)
+        }
       }
       break
 
@@ -431,11 +443,16 @@ function tokenize (src, opt, cb) {
     default:
       if (cb_continue) {
         // incomplete state was not caused of the callback halting process
-        info = new_info(state1, ERR.TRUNC_SRC)
-        cb(src, koff, klim, opt.incremental ? TOK.END : TOK.ERR, idx, idx, info)
+        if (opt.incremental) {
+          info = end_info(state1, ERR.TRUNC_SRC)
+          cb(src, koff, klim, TOK.END, idx, idx, info)
+        } else {
+          info = err_info(state1, ERR.TRUNC_SRC)
+          cb(src, koff, klim, TOK.ERR, idx, idx, info)
+        }
       } else {
         // callback requested stop.  don't create end event or error, but do return state so parsing can be restarted.
-        info = new_info(state1, ERR.NONE)
+        info = end_info(state1, ERR.NONE)
       }
   }
 
@@ -479,7 +496,7 @@ function tokenize (src, opt, cb) {
 // The "across packets" data is managed outside of tokenize by adding up the packet values.
 //
 // ErrInfo holds the same information as EndInfo including any unfinished last-value, but with an error code.
-function Info (val_str, tok_str, voff, idx, state, stack, err) {
+function EndInfo (val_str, tok_str, voff, idx, state, stack, err) {
   this.val_str = val_str
   this.tok_str = tok_str
   this.voff = voff
@@ -490,8 +507,27 @@ function Info (val_str, tok_str, voff, idx, state, stack, err) {
   // new state
   this.pos = state & POS_MASK
 }
-Info.prototype = {
-  constructor: Info,
+EndInfo.prototype = {
+  constructor: EndInfo,
+  state_str: function (long) { return state_str(this.stack, this.pos, long) },
+  toString: function () {
+    return 'end info'
+  }
+}
+
+function ErrInfo (val_str, tok_str, voff, idx, state, stack, err) {
+  this.val_str = val_str
+  this.tok_str = tok_str
+  this.voff = voff
+  this.idx = idx
+  this.stack = stack.map(function (b) { return String.fromCharCode(b) }).join('')
+  this.err = err
+
+  // new state
+  this.pos = state & POS_MASK
+}
+ErrInfo.prototype = {
+  constructor: ErrInfo,
   state_str: function (long) { return state_str(this.stack, this.pos, long) },
   toString: function () {
     switch (this.err) {
