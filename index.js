@@ -465,10 +465,10 @@ Info.prototype = {
   },
   toString: function () {
     switch (this.err) {
-      case ERR.TRUNC_VAL:return 'truncated ' + this.tok_type() + ',' + ' at ' + rangestr(this.voff, this.idx)
-      case ERR.UNEXP_VAL:return 'unexpected ' + this.tok_type() + ' ' + this.val_str + ', ' + this.state_str(true) + ' at ' + rangestr(this.voff, this.idx)
-      case ERR.UNEXP_BYTE:return 'unexpected byte ' + this.val_str + ', ' + this.state_str(true) + ' at ' + (this.idx - 1)
-      case ERR.TRUNC_SRC:return 'truncated input, ' + this.state_str(true) + ' at ' + this.idx
+      case ERR.TRUNC_VAL:  return 'truncated ' + this.tok_type() + ','        + ' at ' + rangestr(this.voff, this.idx)
+      case ERR.TRUNC_SRC:  return 'truncated input, ' + this.state_str(true)  + ' at ' + this.idx
+      case ERR.UNEXP_VAL:  return 'unexpected ' + this.tok_type() + ' ' + this.val_str + ', ' + this.state_str(true) + ' at ' + rangestr(this.voff, this.idx)
+      case ERR.UNEXP_BYTE: return 'unexpected byte '                    + this.val_str + ', ' + this.state_str(true) + ' at ' + (this.idx - 1)
     }
   }
 }
