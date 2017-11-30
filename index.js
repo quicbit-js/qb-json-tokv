@@ -495,7 +495,6 @@ function tokenize (src, opt, cb) {
 //
 // ErrInfo holds the same information as EndInfo including any unfinished last-value, but with an error code.
 function EndInfo (voff, idx, state, stack, err) {
-  this.voff = voff
   this.idx = idx
   this.stack = stack.map(function (b) { return String.fromCharCode(b) }).join('')
   this.err = err
