@@ -377,11 +377,11 @@ function tokenize (src, opt, cb) {
 
   // same info is passed to callbacks as error and end events as well as returned from this function
   var stackstr = stack.map(function (b) { return String.fromCharCode(b) }).join('') || '-'
-  var end_info = function (state, err) {
-    return new EndInfo(idx, state, stackstr, err)
+  var end_info = function (state, trunc) {
+    return new EndInfo(idx, state, stackstr, trunc)
   }
   var err_info = function (state, err) {
-    var val_str = srcstr(src, voff, idx, tok)
+    var val_str = json_str(src, voff, idx, tok)
     var tok_str = tok === TOK.NUM ? 'number' : (tok === TOK.STR ? 'string' : 'token')
     return new ErrInfo(val_str, tok_str, voff, idx, state, stackstr, err)
   }
@@ -419,7 +419,8 @@ function tokenize (src, opt, cb) {
         info = null
       } else {
         if (opt.incremental) {
-          info = end_info(state0, ERR.TRUNC_VAL)
+          var trunc = esc_str(src, voff, idx)
+          info = end_info(state0, trunc)
           cb(src, koff, klim, TOK.END, voff, idx, info)
         } else {
           info = err_info(state0, ERR.TRUNC_VAL)
@@ -443,7 +444,7 @@ function tokenize (src, opt, cb) {
       if (cb_continue) {
         // incomplete state was not caused of the callback halting process
         if (opt.incremental) {
-          info = end_info(state1, ERR.TRUNC_SRC)
+          info = end_info(state1, null)
           cb(src, koff, klim, TOK.END, idx, idx, info)
         } else {
           info = err_info(state1, ERR.TRUNC_SRC)
@@ -495,10 +496,10 @@ function tokenize (src, opt, cb) {
 // The "across packets" data is managed outside of tokenize by adding up the packet values.
 //
 // ErrInfo holds the same information as EndInfo including any unfinished last-value, but with an error code.
-function EndInfo (idx, state, stack, err) {
+function EndInfo (idx, state, stack, trunc) {
   this.idx = idx
   this.stack = stack
-  this.err = err
+  this.trunc = trunc
   // new state
   this.pos = state & POS_MASK
 }
@@ -551,12 +552,17 @@ function state_str (stack, pos, long) {
   return (ctxstr ? ctxstr + sep : '') + posstr
 }
 
-function srcstr (src, off, lim, tok) {
+function esc_str (src, off, lim) {
   var ret = ''
   for (var i = off; i < lim; i++) {
     var b = src[i]
     ret += (b > 31 && b < 127) ? String.fromCharCode(b) : '0x' + b.toString(16)
   }
+  return ret
+}
+
+function json_str (src, off, lim, tok) {
+  var ret = esc_str(src, off, lim)
   return (tok === TOK.STR || tok === TOK.NUM) ? ret : '"' + ret + '"'
 }
 
