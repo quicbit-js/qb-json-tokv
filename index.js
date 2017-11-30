@@ -360,7 +360,7 @@ function tokenize (src, opt, cb) {
 
   // same info is passed to callbacks as error and end events as well as returned from this function
   var new_info = function (state, err) {
-    return new Info(src, lim, koff, klim, tok, voff, idx, state, stack, err)
+    return new Info(src, lim, koff, tok, voff, idx, state, stack, err)
   }
   var info = null
 
@@ -423,27 +423,24 @@ function tokenize (src, opt, cb) {
   return info
 }
 
-function Info (src, lim, koff, klim, tok, voff, idx, state, stack, err) {
+function Info (src, lim, koff, tok, voff, idx, state, stack, err) {
   this.src = src
   this.lim = lim
   this.koff = koff
   this.tok = tok
   this.voff = voff
   this.idx = idx
-  this.stack = stack
+  this.stack = stack.map(function (b) { return String.fromCharCode(b) }).join('')
   this.err = err
 
   // new state
   this.pos = state & POS_MASK
-  this.ctx = state & CTX_MASK
 }
 Info.prototype = {
   constructor: Info,
-  in_arr: function () { return this.ctx === CTX.ARR },
-  in_obj: function () { return this.ctx === CTX.OBJ },
-  ctx_str: function (long) { return ctx_str(this.ctx, long) },
+  ctx_str: function (long) { return ctx_str(this.stack, long) },
   pos_str: function (long) { return pos_str(this.pos, long) },
-  state_str: function (long) { return state_str(this.ctx, this.pos, long) },
+  state_str: function (long) { return state_str(this.stack, this.pos, long) },
   tok_type: function () {
     switch (this.tok) {
       case TOK.NUM: return 'number'
@@ -499,16 +496,16 @@ function pos_str (pos, long) {
   }
 }
 
-function ctx_str (ctx, long) {
-  switch (ctx) {
-    case CTX.ARR: return long ? 'in array' : 'ARR'
-    case CTX.OBJ: return long ? 'in object' : 'OBJ'
-    default: return ''
+function ctx_str (stack, long) {
+  if (stack.length === 0) {
+    return ''
   }
+  var in_obj = stack[stack.length-1] === '{'
+  return in_obj ? (long ? 'in object' : 'OBJ') : (long ? 'in array' : 'ARR')
 }
 
-function state_str (ctx, pos, long) {
-  var ctxstr = ctx_str(ctx, long)
+function state_str (stack, pos, long) {
+  var ctxstr = ctx_str(stack, long)
   var posstr = pos_str(pos, long)
   var sep = long ? ' ' : '_'
   return (ctxstr ? ctxstr + sep : '') + posstr
