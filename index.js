@@ -32,6 +32,23 @@ var POS = {
   A_K: 0x1800,
 }
 
+var POS_NAMES = Object.keys(POS).reduce(function (a,n) { a[POS[n]] = n; return a }, [])
+function pos_str (pos, long) {
+  if (long) {
+    switch (pos) {
+      case POS.BFV: return 'before first value'
+      case POS.B_V: return 'before value'
+      case POS.BFK: return 'before first key'
+      case POS.B_K: return 'before key'
+      case POS.A_V: return 'after value'
+      case POS.A_K: return 'after key'
+      default: return 'undefined'
+    }
+  } else {
+    return POS_NAMES[pos]
+  }
+}
+
 // state upper range uses these error codes:
 var ERR_CODE = {
   UNEXP_VAL: 0x2001,    // token is well-formed, but not expected.  i.e. (state0 + tok) -> 0.
@@ -360,7 +377,9 @@ function tokenize (src, opt, cb) {
 
   // same info is passed to callbacks as error and end events as well as returned from this function
   var new_info = function (state, err) {
-    return new Info(src, lim, koff, tok, voff, idx, state, stack, err)
+    var val_str = srcstr(src, voff, idx, tok)
+    // if (err === ERR_CODE.UNEXP_BYTE) {}
+    return new Info(val_str, lim, tok, voff, idx, state, stack, err)
   }
   var info = null
 
@@ -423,10 +442,9 @@ function tokenize (src, opt, cb) {
   return info
 }
 
-function Info (src, lim, koff, tok, voff, idx, state, stack, err) {
-  this.src = src
+function Info (val_str, lim, tok, voff, idx, state, stack, err) {
+  this.val_str = val_str
   this.lim = lim
-  this.koff = koff
   this.tok = tok
   this.voff = voff
   this.idx = idx
@@ -449,23 +467,18 @@ Info.prototype = {
     }
   },
   toString: function () {
-    var tok = this.tok
-    var src = this.src
-    var idx = this.idx
-    var voff = this.voff
-
-    var from = voff
-    var thru = idx - 1
+    var from = this.voff
+    var thru = this.idx - 1
     var ret
     switch (this.err) {
       case ERR.TRUNC_VAL:
         ret = 'truncated ' + this.tok_type() + ','
         break
       case ERR.UNEXP_VAL:
-        ret = 'unexpected ' + this.tok_type() + ' ' + srcstr(src, voff, idx, tok) + ', ' + this.state_str(true)
+        ret = 'unexpected ' + this.tok_type() + ' ' + this.val_str + ', ' + this.state_str(true)
         break
       case ERR.UNEXP_BYTE:
-        ret = 'unexpected byte ' + srcstr([tok], 0, 1, tok) + ', ' + this.state_str(true)
+        ret = 'unexpected byte ' + this.val_str + ', ' + this.state_str(true)
         break
       case ERR.TRUNC_SRC:
         ret = 'truncated input, ' + this.state_str(true)
@@ -476,23 +489,6 @@ Info.prototype = {
     }
     // var tokstr = (tok > 31 && tok < 127 && tok !== 34) ? '"' + String.fromCharCode(tok) + '"' : String(tok)
     return ret + ' at ' + ((from === thru) ? from : from + '..' + thru)
-  }
-}
-
-var POS_NAMES = Object.keys(POS).reduce(function (a,n) { a[POS[n]] = n; return a }, [])
-function pos_str (pos, long) {
-  if (long) {
-    switch (pos) {
-      case POS.BFV: return 'before first value'
-      case POS.B_V: return 'before value'
-      case POS.BFK: return 'before first key'
-      case POS.B_K: return 'before key'
-      case POS.A_V: return 'after value'
-      case POS.A_K: return 'after key'
-      default: return 'undefined'
-    }
-  } else {
-    return POS_NAMES[pos]
   }
 }
 
@@ -511,6 +507,10 @@ function state_str (stack, pos, long) {
   return (ctxstr ? ctxstr + sep : '') + posstr
 }
 
+function tok_str (tok) {
+  if (tok < 32 || tok > 126) { return String(tok) }
+  return '"' + String.fromCharCode(tok) + '"'
+}
 function srcstr (src, off, lim, tok) {
   var ret = ''
   for (var i = off; i < lim; i++) {
