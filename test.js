@@ -18,6 +18,8 @@ var test = require('test-kit').tape()
 var utf8 = require('qb-utf8-ez')
 var qbobj = require('qb-obj')
 var jtok = require('.')
+var ERR = jtok.ERR
+var TOK = jtok.TOK
 
 // other tokens are intuitive - they are the same char code as the first byte parsed
 // 't' for true
@@ -151,68 +153,85 @@ test('callback stop', function (t) {
   )
 })
 
-var ST = jtok.STATE
-
-var OBJ = ST.IN_OBJ
-var ARR = ST.IN_ARR
-
-var BFK = ST.BEFORE_FIRST_KEY
-var B_K = ST.BEFORE_KEY
-var A_K = ST.AFTER_KEY
-
-var BFV = ST.BEFORE_FIRST_VAL
-var B_V = ST.BEFORE_VAL
-var A_V = ST.AFTER_VAL
-
-test.only('incremental state',         function (t) {
+// completed parsing returns null and TOK.END callback info is null.
+test('incremental clean',         function (t) {
   t.table_assert(
     [
       [ 'input',                  'exp' ],
-      [ '',                       [ [ 'B@0', 'E@0' ],                       null ] ],
-      [ '"abc"',                  [ [ 'B@0', 'S5@0', 'E@5' ],               null ] ],
-      [ '[ 83 ]',                 [ [ 'N2@2', ']@5', 'E@6' ],               null ] ],
-      [ '[ 83, "a" ]',            [ [ 'S3@6', ']@10', 'E@11' ],             null ] ],
-      [ '3.23e12',                [ [ 'B@0', 'N7@0', 'E@7' ],               null ] ],
-      [ '{ "a": 3 }',             [ [ 'K3@2:N1@7', '}@9', 'E@10' ],         null ] ],
-      [ '{ "a": 3, "b": 8 }',     [ [ 'K3@10:N1@15', '}@17', 'E@18' ],      null ] ],
-      [ '{ "a": 3, "b": [1,2] }', [ [ ']@19', '}@21', 'E@22' ],             null ] ],
-      [ 'null',                   [ [ 'B@0', 'n@0', 'E@4' ],                null ] ],
-      [ ' 7E4 ',                  [ [ 'B@0', 'N3@1', 'E@5' ],               null ] ],
-      [ '"abc", ',                [ [ 'B@0', 'S5@0', 'E@7' ],               [ 7,      B_V, [] ] ] ],
-      [ '[',                      [ [ 'B@0', '[@0', 'E@1' ],                [ 1,  ARR|BFV, [ 91 ] ] ] ],
-      [ '[ 83 ',                  [ [ '[@0', 'N2@2', 'E@5' ],               [ 5,  ARR|A_V, [ 91 ] ] ] ],
-      [ '[ 83,',                  [ [ '[@0', 'N2@2', 'E@5' ],               [ 5,  ARR|B_V, [ 91 ] ] ] ],
-      [ '[ 83, "a"',              [ [ 'N2@2', 'S3@6', 'E@9' ],              [ 9,  ARR|A_V, [ 91 ] ] ] ],
-      [ '[ 83, "a",',             [ [ 'N2@2', 'S3@6', 'E@10' ],             [ 10, ARR|B_V, [ 91 ] ] ] ],
-      [ '[ 83, "a", 2',           [ [ 'N2@2', 'S3@6', 'E@11' ],             [ 12, ARR|B_V, [ 91 ] ] ] ],
-      [ '{',                      [ [ 'B@0', '{@0', 'E@1' ],                [ 1,  OBJ|BFK, [ 123 ] ] ] ],
-      [ '{ "a"',                  [ [ 'B@0', '{@0', 'K3@2:E@5' ],           [ 5,  OBJ|A_K, [ 123 ] ] ] ],
-      [ '{ "a":',                 [ [ 'B@0', '{@0', 'K3@2:E@6' ],           [ 6,  OBJ|B_V, [ 123 ] ] ] ],
-      [ '{ "a": 9',               [ [ 'B@0', '{@0', 'K3@2:E@7' ],           [ 8,  OBJ|B_V, [ 123 ] ] ] ],
-      [ '{ "a": 93, ',            [ [ '{@0', 'K3@2:N2@7', 'E@11' ],         [ 11, OBJ|B_K, [ 123 ] ] ] ],
-      [ '{ "a": 93, "b',          [ [ '{@0', 'K3@2:N2@7', 'E@11' ],         [ 13, OBJ|B_K, [ 123 ] ] ] ],
-      [ '{ "a": 93, "b"',         [ [ '{@0', 'K3@2:N2@7', 'K3@11:E@14' ],   [ 14, OBJ|A_K, [ 123 ] ] ] ],
-      [ '{ "a": 93, "b":',        [ [ '{@0', 'K3@2:N2@7', 'K3@11:E@15' ],   [ 15, OBJ|B_V, [ 123 ] ] ] ],
-      [ '{ "a": 93, "b": [',      [ [ 'K3@2:N2@7', 'K3@11:[@16', 'E@17' ],  [ 17, ARR|BFV, [ 123, 91 ] ] ] ],
-      [ '{ "a": 93, "b": []',     [ [ 'K3@11:[@16', ']@17', 'E@18' ],       [ 18, OBJ|A_V, [ 123 ] ] ] ],
-      [ '{ "a": 93, "b": [] ',    [ [ 'K3@11:[@16', ']@17', 'E@19' ],       [ 19, OBJ|A_V, [ 123 ] ] ] ],
-      [ '{ "a": 93, "b": [] }',   [ [ ']@17', '}@19', 'E@20' ],             null ] ],
+      [ '',                       [ [ 'B@0', 'E@0' ],                       null, null ] ],
+      [ '"abc"',                  [ [ 'B@0', 'S5@0', 'E@5' ],               null, null ] ],
+      [ '[ 83 ]',                 [ [ 'N2@2', ']@5', 'E@6' ],               null, null ] ],
+      [ '[ 83, "a" ]',            [ [ 'S3@6', ']@10', 'E@11' ],             null, null ] ],
+      [ '3.23e12',                [ [ 'B@0', 'N7@0', 'E@7' ],               null, null ] ],
+      [ '{ "a": 3 }',             [ [ 'K3@2:N1@7', '}@9', 'E@10' ],         null, null ] ],
+      [ '{ "a": 3, "b": 8 }',     [ [ 'K3@10:N1@15', '}@17', 'E@18' ],      null, null ] ],
+      [ '{ "a": 3, "b": [1,2] }', [ [ ']@19', '}@21', 'E@22' ],             null, null ] ],
+      [ 'null',                   [ [ 'B@0', 'n@0', 'E@4' ],                null, null ] ],
+      [ ' 7E4 ',                  [ [ 'B@0', 'N3@1', 'E@5' ],               null, null ] ],
+      [ '{ "a": 93, "b": [] }',   [ [ ']@17', '}@19', 'E@20' ],             null, null ] ],
     ],
     function (src) {
       var hector = t.hector()
+      var endinfo = null
       var cb = function (src, koff, klim, tok, voff, vlim, info) {
         hector(jtok.args2str(koff, klim, tok, voff, vlim, info))
+        if (tok === TOK.END) {
+          endinfo = info
+        }
         return true
       }
       var info = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
-      if (info !== null) {
-        info = [ info.idx, info.state, info.stack ]
-      }
-      return [ hector.arg(0).slice(-3), info]
+
+      return [ hector.arg(0).slice(-3), endinfo, info ]
     }
   )
 })
 
+var TRUNC_SRC = ERR.TRUNC_SRC
+var TRUNC_VAL = ERR.TRUNC_VAL
+
+test('incremental', function (t) {
+  t.table_assert(
+    [
+      [ 'input',                  'exp' ],
+      [ '"abc", ',                [ 'B@0,S5@0,E@7',               [ 7,      'B_V', [], TRUNC_SRC, 32 ] ] ],
+      [ '[',                      [ 'B@0,[@0,E@1',                [ 1,  'ARR_BFV', [ 91 ], TRUNC_SRC, 91 ] ] ],
+      [ '[ 83 ',                  [ '[@0,N2@2,E@5',               [ 5,  'ARR_A_V', [ 91 ], TRUNC_SRC, 32 ] ] ],
+      [ '[ 83,',                  [ '[@0,N2@2,E@5',               [ 5,  'ARR_B_V', [ 91 ], TRUNC_SRC, 44 ] ] ],
+      [ '[ 83, "a"',              [ 'N2@2,S3@6,E@9',              [ 9,  'ARR_A_V', [ 91 ], TRUNC_SRC, 34 ] ] ],
+      [ '[ 83, "a",',             [ 'N2@2,S3@6,E@10',             [ 10, 'ARR_B_V', [ 91 ], TRUNC_SRC, 44 ] ] ],
+      [ '[ 83, "a", 2',           [ 'N2@2,S3@6,E@11',             [ 12, 'ARR_B_V', [ 91 ], TRUNC_VAL, 78 ] ] ],
+      [ '{',                      [ 'B@0,{@0,E@1',                [ 1,  'OBJ_BFK', [ 123 ], TRUNC_SRC, 123 ] ] ],
+      [ '{ "a"',                  [ 'B@0,{@0,K3@2:E@5',           [ 5,  'OBJ_A_K', [ 123 ], TRUNC_SRC, 34 ] ] ],
+      [ '{ "a":',                 [ 'B@0,{@0,K3@2:E@6',           [ 6,  'OBJ_B_V', [ 123 ], TRUNC_SRC, 58 ] ] ],
+      [ '{ "a": 9',               [ 'B@0,{@0,K3@2:E@7',           [ 8,  'OBJ_B_V', [ 123 ], TRUNC_VAL, 78 ] ] ],
+      [ '{ "a": 93, ',            [ '{@0,K3@2:N2@7,E@11',         [ 11, 'OBJ_B_K', [ 123 ], TRUNC_SRC, 32 ] ] ],
+      [ '{ "a": 93, "b',          [ '{@0,K3@2:N2@7,E@11',         [ 13, 'OBJ_B_K', [ 123 ], TRUNC_VAL, 34 ] ] ],
+      [ '{ "a": 93, "b"',         [ '{@0,K3@2:N2@7,K3@11:E@14',   [ 14, 'OBJ_A_K', [ 123 ], TRUNC_SRC, 34 ] ] ],
+      [ '{ "a": 93, "b":',        [ '{@0,K3@2:N2@7,K3@11:E@15',   [ 15, 'OBJ_B_V', [ 123 ], TRUNC_SRC, 58 ] ] ],
+      [ '{ "a": 93, "b": [',      [ 'K3@2:N2@7,K3@11:[@16,E@17',  [ 17, 'ARR_BFV', [ 123, 91 ], TRUNC_SRC, 91 ] ] ],
+      [ '{ "a": 93, "b": []',     [ 'K3@11:[@16,]@17,E@18',       [ 18, 'OBJ_A_V', [ 123 ], TRUNC_SRC, 93 ] ] ],
+      [ '{ "a": 93, "b": [] ',    [ 'K3@11:[@16,]@17,E@19',       [ 19, 'OBJ_A_V', [ 123 ], TRUNC_SRC, 32 ] ] ],
+    ],
+    function (src) {
+      var hector = t.hector()
+      var cb = function (src, koff, klim, tok, voff, vlim, info) {
+        hector(koff, klim, tok, voff, vlim, info)
+        return true
+      }
+      var info = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
+      var last = hector.args[hector.args.length-1]            // last call (end)
+      info.lim === info.idx || err('unexpected lim')
+      info.koff === last[0] || err('unexpected koff')
+      info.klim === last[1] || err('unexpected klim')
+      info = [ info.idx, info.state_str(), info.stack, info.err, info.tok ]
+      var argstr = hector.args.map(function (args) { return jtok.args2str.apply(null, args) }).slice(-3).join(',')
+      return [ argstr, info ]
+    }
+  )
+})
+
+function err (msg) { throw Error(msg) }
 /*
 test('initial state', function (t) {
   var o = 123

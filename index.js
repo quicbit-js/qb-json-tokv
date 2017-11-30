@@ -15,28 +15,30 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 // STATES   - LSB is reserved for token ascii value.  see readme
-var STATE = {
-  IN_ARR: 0x0100,
-  IN_OBJ: 0x0200,
+var CTX_MASK = 0x0300
+var CTX = {
   // 0x0 means no context
-
-  // use bits 9,10,11 for the six possible positions (sqeeze max value down to 0x18FF)
-  POS_MASK: 0x1C00,
-
-  BEFORE_FIRST_KEY: 0x0400,
-  BEFORE_KEY: 0x0800,   // key states can be zero because they always occur IN_OBJ context (which is non-zero)
-  BEFORE_FIRST_VAL: 0x0C00,
-  BEFORE_VAL: 0x1000,
-  AFTER_VAL: 0x1400,
-  AFTER_KEY: 0x1800
+  ARR: 0x0100,
+  OBJ: 0x0200,
 }
+
+var POS_MASK = 0x1C00
+var POS = {
+  BFK: 0x0400,
+  B_K: 0x0800,
+  BFV: 0x0C00,
+  B_V: 0x1000,
+  A_V: 0x1400,
+  A_K: 0x1800,
+}
+
 
 // ascii tokens as well as special codes for number, error, begin and end.
 var TOK = {
   // ascii codes - the token is represented by the first ascii byte encountered
-  ARR_BEG: 91,    // '['
+  ARR: 91,        // '['
   ARR_END: 93,    // ']'
-  OBJ_BEG: 123,   // '{'
+  OBJ: 123,       // '{'
   OBJ_END: 125,   // '}'
   FAL: 102,       // 'f'
   NUL: 110,       // 'n'
@@ -77,14 +79,14 @@ function state_map () {
     })
   }
 
-  var bfv = STATE.BEFORE_FIRST_VAL
-  var b_v = STATE.BEFORE_VAL
-  var a_v = STATE.AFTER_VAL
-  var bfk = STATE.BEFORE_FIRST_KEY
-  var b_k = STATE.BEFORE_KEY
-  var a_k = STATE.AFTER_KEY
-  var arr = STATE.IN_ARR
-  var obj = STATE.IN_OBJ
+  var bfv = POS.BFV
+  var b_v = POS.B_V
+  var a_v = POS.A_V
+  var bfk = POS.BFK
+  var b_k = POS.B_K
+  var a_k = POS.A_K
+  var arr = CTX.ARR
+  var obj = CTX.OBJ
   var non = 0
 
   var val = '"ntf-0123456789' // all legal value starts (ascii)
@@ -192,7 +194,7 @@ function restore (src, opt, cb) {
   var ret = {}
   var init = opt.init || {}
   ret.stack = init.stack || []
-  ret.state = init.state || STATE.BEFORE_FIRST_VAL
+  ret.state = init.state || POS.BFV
   ret.koff = init.koff || -1
   ret.klim = init.klim || -1
   // if (init.state) {
@@ -210,10 +212,10 @@ function restore (src, opt, cb) {
 function tokenize (src, opt, cb) {
   // localized constants for faster access
   var states = STATE_MAP
-  var pos_mask = STATE.POS_MASK
-  var after_key = STATE.AFTER_KEY
-  var in_arr = STATE.IN_ARR
-  var in_obj = STATE.IN_OBJ
+  var pos_mask = POS_MASK
+  var after_key = POS.A_K
+  var in_arr = CTX.ARR
+  var in_obj = CTX.OBJ
   var whitespace = WHITESPACE
   var all_num_chars = ALL_NUM_CHARS
   var tok_bytes = TOK_BYTES
@@ -373,7 +375,7 @@ function tokenize (src, opt, cb) {
 
     case ERR.TRUNC_VAL:
       // truncated values do NOT advance state. state0 is left one step before the transition (like unexpected values)
-      if (tok === TOK.NUM && (state0 === (STATE.BEFORE_FIRST_VAL) || state0 === (STATE.BEFORE_VAL))) {
+      if (tok === TOK.NUM && (state0 === (POS.BFV) || state0 === (POS.B_V))) {
         // numbers outside of object or array context are not considered truncated: '3.23' or '1, 2, 3'
         cb(src, koff, klim, tok, voff, idx, null)
         cb(src, -1, -1, TOK.END, idx, idx, null)
@@ -385,10 +387,10 @@ function tokenize (src, opt, cb) {
       break
 
     //
-    // complete end states
+    // complete end states (no context)
     //
-    case STATE.BEFORE_FIRST_VAL:
-    case STATE.AFTER_VAL:
+    case POS.BFV:
+    case POS.A_V:
       cb(src, -1, -1, TOK.END, idx, idx, idx === lim ? null : info)
       break
 
@@ -423,39 +425,17 @@ function Info (src, lim, koff, klim, tok, voff, idx, state, stack, err) {
 }
 Info.prototype = {
   constructor: Info,
-  in_arr: function () { return !!(this.state & STATE.IN_ARR) },
-  in_obj: function () { return !!(this.state & STATE.IN_OBJ) },
-  before: function () {
-    switch (this.state & STATE.POS_MASK) {
-      case STATE.AFTER_KEY: case STATE.AFTER_VAL: return false
-      default: return true
-    }
-  },
-  first: function () {
-    switch (this.state & STATE.POS_MASK) {
-      case STATE.BEFORE_FIRST_KEY: case STATE.BEFORE_FIRST_VAL: return true
-      default: return false
-    }
-  },
-  key: function () {
-    switch (this.state & STATE.POS_MASK) {
-      case STATE.BEFORE_FIRST_KEY: case STATE.BEFORE_KEY: case STATE.AFTER_KEY: return true
-      default: return false
-    }
-  },
+  in_arr: function () { return !!(this.state & CTX.ARR) },
+  in_obj: function () { return !!(this.state & CTX.OBJ) },
+  ctx_str: function (long) { return ctx_str(this.state, long) },
+  pos_str: function (long) { return pos_str(this.state, long) },
+  state_str: function (long) { return state_str(this.state, long) },
   tok_type: function () {
     switch (this.tok) {
       case TOK.NUM: return 'number'
       case TOK.STR: return 'string'
       default: return 'token'
     }
-  },
-  state_str: function () {
-    var ctx = this.in_arr() ? 'in array ' : this.in_obj() ? 'in object ' : ''
-    var pos = this.err === ERR.TRUNC_VAL ? '' : this.before() ? 'before ' : 'after '
-    var first = this.first() ? 'first ' : ''
-    var what = this.key() ? 'key' : 'value'
-    return ctx + pos + first + what
   },
   toString: function () {
     var tok = this.tok
@@ -471,14 +451,14 @@ Info.prototype = {
         ret = 'truncated ' + this.tok_type() + ','
         break
       case ERR.UNEXP_VAL:
-        ret = 'unexpected ' + this.tok_type() + ' ' + srcstr(src, voff, idx, tok) + ', ' + this.state_str()
+        ret = 'unexpected ' + this.tok_type() + ' ' + srcstr(src, voff, idx, tok) + ', ' + this.state_str(true)
         break
       case ERR.UNEXP_BYTE:
-        ret = 'unexpected byte ' + srcstr([tok], 0, 1, tok) + ', ' + this.state_str()
+        ret = 'unexpected byte ' + srcstr([tok], 0, 1, tok) + ', ' + this.state_str(true)
         from = this.idx - 1
         break
       case ERR.TRUNC_SRC:
-        ret = 'truncated input, ' + this.state_str()
+        ret = 'truncated input, ' + this.state_str(true)
         from = thru = this.idx
         break
       default:
@@ -488,6 +468,39 @@ Info.prototype = {
     // var tokstr = (tok > 31 && tok < 127 && tok !== 34) ? '"' + String.fromCharCode(tok) + '"' : String(tok)
     return ret + ' at ' + ((from === thru) ? from : from + '..' + thru)
   }
+}
+
+var POS_NAMES = Object.keys(POS).reduce(function (a,n) { a[POS[n]] = n; return a }, [])
+function pos_str (state, long) {
+  var pos = state & POS_MASK
+  if (long) {
+    switch (pos) {
+      case POS.BFV: return 'before first value'
+      case POS.B_V: return 'before value'
+      case POS.BFK: return 'before first key'
+      case POS.B_K: return 'before key'
+      case POS.A_V: return 'after value'
+      case POS.A_K: return 'after key'
+      default: return 'undefined'
+    }
+  } else {
+    return POS_NAMES[pos]
+  }
+}
+
+function ctx_str (state, long) {
+  var ctx = state & CTX_MASK
+    switch (ctx) {
+    case CTX.ARR: return long ? 'in array' : 'ARR'
+    case CTX.OBJ: return long ? 'in object' : 'OBJ'
+    default: return ''
+  }
+}
+
+function state_str (state, long) {
+  var ctx = ctx_str(state, long)
+  var sep = long ? ' ' : '_'
+  return (ctx ? ctx + sep : '') + pos_str(state, long)
 }
 
 function srcstr (src, off, lim, tok) {
@@ -525,7 +538,10 @@ function args2str (koff, klim, tok, voff, vlim, info) {
 module.exports = {
   tokenize: tokenize,
   args2str: args2str,
+  state_str: state_str,
   TOK: TOK,
-  STATE: STATE,
-  ERR: ERR
+  CTX: CTX,     // state 3-letter codes - for concise expressions
+  POS: POS,
+  POS_MASK: POS_MASK,
+  ERR: ERR,
 }
