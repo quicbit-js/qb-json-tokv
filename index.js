@@ -377,7 +377,7 @@ function tokenize (src, opt, cb) {
 
   // same info is passed to callbacks as error and end events as well as returned from this function
   var end_info = function (state, err) {
-    return new EndInfo(voff, idx, state, stack, err)
+    return new EndInfo(idx, state, stack, err)
   }
   var err_info = function (state, err) {
     var val_str = srcstr(src, voff, idx, tok)
@@ -494,11 +494,10 @@ function tokenize (src, opt, cb) {
 // The "across packets" data is managed outside of tokenize by adding up the packet values.
 //
 // ErrInfo holds the same information as EndInfo including any unfinished last-value, but with an error code.
-function EndInfo (voff, idx, state, stack, err) {
+function EndInfo (idx, state, stack, err) {
   this.idx = idx
   this.stack = stack.map(function (b) { return String.fromCharCode(b) }).join('')
   this.err = err
-
   // new state
   this.pos = state & POS_MASK
 }
