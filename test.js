@@ -188,30 +188,28 @@ test('incremental clean',         function (t) {
   )
 })
 
-var TRUNC_SRC = ERR.TRUNC_SRC
-
-test('incremental', function (t) {
+test.only('incremental', function (t) {
   t.table_assert(
     [
-      [ 'input',                  'exp' ],
-      [ '"abc", ',                [ 'B@0,S5@0,E@7',               [ 7,      'B_V', '-', null  ] ] ],
-      [ '[',                      [ 'B@0,[@0,E@1',                [ 1,  'ARR_BFV', '[', null ] ] ],
-      [ '[ 83 ',                  [ '[@0,N2@2,E@5',               [ 5,  'ARR_A_V', '[', null ] ] ],
-      [ '[ 83,',                  [ '[@0,N2@2,E@5',               [ 5,  'ARR_B_V', '[', null ] ] ],
-      [ '[ 83, "a"',              [ 'N2@2,S3@6,E@9',              [ 9,  'ARR_A_V', '[', null ] ] ],
-      [ '[ 83, "a",',             [ 'N2@2,S3@6,E@10',             [ 10, 'ARR_B_V', '[', null ] ] ],
-      [ '[ 83, "a", 2',           [ 'N2@2,S3@6,E@11',             [ 12, 'ARR_B_V', '[', '2' ] ] ],
-      [ '{',                      [ 'B@0,{@0,E@1',                [ 1,  'OBJ_BFK', '{', null ] ] ],
-      [ '{ "a"',                  [ 'B@0,{@0,K3@2:E@5',           [ 5,  'OBJ_A_K', '{', null ] ] ],
-      [ '{ "a":',                 [ 'B@0,{@0,K3@2:E@6',           [ 6,  'OBJ_B_V', '{', null ] ] ],
-      [ '{ "a": 9',               [ 'B@0,{@0,K3@2:E@7',           [ 8,  'OBJ_B_V', '{', '9' ] ] ],
-      [ '{ "a": 93, ',            [ '{@0,K3@2:N2@7,E@11',         [ 11, 'OBJ_B_K', '{', null ] ] ],
-      [ '{ "a": 93, "b',          [ '{@0,K3@2:N2@7,E@11',         [ 13, 'OBJ_B_K', '{', '"b' ] ] ],
-      [ '{ "a": 93, "b"',         [ '{@0,K3@2:N2@7,K3@11:E@14',   [ 14, 'OBJ_A_K', '{', null ] ] ],
-      [ '{ "a": 93, "b":',        [ '{@0,K3@2:N2@7,K3@11:E@15',   [ 15, 'OBJ_B_V', '{', null ] ] ],
-      [ '{ "a": 93, "b": [',      [ 'K3@2:N2@7,K3@11:[@16,E@17',  [ 17, 'ARR_BFV', '{[', null ] ] ],
-      [ '{ "a": 93, "b": []',     [ 'K3@11:[@16,]@17,E@18',       [ 18, 'OBJ_A_V', '{', null ] ] ],
-      [ '{ "a": 93, "b": [] ',    [ 'K3@11:[@16,]@17,E@19',       [ 19, 'OBJ_A_V', '{', null ] ] ],
+      [ 'input'              , 'exp'                                               ],
+      [ '"abc", '            , [ 'B@0,S5@0,E@7', '0.7/-/B_V/null' ]                ],
+      [ '['                  , [ 'B@0,[@0,E@1', '0.1/[/BFV/null' ]                 ],
+      [ '[ 83 '              , [ '[@0,N2@2,E@5', '0.5/[/A_V/null' ]                ],
+      [ '[ 83 ,'             , [ '[@0,N2@2,E@6', '0.6/[/B_V/null' ]                ],
+      [ '[ 83 , "a"'         , [ 'N2@2,S3@7,E@10', '0.10/[/A_V/null' ]             ],
+      [ '[ 83 , "a",'        , [ 'N2@2,S3@7,E@11', '0.11/[/B_V/null' ]             ],
+      [ '[ 83 , "a", 2'      , [ 'N2@2,S3@7,E@12', '0.13/[/B_V/2' ]                ],
+      [ '{'                  , [ 'B@0,{@0,E@1', '0.1/{/BFK/null' ]                 ],
+      [ '{ "a"'              , [ 'B@0,{@0,K3@2:E@5', '0.5/{/A_K/null' ]            ],
+      [ '{ "a":'             , [ 'B@0,{@0,K3@2:E@6', '0.6/{/B_V/null' ]            ],
+      [ '{ "a": 9'           , [ 'B@0,{@0,K3@2:E@7', '0.8/{/B_V/9' ]               ],
+      [ '{ "a": 93, '        , [ '{@0,K3@2:N2@7,E@11', '0.11/{/B_K/null' ]         ],
+      [ '{ "a": 93, "b'      , [ '{@0,K3@2:N2@7,E@11', '0.13/{/B_K/"b' ]           ],
+      [ '{ "a": 93, "b"'     , [ '{@0,K3@2:N2@7,K3@11:E@14', '0.14/{/A_K/null' ]   ],
+      [ '{ "a": 93, "b":'    , [ '{@0,K3@2:N2@7,K3@11:E@15', '0.15/{/B_V/null' ]   ],
+      [ '{ "a": 93, "b": ['  , [ 'K3@2:N2@7,K3@11:[@16,E@17', '0.17/{[/BFV/null' ] ],
+      [ '{ "a": 93, "b": []' , [ 'K3@11:[@16,]@17,E@18', '0.18/{/A_V/null' ]       ],
+      [ '{ "a": 93, "b": [] ', [ 'K3@11:[@16,]@17,E@19', '0.19/{/A_V/null' ]       ],
     ],
     function (src) {
       var hector = t.hector()
@@ -220,9 +218,8 @@ test('incremental', function (t) {
         return true
       }
       var info = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
-      info = [ info.off, info.state_str(), info.stack, info.trunc ]
       var argstr = hector.args.map(function (args) { return jtok.args2str.apply(null, args) }).slice(-3).join(',')
-      return [ argstr, info ]
+      return [ argstr, info.toString() ]
     }
   )
 })

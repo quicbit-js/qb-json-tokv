@@ -505,9 +505,9 @@ function EndInfo (off, state, stack, trunc) {
 }
 EndInfo.prototype = {
   constructor: EndInfo,
-  state_str: function (long) { return state_str(this.stack, this.pos, long) },
+  state_str: function (long) { return pos_str(this.pos, long) },
   toString: function () {
-    return 'end info'
+    return '0.' + this.off + '/' + this.stack + '/' + pos_str(this.pos, false) + '/' + this.trunc
   }
 }
 
