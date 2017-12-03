@@ -10,7 +10,7 @@
     "qb-obj": "^1.0.0",
     "qb-utf8-ez": "^3.1.1",
     "tape": "^4.6.3",
-    "test-kit": "^2.5.2"
+    "test-kit": "^2.6.1"
   },
   "scripts": {
     "test": "tape test.js",

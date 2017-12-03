@@ -188,7 +188,7 @@ test('incremental clean',         function (t) {
   )
 })
 
-test.only('incremental', function (t) {
+test('incremental', function (t) {
   t.table_assert(
     [
       [ 'input'              , 'exp'                                               ],
