@@ -179,9 +179,9 @@ within an array, object - or nothing (zero depth - CSV parsing).
 
 Parse positions are 
     
-    before-first-value  'bfv'
-    before-value        'bv'
-    after-value         'av'
+    before-first-valueue  'bfv'
+    before-valueue        'bv'
+    after-valueue         'av'
     
     before-first-key    'bfk'
     before-key          'bk'
@@ -194,17 +194,17 @@ Parse positions are
 For example:
         
         
-        arr|before-first-value    // array context...
+        arr|before-first-valueue    // array context...
         |
         |  
         |    
-        |     arr|after-value
+        |     arr|after-valueue
         |     |
-        |     |arr|before-value
+        |     |arr|before-valueue
         |     ||
         |     ||
         |     ||   
-        |     ||       arr|after-value
+        |     ||       arr|after-valueue
         |     ||       | 
         |     ||       | 
         |     ||       | 
@@ -226,12 +226,12 @@ So mappings are read like this:
     // means:
 
     for contexts (none, in-array and in-object)            
-        for positions (before-first-value and before-value) 
+        for positions (before-first-valueue and before-valueue) 
             for token ('[')
     
                 allow transition to state:
             
-                    in-array, before-first-value
+                    in-array, before-first-valueue
 
 
     // and this mapping:
@@ -241,12 +241,12 @@ So mappings are read like this:
     // means:
     
     for the context (array-context)
-        for positions (before-first-value, before-value)
+        for positions (before-first-valueue, before-valueue)
             for tokens ('"ntf-0123456789')                  (all legal value start ascii)
             
                 allow transition to state:
                     
-                    in-array-after-value
+                    in-array-after-valueue
                     
     and so on...           
         
@@ -275,7 +275,7 @@ If that made sense, I encourage looking at the code - it is just as understandab
 
 
 To make the graph tolerate trailing commas in arrays <code>[1,2,3,]</code>, add an array-end rule where a 
-value is expected (before-value):
+value is expected (before-valueue):
 
       map([arr],    [b_v],        ']',     a_v )    // note that we don't set a context for ending array or objects - that is done for us using the stack
       
@@ -290,7 +290,7 @@ value is expected (before-value):
       
       
 To make the graph also tolerate trailing commas in an empty array <code>[,]</code>, add an array-comma rule where 
-a first value is expected (before-first-value):
+a first value is expected (before-first-valueue):
 
       map([arr], [bfv], ',',  arr|b_v )
 
@@ -302,12 +302,12 @@ Even if you aren't familiar with bit twiddling, you can easily understand and mo
 graph is defined as a series of allowed state transitions.  If the state graph is in a variable called 'states', then we
 could check and perform state transition from state0 (current state) to state1 (next state) with:
 
-    var state1 = states[state0 + ascii-value]
+    var state1 = states[state0 + ascii-valueue]
 
 If the state isn't allowed, then state1 is undefined.  If allowed, then it is defined (an integer) that can be
 used again to get the next state:
 
-    var state2 = states[state1 + ascii-value]
+    var state2 = states[state1 + ascii-valueue]
     
 This simple mechanism works for all state transitions, except when we leave context of an object or array.  
 When a '}' or ']' is encountered, the new state will have no context set (you can see this for yourself in
@@ -334,67 +334,67 @@ the open unmatched ascii braces.
 ### The Components of the 'state' Integer
  
 Each state integer holds context information about the current parsing context is in the JSON document.  
-There are three possible  *contexts*: **IN_OBJ**, **IN_ARR**, **CTX_NONE** that define the type of 
+There are three possible *contexts*: **in-object**, **in-array**, and **none** that define the type of 
 container the parser is within: 
 
-    no context |           IN_OBJ            |     IN_ARR     |  IN_OBJ   |  no context...
+    no context |        in-object            |    in-array    | in-object |  no context...
                |                             |                |           |          
                { "name" : "Samuel", "tags" : [ "Sam", "Sammy" ]           }
 
-State also describes which of the 2 item types: **KEY** or **VAL**(UE) the position of the parser is near.  Note that
-bothe the start and end of arrays and objects
-are considered a VALUES when describing position. 
+State also describes which of the 2 item types: **key** or **value**(UE) the position of the parser is near.  Note that
+both the start and end of arrays and objects
+are considered a values when describing position. 
 
-      VAL                                             VAL
-       |   KEY     VAL     KEY   VAL              VAL  |
-       |    |       |       |     |  VAL      VAL  |   |
+      value                                          value
+       |   key    value    key  value            value |
+       |    |       |       |     | value   value  |   |
        |    |       |       |     |   |       |    |   |
        {  name : "Samuel", tags : [ "Sam", "Sammy" ]   }
         
 
-There are 2 possible *positions* **BEFORE**, and **AFTER**, that define parse position relative to a key 
-or value plus a **FIRST** indicator to indicate if it is the first item in a new context: 
+There are 2 possible *positions* **before**, and **after**, that define parse position relative to a key 
+or value plus a **first** indicator to indicate if it is the first item in a new context: 
 
-    BEFORE_FIRST_VAL (no context)
+    before-first-value (no context)
       |  
-      |  IN_OBJ|BEFORE_FIRST_KEY        // object context...
+      |  in-object|before-first-key        // object context...
       |  |
-      |  |    IN_OBJ|AFTER_KEY
+      |  |    in-object|after-key
       |  |    |
-      |  |    | IN_OBJ|BEFORE_VAL
+      |  |    | in-object|before-value
       |  |    | |
       |  |    | | 
       |  |    | |  
-      |  |    | |         IN_OBJ|AFTER_VAL
+      |  |    | |         in-object|after-value
       |  |    | |         |
-      |  |    | |         | IN_OBJ|BEFORE_KEY        
+      |  |    | |         | in-object|before-key        
       |  |    | |         | |
       |  |    | |         | | 
       |  |    | |         | |  
-      |  |    | |         | |    IN_OBJ|AFTER_KEY
+      |  |    | |         | |    in-object|after-key
       |  |    | |         | |    |
-      |  |    | |         | |    | IN_OBJ|BEFORE_VAL
+      |  |    | |         | |    | in-object|before-value
       |  |    | |         | |    | |
-      |  |    | |         | |    | | IN_ARR|BEFORE_FIRST_VAL    // array context...
+      |  |    | |         | |    | | in-array|before-first-value    // array context...
       |  |    | |         | |    | | |
       |  |    | |         | |    | | |  
       |  |    | |         | |    | | |    
-      |  |    | |         | |    | | |     IN_ARR|AFTER_VAL
+      |  |    | |         | |    | | |     in-array|after-value
       |  |    | |         | |    | | |     |
-      |  |    | |         | |    | | |     |IN_ARR|BEFORE_VAL
+      |  |    | |         | |    | | |     |in-array|before-value
       |  |    | |         | |    | | |     ||
       |  |    | |         | |    | | |     ||
       |  |    | |         | |    | | |     ||   
-      |  |    | |         | |    | | |     ||       IN_ARR|AFTER_VAL
+      |  |    | |         | |    | | |     ||       in-array|after-value
       |  |    | |         | |    | | |     ||       | 
-      |  |    | |         | |    | | |     ||       | IN_OBJ|AFTER_VAL  // object context...
-      |  |    | |         | |    | | |     ||       | |           AFTER_VAL  // no context... (basic CSV is supported)
+      |  |    | |         | |    | | |     ||       | in-object|after-value  // object context...
+      |  |    | |         | |    | | |     ||       | |           after-value  // no context... (basic CSV is supported)
       |  |    | |         | |    | | |     ||       | |           |
-      |  |    | |         | |    | | |     ||       | |           | BEFORE_VAL
+      |  |    | |         | |    | | |     ||       | |           | before-value
       |  |    | |         | |    | | |     ||       | |           | |
       |  |    | |         | |    | | |     ||       | |           | | 
       |  |    | |         | |    | | |     ||       | |           | |  
-      |  |    | |         | |    | | |     ||       | |           | |                AFTER_VAL
+      |  |    | |         | |    | | |     ||       | |           | |                after-value
       |  |    | |         | |    | | |     ||       | |           | |                |
        {  name :  "Samuel" , tags : [ "Sam", "Sammy" ]        }    ,  "another value"
     
