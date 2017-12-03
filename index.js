@@ -383,7 +383,7 @@ function tokenize (src, opt, cb) {
   // same info is passed to callbacks as error and end events as well as returned from this function
   var stackstr = stack.map(function (b) { return String.fromCharCode(b) }).join('') || '-'
   var end_info = function (state, trunc) {
-    return new EndInfo(vcount, idx - off, state, stackstr, trunc)
+    return new EndInfo(vcount, idx - off, state, stackstr, tok, trunc)
   }
   var err_info = function (state, err) {
     var val_str = json_str(src, voff, idx, tok)
@@ -424,7 +424,7 @@ function tokenize (src, opt, cb) {
         info = null
       } else {
         if (opt.incremental) {
-          var trunc = esc_str(src, voff, idx)
+          var trunc = src.slice(voff, idx)
           info = end_info(state0, trunc)
           cb(src, koff, klim, TOK.END, voff, idx, info)
         } else {
@@ -514,18 +514,32 @@ function tokenize (src, opt, cb) {
 // The "across packets" data is managed outside of tokenize by adding up the packet values.
 //
 // ErrInfo holds the same information as EndInfo including any unfinished last-value, but with an error code.
-function EndInfo (vcount, bytes, state, stack, trunc) {
+
+var TOK2TYPE = (function (){
+  var ret = []
+  ret[TOK.NUM] = 'n'
+  ret[TOK.STR] = 's'
+  ret[TOK.TRU] = 'b'
+  ret[TOK.FAL] = 'b'
+  ret[TOK.NUL] = 'N'
+  ret[TOK.OBJ] = 'o'
+  ret[TOK.ARR] = 'a'
+  return ret
+})()
+function EndInfo (vcount, bytes, state, stack, tok, trunc) {
   this.vcount = vcount
   this.bytes = bytes
   this.stack = stack
-  this.trunc = trunc    // truncated value as a string (if a value was incomplete)
-  // new state
   this.pos = state & POS_MASK
+  this.tok = tok
+  this.trunc = trunc    // truncated value as a string (if a value was incomplete)
 }
+
 EndInfo.prototype = {
   constructor: EndInfo,
   toString: function () {
-    return this.vcount + '.' + this.bytes + '/' + this.stack + '/' + pos_str(this.pos, false) + '/' + this.trunc
+    var truncstr = this.trunc ? '/' + TOK2TYPE[this.tok] + this.trunc.length : ''
+    return this.vcount + '.' + this.bytes + '/' + this.stack + '/' + POS_NAMES[this.pos] + truncstr
   }
 }
 
