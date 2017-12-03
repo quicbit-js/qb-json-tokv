@@ -85,6 +85,19 @@ var TOK = {
   END: 69        // 'E' - end -   buffer limit reached
 }
 
+var TOK2TCODE = (function (){
+  var ret = []
+  ret[TOK.NUM] = 'n'
+  ret[TOK.STR] = 's'
+  ret[TOK.TRU] = 'b'
+  ret[TOK.FAL] = 'b'
+  ret[TOK.NUL] = 'N'
+  ret[TOK.OBJ] = 'o'
+  ret[TOK.ARR] = 'a'
+  return ret
+})()
+
+
 // create an int-int map from (state + tok) -- to --> (new state)
 function state_map () {
   var ret = []
@@ -383,7 +396,9 @@ function tokenize (src, opt, cb) {
   // same info is passed to callbacks as error and end events as well as returned from this function
   var stackstr = stack.map(function (b) { return String.fromCharCode(b) }).join('') || '-'
   var end_info = function (state, trunc) {
-    return new EndInfo(vcount, idx - off, state, stackstr, tok, trunc)
+    var pos = POS_NAMES[state & POS_MASK]
+    var tcode = TOK2TCODE[tok]
+    return new EndInfo(vcount, idx - off, pos, stackstr, tcode, trunc)
   }
   var err_info = function (state, err) {
     var val_str = json_str(src, voff, idx, tok)
@@ -515,33 +530,23 @@ function tokenize (src, opt, cb) {
 //
 // ErrInfo holds the same information as EndInfo including any unfinished last-value, but with an error code.
 
-var TOK2TYPE = (function (){
-  var ret = []
-  ret[TOK.NUM] = 'n'
-  ret[TOK.STR] = 's'
-  ret[TOK.TRU] = 'b'
-  ret[TOK.FAL] = 'b'
-  ret[TOK.NUL] = 'N'
-  ret[TOK.OBJ] = 'o'
-  ret[TOK.ARR] = 'a'
-  return ret
-})()
-function EndInfo (vcount, bytes, state, stack, tok, trunc) {
+function EndInfo (vcount, bytes, pos, stack, tcode, trunc) {
   this.vcount = vcount
   this.bytes = bytes
   this.stack = stack
-  this.pos = state & POS_MASK
-  this.tok = tok
+  this.pos = pos
+  this.type = tcode
   this.trunc = trunc    // truncated value as a string (if a value was incomplete)
 }
 
 EndInfo.prototype = {
   constructor: EndInfo,
   toString: function () {
-    var truncstr = this.trunc ? '/' + TOK2TYPE[this.tok] + this.trunc.length : ''
-    return this.vcount + '.' + this.bytes + '/' + this.stack + '/' + POS_NAMES[this.pos] + truncstr
+    var truncstr = this.trunc ? this.type + this.trunc.length : '-'
+    return this.vcount + '.' + this.bytes + '/' + this.stack + '/' + this.pos + '/' + truncstr
   }
 }
+
 
 function ErrInfo (val_str, tok_str, voff, idx, state, stack, err) {
   this.val_str = val_str
