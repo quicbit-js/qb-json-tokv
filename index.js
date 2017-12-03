@@ -256,15 +256,17 @@ function tokenize (src, opt, cb) {
   var state0 = init.state
   var stack = init.stack
 
-  var idx = opt.off || 0
+  var off = opt.off || 0
+  var idx = off
   var lim = opt.lim == null ? src.length : opt.lim
-  var tok = 0                         // current token/byte being handled
-  var state1 = state0                 // state1 possibilities are:
-                                      //    1. state1 < 0    (parse error - see STATE_ERR codes)
-                                      //    2. state1 = 0    (unsupported transition - will be later be mapped to TOK.UNEXPECTED_TOK)
-                                      //    3. state1 > 0    (OK.  state1 !== state0 means callback is pending )
+  var tok = 0           // current token/byte being handled
+  var state1 = state0   // state1 possibilities are:
+                        //    1. state1 < 0    (parse error - see STATE_ERR codes)
+                        //    2. state1 = 0    (unsupported transition - will be later be mapped to TOK.UNEXPECTED_TOK)
+                        //    3. state1 > 0    (OK.  state1 !== state0 means callback is pending )
 
-  var voff = idx                      // value start index
+  var voff = idx        // value start index
+  var vcount = 0        // value count (number of complete values sent, such as str or num or end-obj, but beg-obj, beg-arr.
 
   // BEG and END signals are the only calls with zero length (voff === vlim)
   var cb_continue = cb(src, -1, -1, TOK.BEG, idx, idx)                      // 'B' - BEGIN parse
@@ -303,6 +305,7 @@ function tokenize (src, opt, cb) {
           }
           // full match
           if (state1 === 0) { break main_loop }
+          vcount++
           break
 
         case 34:                                  // "    QUOTE
@@ -324,6 +327,7 @@ function tokenize (src, opt, cb) {
             state0 = state1
             continue
           }
+          vcount++
           break
 
         case 48:case 49:case 50:case 51:case 52:   // digits 0-4
@@ -335,6 +339,7 @@ function tokenize (src, opt, cb) {
           if (state1 === 0) { break main_loop }
           // the number *might* be truncated - flag it here and handle below
           if (idx === lim) { state1 = ERR_CODE.TRUNC_VAL; break main_loop }
+          vcount++
           break
 
         case 91:                                  // [    ARRAY START
@@ -353,6 +358,7 @@ function tokenize (src, opt, cb) {
           stack.pop()
           // state1 context is unset after closing brace (see state map).  we set it here.
           if (stack.length !== 0) { state1 |= (stack[stack.length - 1] === 91 ? in_arr : in_obj) }
+          vcount++
           break
 
         default:
@@ -360,7 +366,6 @@ function tokenize (src, opt, cb) {
           idx++
           break main_loop
       }
-
       // clean transition was made from state0 to state1
       cb_continue = cb(src, koff, klim, tok, voff, idx, null)
       if (state0 & in_obj) {
@@ -378,7 +383,7 @@ function tokenize (src, opt, cb) {
   // same info is passed to callbacks as error and end events as well as returned from this function
   var stackstr = stack.map(function (b) { return String.fromCharCode(b) }).join('') || '-'
   var end_info = function (state, trunc) {
-    return new EndInfo(idx, state, stackstr, trunc)
+    return new EndInfo(vcount, idx - off, state, stackstr, trunc)
   }
   var err_info = function (state, err) {
     var val_str = json_str(src, voff, idx, tok)
@@ -509,8 +514,9 @@ function tokenize (src, opt, cb) {
 // The "across packets" data is managed outside of tokenize by adding up the packet values.
 //
 // ErrInfo holds the same information as EndInfo including any unfinished last-value, but with an error code.
-function EndInfo (off, state, stack, trunc) {
-  this.off = off
+function EndInfo (vcount, bytes, state, stack, trunc) {
+  this.vcount = vcount
+  this.bytes = bytes
   this.stack = stack
   this.trunc = trunc    // truncated value as a string (if a value was incomplete)
   // new state
@@ -518,9 +524,8 @@ function EndInfo (off, state, stack, trunc) {
 }
 EndInfo.prototype = {
   constructor: EndInfo,
-  state_str: function (long) { return pos_str(this.pos, long) },
   toString: function () {
-    return '0.' + this.off + '/' + this.stack + '/' + pos_str(this.pos, false) + '/' + this.trunc
+    return this.vcount + '.' + this.bytes + '/' + this.stack + '/' + pos_str(this.pos, false) + '/' + this.trunc
   }
 }
 
