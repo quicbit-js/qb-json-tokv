@@ -18,30 +18,30 @@
 var CTX_MASK = 0x0300
 var CTX = {
   // 0x0 means no context
-  ARR: 0x0100,
-  OBJ: 0x0200,
+  arr: 0x0100,
+  obj: 0x0200,
 }
 
 var POS_MASK = 0x1C00
 var POS = {
-  BFK: 0x0400,
-  B_K: 0x0800,
-  BFV: 0x0C00,
-  B_V: 0x1000,
-  A_V: 0x1400,
-  A_K: 0x1800,
+  bfk: 0x0400,
+  b_k: 0x0800,
+  bfv: 0x0C00,
+  b_v: 0x1000,
+  a_v: 0x1400,
+  a_k: 0x1800,
 }
 
 var POS_NAMES = Object.keys(POS).reduce(function (a,n) { a[POS[n]] = n; return a }, [])
 function pos_str (pos, long) {
   if (long) {
     switch (pos) {
-      case POS.BFV: return 'before first value'
-      case POS.B_V: return 'before value'
-      case POS.BFK: return 'before first key'
-      case POS.B_K: return 'before key'
-      case POS.A_V: return 'after value'
-      case POS.A_K: return 'after key'
+      case POS.bfv: return 'before first value'
+      case POS.b_v: return 'before value'
+      case POS.bfk: return 'before first key'
+      case POS.b_k: return 'before key'
+      case POS.a_v: return 'after value'
+      case POS.a_k: return 'after key'
       default: return 'undefined'
     }
   } else {
@@ -92,8 +92,8 @@ var TOK2TCODE = (function (){
   ret[TOK.TRU] = 'b'
   ret[TOK.FAL] = 'b'
   ret[TOK.NUL] = 'N'
-  ret[TOK.OBJ] = 'o'
-  ret[TOK.ARR] = 'a'
+  ret[TOK.obj] = 'o'
+  ret[TOK.arr] = 'a'
   return ret
 })()
 
@@ -117,14 +117,14 @@ function state_map () {
     })
   }
 
-  var bfv = POS.BFV
-  var b_v = POS.B_V
-  var a_v = POS.A_V
-  var bfk = POS.BFK
-  var b_k = POS.B_K
-  var a_k = POS.A_K
-  var arr = CTX.ARR
-  var obj = CTX.OBJ
+  var bfv = POS.bfv
+  var b_v = POS.b_v
+  var a_v = POS.a_v
+  var bfk = POS.bfk
+  var b_k = POS.b_k
+  var a_k = POS.a_k
+  var arr = CTX.arr
+  var obj = CTX.obj
   var non = 0
 
   var val = '"ntf-0123456789' // all legal value starts (ascii)
@@ -236,7 +236,7 @@ function restore (src, opt, cb) {
   }
   ret.soff = init.soff || 0   // src offset
   ret.stack = init.stack || []
-  ret.state = init.state || POS.BFV
+  ret.state = init.state || POS.bfv
   ret.koff = init.koff || -1
   ret.klim = init.klim || -1
   // if (init.state) {
@@ -255,9 +255,9 @@ function tokenize (src, opt, cb) {
   // localized constants for faster access
   var states = STATE_MAP
   var pos_mask = POS_MASK
-  var after_key = POS.A_K
-  var in_arr = CTX.ARR
-  var in_obj = CTX.OBJ
+  var after_key = POS.a_k
+  var in_arr = CTX.arr
+  var in_obj = CTX.obj
   var whitespace = WHITESPACE
   var all_num_chars = ALL_NUM_CHARS
   var tok_bytes = TOK_BYTES
@@ -432,7 +432,7 @@ function tokenize (src, opt, cb) {
 
     case ERR_CODE.TRUNC_VAL:
       // truncated values do NOT advance state. state0 is left one step before the transition (like unexpected values)
-      if (tok === TOK.NUM && (state0 === (POS.BFV) || state0 === (POS.B_V))) {
+      if (tok === TOK.NUM && (state0 === (POS.bfv) || state0 === (POS.b_v))) {
         // numbers outside of object or array context are not considered truncated: '3.23' or '1, 2, 3'
         cb(src, koff, klim, tok, voff, idx, null)
         cb(src, -1, -1, TOK.END, idx, idx, null)
@@ -452,8 +452,8 @@ function tokenize (src, opt, cb) {
     //
     // complete end states (no context)
     //
-    case POS.BFV:
-    case POS.A_V:
+    case POS.bfv:
+    case POS.a_v:
       cb(src, -1, -1, TOK.END, idx, idx, idx === lim ? null : info)
       break
 
