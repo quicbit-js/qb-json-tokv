@@ -390,10 +390,10 @@ function tokenize (src, opt, cb) {
 
   // same info is passed to callbacks as error and end events as well as returned from this function
   var stackstr = stack.map(function (b) { return String.fromCharCode(b) }).join('') || '-'
-  var end_info = function (state, trunc) {
+  var state_info = function (state, trunc) {
     var pos_name = POS_NAMES_BY_INT[state & POS_MASK]
     var tcode = TOK2TCODE[tok]
-    return new EndInfo(vcount, idx - off, pos_name, stackstr, tcode, trunc)
+    return new State(vcount, idx - off, pos_name, stackstr, tcode, trunc)
   }
   var err_info = function (state, err) {
     var tok_str = tok === TOK.NUM ? 'number' : (tok === TOK.STR ? 'string' : 'token')
@@ -454,9 +454,9 @@ function tokenize (src, opt, cb) {
         cb(src, -1, -1, TOK.END, idx, idx, null)
         info = null
       } else {
+        var trunc = src.slice(voff, idx)
+        info = state_info(state0, trunc)
         if (opt.incremental) {
-          var trunc = src.slice(voff, idx)
-          info = end_info(state0, trunc)
           cb(src, koff, klim, TOK.END, voff, idx, info)
         } else {
           info = err_info(state0, ERR.TRUNC_VAL)
@@ -480,7 +480,7 @@ function tokenize (src, opt, cb) {
       if (cb_continue) {
         // incomplete state was not caused of the callback halting process
         if (opt.incremental) {
-          info = end_info(state1, null)
+          info = state_info(state1, null)
           cb(src, koff, klim, TOK.END, idx, idx, info)
         } else {
           info = err_info(state1, ERR.TRUNC_SRC)
@@ -488,7 +488,7 @@ function tokenize (src, opt, cb) {
         }
       } else {
         // callback requested stop.  don't create end event or error, but do return state so parsing can be restarted.
-        info = end_info(state1, ERR.NONE)
+        info = state_info(state1, ERR.NONE)
       }
   }
 
@@ -512,7 +512,7 @@ function tokenize (src, opt, cb) {
 // The parts of the packet
 //
 //
-//                  (across packets)      /         (local to packet)
+//                  multi-packet state      /         single packet state
 //
 //                  packet-number (starts at 1)
 //                  |
@@ -528,25 +528,30 @@ function tokenize (src, opt, cb) {
 //                  |      | |                      | |     |
 //                  |      | |                      | |     |   position (before-value, after-key, etc)
 //                  |      | |                      | |     |   |
-// begin 1          1 /    0.0            /         0.0 /   - / bfv     // before-first-value (no context)
-// end   1          1 /   3.53            /        3.53 /  {[ / b_v     // before-value (inside array)
+//                  |      | |                      | |     |   |     truncated type (- = no truncation, s = string, n = number...)
+//                  |      | |                      | |     |   |     |
+//                  |      | |                      | |     |   |     |truncated length (if truncated)
+//                  |      | |                      | |     |   |     ||
+// begin 1          1 /    0.0            /         0.0 /   - / bfv / -     // before-first-value (no context)
+// end   1          1 /   3.53            /        3.53 /  {[ / b_v / s6    // before-value (inside array), truncated string at length 6
 //
-// begin 2          2 /   3.53            /         0.0 /  {[ / bfv
-// end   2          2 /  8.103            /        5.50 / {[{ / a_k     // after-key
+// begin 2          2 /   3.53            /         0.0 /  {[ / bfv / s6    // before-first-value, string continued
+// end   2          2 /  8.103            /        5.50 / {[{ / a_k / n2    // after-key, a number is truncated at length 2
 //
-// begin 3          3 /  8.103            /        0.00 / {[{ / a_k
-// end   3          3 / 15.184            /        7.81 /   { / b_v     // before-value
+// begin 3          3 /  8.103            /        0.00 / {[{ / a_k / n2    // after-key, number continued (at length 3)
+// end   3          3 / 15.184            /        7.81 /   { / b_v / -     // before-value (no truncation)
 //
-// begin 4          4 / 15.184            /         0.0 /   { / b_v
-// end   4          4 / 18.193            /         3.9 /   - / a_v     // clean end state
+// begin 4          4 / 15.184            /         0.0 /   { / b_v / -
+// end   4          4 / 18.193            /         3.9 /   - / a_v / -     // clean end state
 //
-// EndInfo holds the "local-to-packet" information, plus any unfinished "truncated" value needed
-// to process the next packet, or no truncated value if parsing ended unambiguously outside of a value.
-// The "across packets" data is managed outside of tokenize by adding up the packet values.
+// State holds "single packet state", plus any unfinished "truncated" value that may be needed
+// to process the next packet.
+// The "multi packet state" is managed outside of this module (by the caller that is calling this function
+// across multiple buffers).
+// Note that the toString() returns the canonical State string, which shows exact parse state, but does not
+// include the state value.
 //
-// ErrInfo holds the same information as EndInfo including any unfinished last-value, but with an error code.
-
-function EndInfo (vcount, bytes, pos, stack, tcode, trunc) {
+function State (vcount, bytes, pos, stack, tcode, trunc) {
   this.vcount = vcount
   this.bytes = bytes
   this.stack = stack
@@ -555,8 +560,8 @@ function EndInfo (vcount, bytes, pos, stack, tcode, trunc) {
   this.trunc = trunc    // truncated value as a string (if a value was incomplete)
 }
 
-EndInfo.prototype = {
-  constructor: EndInfo,
+State.prototype = {
+  constructor: State,
   toString: function () {
     var truncstr = this.trunc ? this.type + this.trunc.length : '-'
     return this.vcount + '.' + this.bytes + '/' + this.stack + '/' + this.pos + '/' + truncstr
