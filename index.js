@@ -34,7 +34,7 @@ var POS = {
 // pos 'bfk', b_k'...
 var POS_NAMES_BY_INT = Object.keys(POS).reduce(function (a,n) { a[POS[n]] = n; return a }, [])
 function pos_str (pos, long) {
-  var ret = POS_NAMES_BY_INT[pos]  // ret = 'bfk' or 'b_v', etc.
+  var ret = pos
   if (long) {
     var lname = ret[0] === 'b' ? 'before' : (ret[0] === 'a' ? 'after' : '?')
     lname += ret[1] === 'f' ? ' first' : (ret[1] === '_' ? '' : ' ?')
@@ -50,7 +50,6 @@ var ERR_CODE = {
   UNEXP_BYTE: 0x2002,   // encountered invalid byte - not a token or legal number value
   TRUNC_VAL: 0x2003,    // a multi-byte value (string, number, true, false, null, object-key) doesn't complete
   TRUNC_SRC: 0x2004,    // src is valid, but does not complete (still in object, in array, or trailing comma, ...)
-  NONE: 0               // no error
 }
 
 var ERR = {
@@ -58,7 +57,6 @@ var ERR = {
   UNEXP_BYTE: 'UNEXP_BYTE',
   TRUNC_VAL: 'TRUNC_VAL',
   TRUNC_SRC: 'TRUNC_SRC',
-  NONE: 'NONE',
 }
 
 // ascii tokens as well as special codes for number, error, begin and end.
@@ -418,11 +416,11 @@ function handle_end_state(p) {
     return new State(p.vcount, p.bytes, pos_name, stackstr, tcode, trunc)
   }
 
-  var err_info = function (state, err) {
+  var err_info = function (state, err, sinfo) {
     var tok_str = p.tok === TOK.NUM ? 'number' : (p.tok === TOK.STR ? 'string' : 'token')
     var val_str = json_str(p.src, p.voff, p.vlim, p.tok)
     var range = rangestr(p.voff, p.vlim)
-    var sstr = state_str(p.stack, state & POS_MASK, true)
+    var sstr = sinfo.logical_context()
     var msg
     switch (err) {
       case ERR.TRUNC_VAL:
@@ -447,17 +445,16 @@ function handle_end_state(p) {
       tok: p.tok,
       voff: p.voff,
       vlim: p.vlim,
-      state: state,
-      stack: p.stack,
-      err: err
     }
   }
 
-  var end_cb = function (koff, klim, voff, vlim, info) { p.cb(p.src, koff, klim, TOK.END, voff, vlim, info)}
-  var err_cb = function (voff, vlim, info) { p.cb(p.src, p.koff, p.klim, TOK.ERR, voff, vlim, info)}
+  var end_cb = function (koff, klim, voff, info) { p.cb(p.src, koff, klim, TOK.END, voff, p.vlim, info)}
+  var err_cb = function (voff, info) { p.cb(p.src, p.koff, p.klim, TOK.ERR, voff, p.vlim, info)}
   var cb = function (tok, info) { return p.cb(p.src, p.koff, p.klim, tok, p.voff, p.vlim, info)}
   var rinfo = null    // return info
   var sinfo = null    // state info (bytes.values/stack/position/trunc)
+
+  var info_state = p.state1 === ERR_CODE.TRUNC_VAL ? p.state1 : p.state0
 
   switch (p.state1) {
     //
@@ -472,13 +469,15 @@ function handle_end_state(p) {
         sep_chars[p.src[p.voff - 1]] ||
         WHITESPACE[p.src[p.voff - 1]]
 
-      rinfo = err_info(p.state0, is_separate ? ERR.UNEXP_VAL : ERR.UNEXP_BYTE)
-      err_cb(p.voff, p.vlim, rinfo)
+      sinfo = state_info(p.state0, null)
+      rinfo = err_info(p.state0, is_separate ? ERR.UNEXP_VAL : ERR.UNEXP_BYTE, sinfo)
+      err_cb(p.voff, rinfo)
       break
 
     case ERR_CODE.UNEXP_BYTE:
-      rinfo = err_info(p.state0, ERR.UNEXP_BYTE)
-      err_cb(p.voff, p.vlim, rinfo)
+      sinfo = state_info(p.state0, null)
+      rinfo = err_info(p.state0, ERR.UNEXP_BYTE, sinfo)
+      err_cb(p.voff, rinfo)
       break
 
     case ERR_CODE.TRUNC_VAL:
@@ -486,17 +485,17 @@ function handle_end_state(p) {
       if (p.tok === TOK.NUM && (p.state0 === (POS.bfv) || p.state0 === (POS.b_v))) {
         // numbers outside of object or array context are not considered truncated: '3.23' or '1, 2, 3'
         cb(p.tok, rinfo, null)
-        end_cb(-1, -1, p.vlim, p.vlim, null)
+        end_cb(-1, -1, p.vlim, null)
         rinfo = null
       } else {
         var trunc = p.src.slice(p.voff, p.vlim)
         sinfo = state_info(p.state0, trunc)
         if (p.opt.incremental) {
-          end_cb(p.koff, p.klim, p.voff, p.vlim, sinfo)
+          end_cb(p.koff, p.klim, p.voff, sinfo)
           rinfo = sinfo
         } else {
-          rinfo = err_info(p.state0, ERR.TRUNC_VAL)
-          err_cb(p.voff, p.vlim, rinfo)
+          rinfo = err_info(p.state0, ERR.TRUNC_VAL, sinfo)
+          err_cb(p.voff, rinfo)
         }
       }
       break
@@ -506,7 +505,7 @@ function handle_end_state(p) {
     //
     case POS.bfv:
     case POS.a_v:
-      end_cb(-1, -1, p.vlim, p.vlim, p.vlim === p.lim ? null : rinfo)
+      end_cb(-1, -1, p.vlim, p.vlim === p.lim ? null : rinfo)
       break
 
     //
@@ -515,17 +514,17 @@ function handle_end_state(p) {
     default:
       if (p.cb_continue) {
         // incomplete state was not caused of the callback halting process
+        sinfo = state_info(p.state1, null)
         if (p.opt.incremental) {
-          sinfo = state_info(p.state1, null)
-          end_cb(p.koff, p.klim, p.vlim, p.vlim, sinfo)
+          end_cb(p.koff, p.klim, p.vlim, sinfo)
           rinfo = sinfo
         } else {
-          rinfo = err_info(p.state1, ERR.TRUNC_SRC)
-          err_cb(p.vlim, p.vlim, rinfo)
+          rinfo = err_info(p.state1, ERR.TRUNC_SRC, sinfo)
+          err_cb(p.vlim, rinfo)
         }
       } else {
         // callback requested stop.  don't create end event or error, but do return state so parsing can be restarted.
-        rinfo = state_info(p.state1, ERR.NONE)
+        rinfo = state_info(p.state1, null)
       }
   }
 
@@ -599,6 +598,12 @@ function State (vcount, bytes, pos, stack, tcode, trunc) {
 
 State.prototype = {
   constructor: State,
+  logical_context: function () {
+    var ctx = this.in_arr() ? 'in array ' : (this.in_obj() ? 'in object ' : '')
+    return ctx + pos_str(this.pos, true)
+  },
+  in_arr: function () { return this.stack[this.stack.length - 1] === '[' },
+  in_obj: function () { return this.stack[this.stack.length - 1] === '{' },
   toString: function () {
     var truncstr = this.trunc ? this.type + this.trunc.length : '-'
     return this.vcount + '.' + this.bytes + '/' + this.stack + '/' + this.pos + '/' + truncstr
@@ -607,19 +612,6 @@ State.prototype = {
 
 function rangestr(off, lim) {
   return (off === lim - 1) ? off : off + '..' + (lim - 1)
-}
-
-function ctx_str (stack, long) {
-  if (stack.length === 0) { return '' }
-  var in_obj = stack[stack.length-1] === 123
-  return in_obj ? (long ? 'in object' : 'obj') : (long ? 'in array' : 'arr')
-}
-
-function state_str (stack, pos, long) {
-  var ctxstr = ctx_str(stack, long)
-  var posstr = pos_str(pos, long)
-  var sep = long ? ' ' : '_'
-  return (ctxstr ? ctxstr + sep : '') + posstr
 }
 
 function esc_str (src, off, lim) {
@@ -662,7 +654,6 @@ function args2str (koff, klim, tok, voff, vlim, info) {
 module.exports = {
   tokenize: tokenize,
   args2str: args2str,
-  state_str: state_str,
   TOK: TOK,
   CTX: CTX,     // state 3-letter codes - for concise expressions
   POS: POS,
