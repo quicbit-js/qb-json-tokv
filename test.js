@@ -17,7 +17,6 @@
 var test = require('test-kit').tape()
 var utf8 = require('qb-utf8-ez')
 var jtok = require('.')
-var ERR = jtok.ERR
 var TOK = jtok.TOK
 var POS = jtok.POS
 var CTX = jtok.CTX

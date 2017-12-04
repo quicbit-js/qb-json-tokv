@@ -15,7 +15,6 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 // STATES   - LSB is reserved for token ascii value.  see readme
-var CTX_MASK = 0x0300
 var CTX = {
   // 0x0 means no context
   arr: 0x0100,
@@ -32,21 +31,17 @@ var POS = {
   a_k: 0x1800,
 }
 
-var POS_NAMES = Object.keys(POS).reduce(function (a,n) { a[POS[n]] = n; return a }, [])
+// pos 'bfk', b_k'...
+var POS_NAMES_BY_INT = Object.keys(POS).reduce(function (a,n) { a[POS[n]] = n; return a }, [])
 function pos_str (pos, long) {
+  var ret = POS_NAMES_BY_INT[pos]  // ret = 'bfk' or 'b_v', etc.
   if (long) {
-    switch (pos) {
-      case POS.bfv: return 'before first value'
-      case POS.b_v: return 'before value'
-      case POS.bfk: return 'before first key'
-      case POS.b_k: return 'before key'
-      case POS.a_v: return 'after value'
-      case POS.a_k: return 'after key'
-      default: return 'undefined'
-    }
-  } else {
-    return POS_NAMES[pos]
+    var lname = ret[0] === 'b' ? 'before' : (ret[0] === 'a' ? 'after' : '?')
+    lname += ret[1] === 'f' ? ' first' : (ret[1] === '_' ? '' : ' ?')
+    lname += ret[2] === 'k' ? ' key' : (ret[2] === 'v' ? ' value' : '?')
+    ret = lname
   }
+  return ret
 }
 
 // state upper range uses these error codes:
@@ -396,14 +391,35 @@ function tokenize (src, opt, cb) {
   // same info is passed to callbacks as error and end events as well as returned from this function
   var stackstr = stack.map(function (b) { return String.fromCharCode(b) }).join('') || '-'
   var end_info = function (state, trunc) {
-    var pos = POS_NAMES[state & POS_MASK]
+    var pos_name = POS_NAMES_BY_INT[state & POS_MASK]
     var tcode = TOK2TCODE[tok]
-    return new EndInfo(vcount, idx - off, pos, stackstr, tcode, trunc)
+    return new EndInfo(vcount, idx - off, pos_name, stackstr, tcode, trunc)
   }
   var err_info = function (state, err) {
-    var val_str = json_str(src, voff, idx, tok)
     var tok_str = tok === TOK.NUM ? 'number' : (tok === TOK.STR ? 'string' : 'token')
-    return new ErrInfo(val_str, tok_str, voff, idx, state, stackstr, err)
+    var val_str = json_str(src, voff, idx, tok)
+    var range = rangestr(voff, idx)
+    var sstr = state_str(stack, state & POS_MASK, true)
+    var msg
+    switch (err) {
+      case ERR.TRUNC_VAL:  msg = 'truncated ' + tok_str + ',' + ' at ' + range; break
+      case ERR.TRUNC_SRC:  msg = 'truncated input, ' + sstr  + ' at ' + idx; break
+      case ERR.UNEXP_VAL:  msg = 'unexpected ' + tok_str + ' ' + val_str + ', ' + sstr + ' at ' + range; break
+      case ERR.UNEXP_BYTE: msg = 'unexpected byte ' + val_str + ', ' + sstr + ' at ' + voff; break
+    }
+
+    return {
+      msg: msg,
+      src: src,
+      koff: koff,
+      klim: klim,
+      tok: tok,
+      voff: voff,
+      vlim: idx,
+      state: state,
+      stack: stack,
+      err: err
+    }
   }
 
   var info = null
@@ -547,39 +563,14 @@ EndInfo.prototype = {
   }
 }
 
-
-function ErrInfo (val_str, tok_str, voff, idx, state, stack, err) {
-  this.val_str = val_str
-  this.tok_str = tok_str
-  this.voff = voff
-  this.idx = idx
-  this.stack = stack
-  this.err = err
-
-  // new state
-  this.pos = state & POS_MASK
-}
-ErrInfo.prototype = {
-  constructor: ErrInfo,
-  state_str: function (long) { return state_str(this.stack, this.pos, long) },
-  toString: function () {
-    switch (this.err) {
-      case ERR.TRUNC_VAL:  return 'truncated ' + this.tok_str + ','           + ' at ' + rangestr(this.voff, this.idx)
-      case ERR.TRUNC_SRC:  return 'truncated input, ' + this.state_str(true)  + ' at ' + this.idx
-      case ERR.UNEXP_VAL:  return 'unexpected ' + this.tok_str + ' ' + this.val_str + ', ' + this.state_str(true) + ' at ' + rangestr(this.voff, this.idx)
-      case ERR.UNEXP_BYTE: return 'unexpected byte '                 + this.val_str + ', ' + this.state_str(true) + ' at ' + this.voff
-    }
-  }
-}
-
 function rangestr(off, lim) {
   return (off === lim - 1) ? off : off + '..' + (lim - 1)
 }
 
 function ctx_str (stack, long) {
-  if (stack === '-') { return '' }
-  var in_obj = stack[stack.length-1] === '{'
-  return in_obj ? (long ? 'in object' : 'OBJ') : (long ? 'in array' : 'ARR')
+  if (stack.length === 0) { return '' }
+  var in_obj = stack[stack.length-1] === 123
+  return in_obj ? (long ? 'in object' : 'obj') : (long ? 'in array' : 'arr')
 }
 
 function state_str (stack, pos, long) {
@@ -615,7 +606,7 @@ function args2str (koff, klim, tok, voff, vlim, info) {
       ret = 'N' + vlen + '@' + voff
       break
     case TOK.ERR:
-      ret = '!' + vlen + '@' + voff + ': ' + info.toString()
+      ret = '!' + vlen + '@' + voff + ': ' + info.msg
       break
     default:
       ret = String.fromCharCode(tok) + '@' + voff
