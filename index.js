@@ -453,6 +453,9 @@ function handle_end_state(p) {
     }
   }
 
+  var end_cb = function (koff, klim, voff, vlim, info) { p.cb(p.src, koff, klim, TOK.END, voff, vlim, info)}
+  var err_cb = function (voff, vlim, info) { p.cb(p.src, p.koff, p.klim, TOK.ERR, voff, vlim, info)}
+  var cb = function (tok, info) { return p.cb(p.src, p.koff, p.klim, tok, p.voff, p.vlim, info)}
   var info = null
 
   switch (p.state1) {
@@ -469,29 +472,29 @@ function handle_end_state(p) {
         WHITESPACE[p.src[p.voff - 1]]
 
       info = err_info(p.state0, is_separate ? ERR.UNEXP_VAL : ERR.UNEXP_BYTE)
-      p.cb(p.src, p.koff, p.klim, TOK.ERR, p.voff, p.vlim, info)
+      err_cb(p.voff, p.vlim, info)
       break
 
     case ERR_CODE.UNEXP_BYTE:
       info = err_info(p.state0, ERR.UNEXP_BYTE)
-      p.cb(p.src, p.koff, p.klim, TOK.ERR, p.voff, p.vlim, info)
+      err_cb(p.voff, p.vlim, info)
       break
 
     case ERR_CODE.TRUNC_VAL:
       // truncated values do NOT advance state. state0 is left one step before the value (like unexpected values).
       if (p.tok === TOK.NUM && (p.state0 === (POS.bfv) || p.state0 === (POS.b_v))) {
         // numbers outside of object or array context are not considered truncated: '3.23' or '1, 2, 3'
-        p.cb(p.src, p.koff, p.klim, p.tok, p.voff, p.vlim, null)
-        p.cb(p.src, -1, -1, TOK.END, p.vlim, p.vlim, null)
+        cb(p.tok, info, null)
+        end_cb(-1, -1, p.vlim, p.vlim, null)
         info = null
       } else {
         var trunc = p.src.slice(p.voff, p.vlim)
         info = state_info(p.state0, trunc)
         if (p.opt.incremental) {
-          p.cb(p.src, p.koff, p.klim, TOK.END, p.voff, p.vlim, info)
+          end_cb(p.koff, p.klim, p.voff, p.vlim, info)
         } else {
           info = err_info(p.state0, ERR.TRUNC_VAL)
-          p.cb(p.src, p.koff, p.klim, TOK.ERR, p.voff, p.vlim, info)
+          err_cb(p.voff, p.vlim, info)
         }
       }
       break
@@ -501,7 +504,7 @@ function handle_end_state(p) {
     //
     case POS.bfv:
     case POS.a_v:
-      p.cb(p.src, -1, -1, TOK.END, p.vlim, p.vlim, p.vlim === p.lim ? null : info)
+      end_cb(-1, -1, p.vlim, p.vlim, p.vlim === p.lim ? null : info)
       break
 
     //
@@ -512,10 +515,10 @@ function handle_end_state(p) {
         // incomplete state was not caused of the callback halting process
         if (p.opt.incremental) {
           info = state_info(p.state1, null)
-          p.cb(p.src, p.koff, p.klim, TOK.END, p.vlim, p.vlim, info)
+          end_cb(p.koff, p.klim, p.vlim, p.vlim, info)
         } else {
           info = err_info(p.state1, ERR.TRUNC_SRC)
-          p.cb(p.src, p.koff, p.klim, TOK.ERR, p.vlim, p.vlim, info)
+          err_cb(p.vlim, p.vlim, info)
         }
       } else {
         // callback requested stop.  don't create end event or error, but do return state so parsing can be restarted.
