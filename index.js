@@ -439,12 +439,14 @@ function handle_end(p) {
     }
   }
 
-  var end_cb = function (koff, klim, voff, info) {
-    p.cb(p.src, koff, klim, TOK.END, voff, p.vlim, info)
-  }
-  var err_cb = function (info) { p.cb(p.src, p.koff, p.klim, TOK.ERR, p.voff, p.vlim, info)}
-  var rinfo = null    // return info
   var sinfo = state_info(p.state0, p.trunc)    // state info (bytes.values/stack/position/trunc)
+  var end_cb = function (koff, klim, voff, info) {p.cb(p.src, koff, klim, TOK.END, voff, p.vlim, info)}
+  var err_cb = function (msg) {
+    var info = err_info(p.ecode, sinfo, msg)
+    p.cb(p.src, p.koff, p.klim, TOK.ERR, p.voff, p.vlim, info)
+  }
+
+  var rinfo = null    // return info
 
   var tok_str = p.tok === TOK.NUM ? 'number' : (p.tok === TOK.STR ? 'string' : 'token')
   var val_str = esc_str(p.src, p.voff, p.vlim)
@@ -452,14 +454,11 @@ function handle_end(p) {
   switch (p.ecode) {
     case END.UNEXP_VAL:       // failed transition (state0 + tok => state1) === 0
       if (tok_str === 'token') { val_str = '"' + val_str + '"' }
-      rinfo = err_info(p.ecode, sinfo, 'unexpected ' + tok_str + ' ' + val_str)
-      err_cb(rinfo)
+      err_cb('unexpected ' + tok_str + ' ' + val_str)
       break
 
     case END.UNEXP_BYTE:
-      val_str = '"' + val_str + '"'
-      rinfo = err_info(p.ecode, sinfo, 'unexpected byte ' + val_str)
-      err_cb(rinfo)
+      err_cb('unexpected byte ' + '"' + val_str + '"')
       break
 
     case END.TRUNC_VAL:
@@ -467,8 +466,7 @@ function handle_end(p) {
         end_cb(p.koff, p.klim, p.voff, sinfo)
         rinfo = sinfo
       } else {
-        rinfo = err_info(p.ecode, sinfo, 'truncated ' + tok_str)
-        err_cb(rinfo)
+        err_cb('truncated ' + tok_str)
       }
       break
 
@@ -479,8 +477,7 @@ function handle_end(p) {
         end_cb(p.koff, p.klim, p.vlim, sinfo)
         rinfo = sinfo
       } else {
-        rinfo = err_info(p.ecode, sinfo, 'truncated input')
-        err_cb(rinfo)
+        err_cb('truncated input')
       }
       break
 
