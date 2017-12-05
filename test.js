@@ -79,50 +79,56 @@ test('tokenize - errors', function (t) {
       [ 'input',            'exp' ],
 
       // unexpected bytes
-      [ '0*',               [ 'B@0', 'N1@0', '!1@1: unexpected byte "*", after value at 1' ] ],
-      [ '{"a":3^6}',        [ 'B@0', '{@0', 'K3@1:N1@5', '!1@6: unexpected byte "^", in object after value at 6' ] ],
-      [ ' 1f',              [ 'B@0', 'N1@1', '!1@2: unexpected byte "f", after value at 2' ] ],
-      [ '1,2n',             [ 'B@0', 'N1@0', 'N1@2', '!1@3: unexpected byte "n", after value at 3' ] ],
+      [ '0*',               [ 'B@0,N1@0,!1@1: unexpected byte "*", after value at 1', 'UNEXP_BYTE', '1.2/-/a_v/-' ]                      ],
+      [ '{"a":3^6}',        [ '{@0,K3@1:N1@5,!1@6: unexpected byte "^", in object after value at 6', 'UNEXP_BYTE', '1.7/{/a_v/-' ]       ],
+      [ ' 1f',              [ 'B@0,N1@1,!1@2: unexpected byte "f", after value at 2', 'UNEXP_BYTE', '1.3/-/a_v/-' ]                      ],
+      [ '1,2n',             [ 'N1@0,N1@2,!1@3: unexpected byte "n", after value at 3', 'UNEXP_BYTE', '2.4/-/a_v/-' ]                     ],
 
       // unexpected values
-      [ '"a""b"',           [ 'B@0', 'S3@0', '!3@3: unexpected string "b", after value at 3..5' ] ],
-      [ '{"a""b"}',         [ 'B@0', '{@0', 'K3@1:!3@4: unexpected string "b", in object after key at 4..6' ] ],
-      [ '{"a"::',           [ 'B@0', '{@0', 'K3@1:!1@5: unexpected token ":", in object before value at 5' ] ],
-      [ '0{',               [ 'B@0', 'N1@0', '!1@1: unexpected token "{", after value at 1' ] ],
-      [ '{ false:',         [ 'B@0', '{@0', '!5@2: unexpected token "false", in object before first key at 2..6' ] ],
-      [ '{ fal',            [ 'B@0', '{@0', '!3@2: unexpected token "fal", in object before first key at 2..4' ] ],
-      [ '{ fal:',           [ 'B@0', '{@0', '!3@2: unexpected token "fal", in object before first key at 2..4' ] ],
-      [ '{"a": "b", 3: 4}', [ 'B@0', '{@0', 'K3@1:S3@6', '!1@11: unexpected number 3, in object before key at 11' ] ],
-      [ '{ 2.4 ]',          [ 'B@0', '{@0', '!3@2: unexpected number 2.4, in object before first key at 2..4' ] ],
-      [ '{ "a" ]',          [ 'B@0', '{@0', 'K3@2:!1@6: unexpected token "]", in object after key at 6' ] ],
-      [ '[ 1, 2 ] "c"',     [ 'B@0', '[@0', 'N1@2', 'N1@5', ']@7', '!3@9: unexpected string "c", after value at 9..11' ] ],
+      [ '"a""b"',           [ 'B@0,S3@0,!3@3: unexpected string "b", after value at 3..5', 'UNEXP_VAL', '1.6/-/a_v/-' ]                  ],
+      [ '{"a""b"}',         [ 'B@0,{@0,K3@1:!3@4: unexpected string "b", in object after key at 4..6', 'UNEXP_VAL', '0.7/{/a_k/-' ]      ],
+      [ '{"a"::',           [ 'B@0,{@0,K3@1:!1@5: unexpected token ":", in object before value at 5', 'UNEXP_VAL', '0.6/{/b_v/-' ]       ],
+      [ '0{',               [ 'B@0,N1@0,!1@1: unexpected token "{", after value at 1', 'UNEXP_VAL', '1.2/-/a_v/-' ]                      ],
+      [ '{ false:',         [ 'B@0,{@0,!5@2: unexpected token "false", in object before first key at 2..6', 'UNEXP_VAL', '0.7/{/bfk/-' ] ],
+      [ '{ fal',            [ 'B@0,{@0,!3@2: unexpected token "fal", in object before first key at 2..4', 'UNEXP_VAL', '0.5/{/bfk/-' ]   ],
+      [ '{ fal:',           [ 'B@0,{@0,!3@2: unexpected token "fal", in object before first key at 2..4', 'UNEXP_VAL', '0.5/{/bfk/-' ]   ],
+      [ '{"a": "b", 3: 4}', [ '{@0,K3@1:S3@6,!1@11: unexpected number 3, in object before key at 11', 'UNEXP_VAL', '1.12/{/b_k/-' ]      ],
+      [ '{ 2.4 ]',          [ 'B@0,{@0,!3@2: unexpected number 2.4, in object before first key at 2..4', 'UNEXP_VAL', '0.5/{/bfk/-' ]    ],
+      [ '{ "a" ]',          [ 'B@0,{@0,K3@2:!1@6: unexpected token "]", in object after key at 6', 'UNEXP_VAL', '0.7/{/a_k/-' ]          ],
       // unexpected token has precidence over truncation (be relatively optimistic about truncation)
-      [ '[ 1, 2 ] "c',      [ 'B@0', '[@0', 'N1@2', 'N1@5', ']@7', '!2@9: unexpected string "c, after value at 9..10' ] ],
+      [ '[ 1, 2 ] "c',      [ 'N1@5,]@7,!2@9: unexpected string "c, after value at 9..10', 'UNEXP_VAL', '3.11/-/a_v/-' ]                 ],
+      [ '[ 1, 2 ] "c"',     [ 'N1@5,]@7,!3@9: unexpected string "c", after value at 9..11', 'UNEXP_VAL', '3.12/-/a_v/-' ]                ],
 
-      // truncated values / keys
-      [ 'fal',              [ 'B@0', '!3@0: truncated token, first value at 0..2' ] ],
-      [ '"ab',              [ 'B@0', '!3@0: truncated string, first value at 0..2' ] ],
-      [ '"ab:',             [ 'B@0', '!4@0: truncated string, first value at 0..3' ] ],
-      [ '"\\\\\\"',         [ 'B@0', '!5@0: truncated string, first value at 0..4' ] ],
-      [ '[3.05E-2',         [ 'B@0', '[@0', '!7@1: truncated number, in array first value at 1..7' ] ],
-      [ '[3.05E-2,4.',      [ 'B@0', '[@0', 'N7@1', '!2@9: truncated number, in array value at 9..10' ] ],
-      [ '{"a": t,',         [ 'B@0', '{@0', 'K3@1:!1@6: truncated token, in object value at 6' ] ],
-      [ '{"a',              [ 'B@0', '{@0', '!2@1: truncated string, in object first key at 1..2' ] ],
+      // truncated values / keys (not an error in incremental mode)
+      [ 'fal',              [ 'B@0,!3@0: truncated token, first value at 0..2', 'TRUNC_VAL', '0.3/-/bfv/b3' ]                            ],
+      [ '"ab',              [ 'B@0,!3@0: truncated string, first value at 0..2', 'TRUNC_VAL', '0.3/-/bfv/s3' ]                           ],
+      [ '"ab:',             [ 'B@0,!4@0: truncated string, first value at 0..3', 'TRUNC_VAL', '0.4/-/bfv/s4' ]                           ],
+      [ '"\\\\\\"',         [ 'B@0,!5@0: truncated string, first value at 0..4', 'TRUNC_VAL', '0.5/-/bfv/s5' ]                           ],
+      [ '[3.05E-2',         [ 'B@0,[@0,!7@1: truncated number, in array first value at 1..7', 'TRUNC_VAL', '0.8/[/bfv/n7' ]              ],
+      [ '[3.05E-2,4.',      [ '[@0,N7@1,!2@9: truncated number, in array value at 9..10', 'TRUNC_VAL', '1.11/[/b_v/n2' ]                 ],
+      [ '{"a": t,',         [ 'B@0,{@0,K3@1:!1@6: truncated token, in object value at 6', 'TRUNC_VAL', '0.7/{/b_v/b1' ]                  ],
+      [ '{"a',              [ 'B@0,{@0,!2@1: truncated string, in object first key at 1..2', 'TRUNC_VAL', '0.3/{/bfk/s2' ]               ],
 
       // truncated src (not an error in incremental mode)
-      [ '{"a" : ',          [ 'B@0', '{@0', 'K3@1:!0@7: truncated input, in object before value at 7' ] ],
-      [ '{"a"',             [ 'B@0', '{@0', 'K3@1:!0@4: truncated input, in object after key at 4' ] ],
-      [ '{"a" ',            [ 'B@0', '{@0', 'K3@1:!0@5: truncated input, in object after key at 5' ] ],
-      [ '[1, 2, ',          [ 'B@0', '[@0', 'N1@1', 'N1@4', '!0@7: truncated input, in array before value at 7' ] ],
+      [ '{"a" : ',          [ 'B@0,{@0,K3@1:!0@7: truncated input, in object before value at 7', 'TRUNC_SRC', '0.7/{/b_v/-' ]            ],
+      [ '{"a"',             [ 'B@0,{@0,K3@1:!0@4: truncated input, in object after key at 4', 'TRUNC_SRC', '0.4/{/a_k/-' ]               ],
+      [ '{"a" ',            [ 'B@0,{@0,K3@1:!0@5: truncated input, in object after key at 5', 'TRUNC_SRC', '0.5/{/a_k/-' ]               ],
+      [ '[1, 2, ',          [ 'N1@1,N1@4,!0@7: truncated input, in array before value at 7', 'TRUNC_SRC', '2.7/[/b_v/-' ]                ],
     ],
     function (src) {
       var hector = t.hector()
+      var errinfo = null
       var cb = function (src, koff, klim, tok, voff, vlim, info) {
         hector(jtok.args2str(koff, klim, tok, voff, vlim, info))
+        if (tok === TOK.END) {
+          err('error should not create an END callback') }
+        if (tok === TOK.ERR) { errinfo = info }
         return true
       }
-      jtok.tokenize(utf8.buffer(src), null, cb)
-      return hector.arg(0)
+      var info = jtok.tokenize(utf8.buffer(src), null, cb)
+      info === errinfo || err('expected returned info to equal errinfo')
+
+      return [ hector.arg(0).slice(-3).join(','), errinfo.ecode, errinfo.state.toString() ]
     }
   )
 })
@@ -130,23 +136,24 @@ test('tokenize - errors', function (t) {
 test('callback stop', function (t) {
   t.table_assert(
     [
-      [ 'src',                          'at_cb', 'ret',   'exp' ],
-      [ '{ "a": 7, "b": 4 }',           0,        false,  [ 'B@0' ] ],
-      [ '{ "a": 7, "b": 4 }',           1,        false,  [ 'B@0', '{@0' ] ],
-      [ '{ "a": 7, "b": 4 }',           2,        false,  [ 'B@0', '{@0', 'K3@2:N1@7' ] ],
-      [ '{ "a": 7, "b": 4 }',           3,        false,  [ 'B@0', '{@0', 'K3@2:N1@7', 'K3@10:N1@15' ] ],
-      [ '{ "a": 7, "b": 4 }',           4,        false,  [ 'B@0', '{@0', 'K3@2:N1@7', 'K3@10:N1@15', '}@17' ] ],
-      [ '{ "a": 7, "b": 4 }',           5,        false,  [ 'B@0', '{@0', 'K3@2:N1@7', 'K3@10:N1@15', '}@17', 'E@18' ] ],
+      [ 'src',                'at_cb', 'ret', 'exp' ],
+      [ '{ "a": 7, "b": 4 }', 0,       false, [ 'B@0',                        'CLEAN_STOP', '0.0/-/bfv/-' ] ],
+      [ '{ "a": 7, "b": 4 }', 1,       false, [ 'B@0,{@0',                    'TRUNC_SRC',  '0.1/{/bfk/-' ] ],
+      [ '{ "a": 7, "b": 4 }', 2,       false, [ 'B@0,{@0,K3@2:N1@7',          'TRUNC_SRC',  '1.8/{/a_v/-' ] ],
+      [ '{ "a": 7, "b": 4 }', 3,       false, [ '{@0,K3@2:N1@7,K3@10:N1@15',  'TRUNC_SRC',  '2.16/{/a_v/-' ] ],
+      // note that if callback returns false when parsing is done the info still has a DONE code.
+      [ '{ "a": 7, "b": 4 }', 4,       false, [ 'K3@2:N1@7,K3@10:N1@15,}@17', 'DONE',       '3.18/-/a_v/-' ] ],
     ],
     function (src, at_cb, ret) {
       var count = 0
       var hector = t.hector()
       var cb = function (src, koff, klim, tok, voff, vlim, info) {
         hector(jtok.args2str(koff, klim, tok, voff, vlim, info))
+        if (tok === TOK.END) { err('stopped callback should not call end') }
         return (count++ === at_cb) ? ret : true
       }
-      jtok.tokenize(utf8.buffer(src), null, cb)
-      return hector.arg(0)
+      var info = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
+      return [ hector.arg(0).slice(-3).join(','), info.ecode, info.state.toString() ]
     }
   )
 })
@@ -156,17 +163,17 @@ test('incremental clean',         function (t) {
   t.table_assert(
     [
       [ 'input',                  'exp'                                        ],
-      [ '',                       [ 'B@0,E@0',                '0.0/-/bfv/-' ] ],
-      [ '"abc"',                  [ 'B@0,S5@0,E@5',           '1.5/-/a_v/-' ] ],
-      [ '[ 83 ]',                 [ 'N2@2,]@5,E@6',           '2.6/-/a_v/-' ] ],
-      [ '[ 83, "a" ]',            [ 'S3@6,]@10,E@11',         '3.11/-/a_v/-' ] ],
-      [ '3.23e12',                [ 'B@0,N7@0,E@7',           '0.7/-/bfv/-' ] ],
-      [ '{ "a": 3 }',             [ 'K3@2:N1@7,}@9,E@10',     '2.10/-/a_v/-' ] ],
-      [ '{ "a": 3, "b": 8 }',     [ 'K3@10:N1@15,}@17,E@18',  '3.18/-/a_v/-' ] ],
-      [ '{ "a": 3, "b": [1,2] }', [ ']@19,}@21,E@22',         '5.22/-/a_v/-' ] ],
-      [ 'null',                   [ 'B@0,n@0,E@4',            '1.4/-/a_v/-' ] ],
-      [ ' 7E4 ',                  [ 'B@0,N3@1,E@5',           '1.5/-/a_v/-' ] ],
-      [ '{ "a": 93, "b": [] }',   [ ']@17,}@19,E@20',         '3.20/-/a_v/-' ] ],
+      [ '',                       [ 'B@0,E@0',                'DONE', '0.0/-/bfv/-' ] ],
+      [ '"abc"',                  [ 'B@0,S5@0,E@5',           'DONE', '1.5/-/a_v/-' ] ],
+      [ '[ 83 ]',                 [ 'N2@2,]@5,E@6',           'DONE', '2.6/-/a_v/-' ] ],
+      [ '[ 83, "a" ]',            [ 'S3@6,]@10,E@11',         'DONE', '3.11/-/a_v/-' ] ],
+      [ '3.23e12',                [ 'B@0,N7@0,E@7',           'DONE', '0.7/-/bfv/-' ] ],
+      [ '{ "a": 3 }',             [ 'K3@2:N1@7,}@9,E@10',     'DONE', '2.10/-/a_v/-' ] ],
+      [ '{ "a": 3, "b": 8 }',     [ 'K3@10:N1@15,}@17,E@18',  'DONE', '3.18/-/a_v/-' ] ],
+      [ '{ "a": 3, "b": [1,2] }', [ ']@19,}@21,E@22',         'DONE', '5.22/-/a_v/-' ] ],
+      [ 'null',                   [ 'B@0,n@0,E@4',            'DONE', '1.4/-/a_v/-' ] ],
+      [ ' 7E4 ',                  [ 'B@0,N3@1,E@5',           'DONE', '1.5/-/a_v/-' ] ],
+      [ '{ "a": 93, "b": [] }',   [ ']@17,}@19,E@20',         'DONE', '3.20/-/a_v/-' ] ],
     ],
     function (src) {
       var hector = t.hector()
@@ -179,7 +186,7 @@ test('incremental clean',         function (t) {
       var info = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
       info === endinfo || err('expected returned info to equal endinfo')
 
-      return [ hector.arg(0).slice(-3).join(','), endinfo.state.toString() ]
+      return [ hector.arg(0).slice(-3).join(','), endinfo.ecode, endinfo.state.toString() ]
     }
   )
 })
@@ -187,25 +194,27 @@ test('incremental clean',         function (t) {
 test('incremental', function (t) {
   t.table_assert(
     [
-      [ 'input'              , 'exp' ],
-      [ '"abc", '            , [ 'B@0,S5@0,E@7',              '1.7/-/b_v/-' ] ],
-      [ '['                  , [ 'B@0,[@0,E@1',               '0.1/[/bfv/-' ] ],
-      [ '[ 83 '              , [ '[@0,N2@2,E@5',              '1.5/[/a_v/-' ] ],
-      [ '[ 83 ,'             , [ '[@0,N2@2,E@6',              '1.6/[/b_v/-' ] ],
-      [ '[ 83 , "a"'         , [ 'N2@2,S3@7,E@10',            '2.10/[/a_v/-' ] ],
-      [ '[ 83 , "a",'        , [ 'N2@2,S3@7,E@11',            '2.11/[/b_v/-' ] ],
-      [ '[ 83 , "a", 2'      , [ 'N2@2,S3@7,E@12',            '2.13/[/b_v/n1' ] ],
-      [ '{'                  , [ 'B@0,{@0,E@1',               '0.1/{/bfk/-' ] ],
-      [ '{ "a"'              , [ 'B@0,{@0,K3@2:E@5',          '0.5/{/a_k/-' ] ],
-      [ '{ "a":'             , [ 'B@0,{@0,K3@2:E@6',          '0.6/{/b_v/-' ] ],
-      [ '{ "a": 9'           , [ 'B@0,{@0,K3@2:E@7',          '0.8/{/b_v/n1' ] ],
-      [ '{ "a": 93, '        , [ '{@0,K3@2:N2@7,E@11',        '1.11/{/b_k/-' ] ],
-      [ '{ "a": 93, "b'      , [ '{@0,K3@2:N2@7,E@11',        '1.13/{/b_k/s2' ] ],
-      [ '{ "a": 93, "b"'     , [ '{@0,K3@2:N2@7,K3@11:E@14',  '1.14/{/a_k/-' ] ],
-      [ '{ "a": 93, "b":'    , [ '{@0,K3@2:N2@7,K3@11:E@15',  '1.15/{/b_v/-' ] ],
-      [ '{ "a": 93, "b": ['  , [ 'K3@2:N2@7,K3@11:[@16,E@17', '1.17/{[/bfv/-' ] ],
-      [ '{ "a": 93, "b": []' , [ 'K3@11:[@16,]@17,E@18',      '2.18/{/a_v/-' ] ],
-      [ '{ "a": 93, "b": [] ', [ 'K3@11:[@16,]@17,E@19',      '2.19/{/a_v/-' ] ],
+      [ 'input'              ,  'exp' ],
+      [ ''                   ,  [ 'B@0,E@0',                   'DONE', '0.0/-/bfv/-' ] ],
+      [ '"abc", '            ,  [ 'B@0,S5@0,E@7',              'TRUNC_SRC', '1.7/-/b_v/-' ] ],
+      [ '['                  ,  [ 'B@0,[@0,E@1',               'TRUNC_SRC', '0.1/[/bfv/-' ] ],
+      [ '[ 83 '              ,  [ '[@0,N2@2,E@5',              'TRUNC_SRC', '1.5/[/a_v/-' ] ],
+      [ '[ 83 ,'             ,  [ '[@0,N2@2,E@6',              'TRUNC_SRC', '1.6/[/b_v/-' ] ],
+      [ '[ 83 , "a"'         ,  [ 'N2@2,S3@7,E@10',            'TRUNC_SRC', '2.10/[/a_v/-' ] ],
+      [ '[ 83 , "a",'        ,  [ 'N2@2,S3@7,E@11',            'TRUNC_SRC', '2.11/[/b_v/-' ] ],
+      [ '[ 83 , "a", 2'      ,  [ 'N2@2,S3@7,E@12',            'TRUNC_VAL', '2.13/[/b_v/n1' ] ],
+      [ '{'                  ,  [ 'B@0,{@0,E@1',               'TRUNC_SRC', '0.1/{/bfk/-' ] ],
+      [ '{ "a"'              ,  [ 'B@0,{@0,K3@2:E@5',          'TRUNC_SRC', '0.5/{/a_k/-' ] ],
+      [ '{ "a":'             ,  [ 'B@0,{@0,K3@2:E@6',          'TRUNC_SRC', '0.6/{/b_v/-' ] ],
+      [ '{ "a": 9'           ,  [ 'B@0,{@0,K3@2:E@7',          'TRUNC_VAL', '0.8/{/b_v/n1' ] ],
+      [ '{ "a": 93, '        ,  [ '{@0,K3@2:N2@7,E@11',        'TRUNC_SRC', '1.11/{/b_k/-' ] ],
+      [ '{ "a": 93, "b'      ,  [ '{@0,K3@2:N2@7,E@11',        'TRUNC_VAL', '1.13/{/b_k/s2' ] ],
+      [ '{ "a": 93, "b"'     ,  [ '{@0,K3@2:N2@7,K3@11:E@14',  'TRUNC_SRC', '1.14/{/a_k/-' ] ],
+      [ '{ "a": 93, "b":'    ,  [ '{@0,K3@2:N2@7,K3@11:E@15',  'TRUNC_SRC', '1.15/{/b_v/-' ] ],
+      [ '{ "a": 93, "b": ['  ,  [ 'K3@2:N2@7,K3@11:[@16,E@17', 'TRUNC_SRC', '1.17/{[/bfv/-' ] ],
+      [ '{ "a": 93, "b": []' ,  [ 'K3@11:[@16,]@17,E@18',      'TRUNC_SRC', '2.18/{/a_v/-' ] ],
+      [ '{ "a": 93, "b": [] ',  [ 'K3@11:[@16,]@17,E@19',      'TRUNC_SRC', '2.19/{/a_v/-' ] ],
+      [ '{ "a": 93, "b": [] }', [ ']@17,}@19,E@20',            'DONE', '3.20/-/a_v/-' ] ],
     ],
     function (src) {
       var hector = t.hector()
@@ -218,7 +227,7 @@ test('incremental', function (t) {
       var info = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
       info === endinfo || err('expected returned info to equal endinfo')
 
-      return [ hector.arg(0).slice(-3).join(','), info.state.toString() ]
+      return [ hector.arg(0).slice(-3).join(','), info.ecode, info.state.toString() ]
     }
   )
 })

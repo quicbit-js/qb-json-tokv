@@ -42,12 +42,12 @@ function pos_str (pos, end_code) {
 }
 
 var END = {
-  UNEXP_VAL: 'UNEXP_VAL',
-  UNEXP_BYTE: 'UNEXP_BYTE',
-  TRUNC_VAL: 'TRUNC_VAL',
-  TRUNC_SRC: 'TRUNC_SRC',
-  CLEAN: 'STOP_REQ',
-  OK: 'OK',
+  UNEXP_VAL: 'UNEXP_VAL',       // token or value was recognized, but was not expected
+  UNEXP_BYTE: 'UNEXP_BYTE',     // byte was not a recognized token or legal part of a value
+  TRUNC_VAL: 'TRUNC_VAL',       // stopped before a value was finished (number, false, true, null, string)
+  TRUNC_SRC: 'TRUNC_SRC',       // stopped before stack was zero or with a pending value
+  CLEAN_STOP: 'CLEAN_STOP',     // did not reach src lim, but stopped at a clean point (zero stack, no pending value)
+  DONE: 'DONE',                 // parsed to src lim and state is clean (no stack, no pending value)
 }
 
 // ascii tokens as well as special codes for number, error, begin and end.
@@ -59,14 +59,14 @@ var TOK = {
   OBJ_END: 125,   // '}'
   FAL: 102,       // 'f'
   NUL: 110,       // 'n'
-  STR: 34,        // '"'
+  STR: 34,        // '"'    // string
   TRU: 116,       // 't'
+  NUM: 78,        // 'N'  - a number value starting with: -, 0, 1, ..., 9
 
   // special codes
-  NUM: 78,        // 'N'  - represents a number value starting with: -, 0, 1, ..., 9
-  ERR: 0,         // error.  check err_info for information
-  BEG: 66,        // 'B' - begin - about to process
-  END: 69        // 'E' - end -   buffer limit reached
+  BEG: 66,        // 'B'  - begin - about to process
+  END: 69,        // 'E'  - end -   buffer limit reached and state is clean (stack is empty and no pending values)
+  ERR: 0,         //  0   - error.  unexpected state.  check info for details.
 }
 
 var TOK2TCODE = (function (){
@@ -365,10 +365,11 @@ function tokenize (src, opt, cb) {
     }  // end main_loop: while(idx < lim) {...
   }
 
-  if (ecode === null ) {
+  // check and clarify end state (before handling end state)
+  if (ecode === null) {
     voff = idx    // no value
     if (state0 === POS.bfv || state0 === POS.a_v) {
-      ecode = END.CLEAN
+      ecode = idx === lim ? END.DONE : END.CLEAN_STOP
     } else {
       ecode = END.TRUNC_SRC
     }
@@ -385,10 +386,10 @@ function tokenize (src, opt, cb) {
       ecode = END.UNEXP_BYTE
     }
   } else if (ecode === END.TRUNC_VAL) {
-    if (tok === TOK.NUM && (state0 === POS.bfv || state0 === POS.b_v)) {
-      // numbers outside of object or array context are not considered truncated: '3.23' or '1, 2, 3'
+    if (idx === lim && tok === TOK.NUM && (state0 === POS.bfv || state0 === POS.b_v)) {
+      // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
       cb(src, koff, klim, tok, voff, idx, null)
-      ecode = END.CLEAN
+      ecode = END.DONE
       voff = idx    // no value
     }
   }
@@ -417,32 +418,38 @@ function handle_end(p) {
   var tok_str = p.tok === TOK.NUM ? 'number' : (p.tok === TOK.STR ? 'string' : 'token')
   var val_str = esc_str(p.src, p.voff, p.vlim)
   var msg
-  var is_err
+  var etok
 
   switch (p.ecode) {
     case END.UNEXP_VAL:       // failed transition (state0 + tok => state1) === 0
       if (tok_str === 'token') { val_str = '"' + val_str + '"' }
       msg = 'unexpected ' + tok_str + ' ' + val_str
-      is_err = true
+      etok = TOK.ERR
       break
 
     case END.UNEXP_BYTE:
       msg = 'unexpected byte ' + '"' + val_str + '"'
-      is_err = true
+      etok = TOK.ERR
       break
 
     case END.TRUNC_VAL:
       msg = 'truncated ' + tok_str
-      is_err = !p.incremental
+      etok = p.incremental ? TOK.END : TOK.ERR
       break
 
     case END.TRUNC_SRC:
       msg = 'truncated input'
-      is_err = !p.cb_stopped && !p.incremental
+      etok = p.incremental ? TOK.END : TOK.ERR
       break
 
-    case END.CLEAN:
-      msg = p.vlim === p.lim ? 'done' : 'stopped with clean context'
+    case END.CLEAN_STOP:
+      msg = 'stopped early with clean state'
+      etok = TOK.END
+      break
+
+    case END.DONE:
+      msg = 'done'
+      etok = TOK.END
       break
 
     default:
@@ -454,10 +461,10 @@ function handle_end(p) {
   var stackstr = p.stack.map(function (b) { return String.fromCharCode(b) }).join('') || '-'
   var pos_name = POS_NAMES_BY_INT[p.state0 & POS_MASK]
   var tcode = TOK2TCODE[p.tok]
-  var sinfo = new State(p.vcount, p.bytes, pos_name, stackstr, tcode, trunc)
+  var stateobj = new State(p.vcount, p.bytes, pos_name, stackstr, tcode, trunc)
 
   // enrich msg
-  var context = sinfo.logical_context(p.ecode)
+  var context = stateobj.logical_context(p.ecode)
   var range = (p.voff >= p.vlim - 1) ? p.voff : p.voff + '..' + (p.vlim - 1)
   msg += ', ' + context + ' at ' + range
 
@@ -465,7 +472,7 @@ function handle_end(p) {
   var info = {
     msg: msg,
     ecode: p.ecode,
-    state: sinfo,
+    state: stateobj,
     src: p.src,
     koff: p.koff,
     klim: p.klim,
@@ -474,9 +481,8 @@ function handle_end(p) {
     vlim: p.vlim,
   }
 
-  if (p.cb_stopped) { return info }
-  // todo: instead of ERR/END, have 3-states: ERROR, OK_CLEAN, OK_DIRTY
-  p.cb(p.src, p.koff, p.klim, is_err ? TOK.ERR : TOK.END, p.voff, p.vlim, info)
+  if (p.cb_stopped) { return info }   // skip callback if stop was requesteds
+  p.cb(p.src, p.koff, p.klim, etok, p.voff, p.vlim, info)
   return info
 }
 
