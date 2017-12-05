@@ -369,8 +369,7 @@ function tokenize (src, opt, cb) {
   }
 
   if (ecode === null ) {
-    var pos = state0 & pos_mask
-    if (stack.length === 0 && (pos === POS.bfv || pos === POS.a_v)) {
+    if (state0 === POS.bfv || state0 === POS.a_v) {
       ecode = END.CLEAN
     } else {
       ecode = END.TRUNC_SRC
@@ -388,9 +387,15 @@ function tokenize (src, opt, cb) {
     ){
       ecode = END.UNEXP_BYTE
     }
+  } else if (ecode === END.TRUNC_VAL) {
+    if (tok === TOK.NUM && (state0 === POS.bfv || state0 === POS.b_v)) {
+      // numbers outside of object or array context are not considered truncated: '3.23' or '1, 2, 3'
+      cb(src, koff, klim, tok, voff, idx, null)
+      ecode = END.CLEAN
+    }
   }
 
-  return handle_end_state({
+  return handle_end({
     src: src,
     off: opt.off || 0,
     lim: lim,
@@ -411,7 +416,7 @@ function tokenize (src, opt, cb) {
   })
 }
 
-function handle_end_state(p) {
+function handle_end(p) {
 // same info is passed to callbacks as error and end events as well as returned from this function
   var state_info = function (state, trunc) {
     var stackstr = p.stack.map(function (b) { return String.fromCharCode(b) }).join('') || '-'
@@ -420,12 +425,11 @@ function handle_end_state(p) {
     return new State(p.vcount, p.bytes, pos_name, stackstr, tcode, trunc)
   }
 
-  var err_info = function (state, err, sinfo) {
+  var err_info = function (err, sinfo, msg) {
     var tok_str = p.tok === TOK.NUM ? 'number' : (p.tok === TOK.STR ? 'string' : 'token')
     var val_str = esc_str(p.src, p.voff, p.vlim)
     var range = rangestr(p.voff, p.vlim)
     var context = sinfo.logical_context()
-    var msg
     switch (err) {
       case END.TRUNC_VAL:
         msg = 'truncated ' + tok_str + ',' + ' at ' + range;
@@ -445,6 +449,7 @@ function handle_end_state(p) {
 
     return {
       msg: msg,
+      state: sinfo,
       src: p.src,
       koff: p.koff,
       klim: p.klim,
@@ -467,7 +472,7 @@ function handle_end_state(p) {
     case END.UNEXP_VAL:       // failed transition (state0 + tok => state1) === 0
     case END.UNEXP_BYTE:
       sinfo = state_info(p.state0, null)
-      rinfo = err_info(p.state0, p.ecode, sinfo)
+      rinfo = err_info(p.ecode, sinfo)
       err_cb(rinfo)
       break
 
@@ -485,7 +490,7 @@ function handle_end_state(p) {
           end_cb(p.koff, p.klim, p.voff, sinfo)
           rinfo = sinfo
         } else {
-          rinfo = err_info(p.state0, END.TRUNC_VAL, sinfo)
+          rinfo = err_info(END.TRUNC_VAL, sinfo)
           err_cb(rinfo)
         }
       }
@@ -499,7 +504,7 @@ function handle_end_state(p) {
         end_cb(p.koff, p.klim, p.vlim, sinfo)
         rinfo = sinfo
       } else {
-        rinfo = err_info(p.state1, END.TRUNC_SRC, sinfo)
+        rinfo = err_info(END.TRUNC_SRC, sinfo)
         err_cb(rinfo)
       }
       break
