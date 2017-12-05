@@ -394,15 +394,16 @@ function tokenize (src, opt, cb) {
     }
   }
 
+  var trunc = ecode === END.TRUNC_VAL ? src.slice(voff, idx) : null
+  var stackstr = stack.map(function (b) { return String.fromCharCode(b) }).join('') || '-'
+  var pos_name = POS_NAMES_BY_INT[state0 & POS_MASK]
+  var tcode = TOK2TCODE[tok]
+  var stateobj = new State(vcount, idx - off, pos_name, stackstr, tcode, trunc)
+
   return handle_end({
-    src: src,
-    off: opt.off || 0,
-    lim: lim,
-    bytes: idx - off,
-    vcount: vcount,
-    state0: state0,
     ecode: ecode,
-    stack: stack,
+    state: stateobj,
+    src: src,
     koff: koff,
     klim: klim,
     tok: tok,
@@ -414,7 +415,7 @@ function tokenize (src, opt, cb) {
   })
 }
 
-function handle_end(p) {
+function handle_end (p) {
   var tok_str = p.tok === TOK.NUM ? 'number' : (p.tok === TOK.STR ? 'string' : 'token')
   var val_str = esc_str(p.src, p.voff, p.vlim)
   var msg
@@ -456,15 +457,8 @@ function handle_end(p) {
       err('internal error, end state not handled: ' + p.ecode)
   }
 
-  // make state info
-  var trunc = p.ecode === END.TRUNC_VAL ? p.src.slice(p.voff, p.vlim) : null
-  var stackstr = p.stack.map(function (b) { return String.fromCharCode(b) }).join('') || '-'
-  var pos_name = POS_NAMES_BY_INT[p.state0 & POS_MASK]
-  var tcode = TOK2TCODE[p.tok]
-  var stateobj = new State(p.vcount, p.bytes, pos_name, stackstr, tcode, trunc)
-
   // enrich msg
-  var context = stateobj.logical_context(p.ecode)
+  var context = p.state.logical_context(p.ecode)
   var range = (p.voff >= p.vlim - 1) ? p.voff : p.voff + '..' + (p.vlim - 1)
   msg += ', ' + context + ' at ' + range
 
@@ -472,7 +466,7 @@ function handle_end(p) {
   var info = {
     msg: msg,
     ecode: p.ecode,
-    state: stateobj,
+    state: p.state,
     src: p.src,
     koff: p.koff,
     klim: p.klim,
