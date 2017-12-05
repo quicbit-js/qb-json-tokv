@@ -397,31 +397,34 @@ function tokenize (src, opt, cb) {
   var trunc = ecode === END.TRUNC_VAL ? src.slice(voff, idx) : null
   var stackstr = stack.map(function (b) { return String.fromCharCode(b) }).join('') || '-'
   var pos_name = POS_NAMES_BY_INT[state0 & POS_MASK]
-  var tcode = TOK2TCODE[tok]
-  var stateobj = new State(vcount, idx - off, pos_name, stackstr, tcode, trunc)
 
-  return handle_end({
+  var info = {
     ecode: ecode,
-    state: stateobj,
+    state: new State(vcount, idx - off, pos_name, stackstr, TOK2TCODE[tok], trunc),
     src: src,
     koff: koff,
     klim: klim,
     tok: tok,
     voff: voff,
     vlim: idx,
-    incremental: !!opt.incremental,
-    cb: cb,
-    cb_stopped: !cb_continue,
-  })
+  }
+
+  var more_info = figure_msg_tok(info, opt.incremental)
+  info.msg = more_info.msg
+
+  if (!cb_continue) { return info }   // skip callback if stop was requesteds
+  cb(src, koff, klim, more_info.etok, voff, idx, info)
+  return info
 }
 
-function handle_end (p) {
-  var tok_str = p.tok === TOK.NUM ? 'number' : (p.tok === TOK.STR ? 'string' : 'token')
-  var val_str = esc_str(p.src, p.voff, p.vlim)
+// figure out end/error message and callback token
+function figure_msg_tok (info, incremental) {
+  var tok_str = info.tok === TOK.NUM ? 'number' : (info.tok === TOK.STR ? 'string' : 'token')
+  var val_str = esc_str(info.src, info.voff, info.vlim)
   var msg
   var etok
 
-  switch (p.ecode) {
+  switch (info.ecode) {
     case END.UNEXP_VAL:       // failed transition (state0 + tok => state1) === 0
       if (tok_str === 'token') { val_str = '"' + val_str + '"' }
       msg = 'unexpected ' + tok_str + ' ' + val_str
@@ -435,17 +438,17 @@ function handle_end (p) {
 
     case END.TRUNC_VAL:
       msg = 'truncated ' + tok_str
-      etok = p.incremental ? TOK.END : TOK.ERR
+      etok = incremental ? TOK.END : TOK.ERR
       break
 
     case END.TRUNC_SRC:
       msg = 'truncated input'
-      etok = p.incremental ? TOK.END : TOK.ERR
+      etok = incremental ? TOK.END : TOK.ERR
       break
 
     case END.CLEAN_STOP:
       msg = 'stopped early with clean state'
-      etok = TOK.END
+      etok = TOK.ENDs
       break
 
     case END.DONE:
@@ -454,30 +457,15 @@ function handle_end (p) {
       break
 
     default:
-      err('internal error, end state not handled: ' + p.ecode)
+      err('internal error, end state not handled: ' + info.ecode)
   }
 
   // enrich msg
-  var context = p.state.logical_context(p.ecode)
-  var range = (p.voff >= p.vlim - 1) ? p.voff : p.voff + '..' + (p.vlim - 1)
+  var context = info.state.logical_context(info.ecode)
+  var range = (info.voff >= info.vlim - 1) ? info.voff : info.voff + '..' + (info.vlim - 1)
   msg += ', ' + context + ' at ' + range
 
-  // create info
-  var info = {
-    msg: msg,
-    ecode: p.ecode,
-    state: p.state,
-    src: p.src,
-    koff: p.koff,
-    klim: p.klim,
-    tok: p.tok,
-    voff: p.voff,
-    vlim: p.vlim,
-  }
-
-  if (p.cb_stopped) { return info }   // skip callback if stop was requesteds
-  p.cb(p.src, p.koff, p.klim, etok, p.voff, p.vlim, info)
-  return info
+  return { msg: msg, etok: etok }
 }
 
 function State (vcount, bytes, pos, stack, tcode, trunc) {
