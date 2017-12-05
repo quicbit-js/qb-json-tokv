@@ -15,6 +15,7 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 // STATES   - LSB is reserved for token ascii value.  see readme
+// contexts (in array, in object, or none)
 var CTX = {
   // 0x0 means no context
   arr: 0x0100,

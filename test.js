@@ -132,7 +132,7 @@ test('tokenize - errors', function (t) {
         return true
       }
       try {
-        var info = jtok.tokenize(utf8.buffer(src), null, cb)
+        jtok.tokenize(utf8.buffer(src), null, cb)
       } catch (e) {
         e.info === errinfo || err('expected returned info to equal errinfo')
         return [ hector.arg(0).slice(-3).join(','), errinfo.ecode, errinfo.position.toString() ]
