@@ -38,37 +38,43 @@ var TOK = jtok.TOK
 test('tokenize', function (t) {
   t.tableAssert(
     [
-      [ 'src',             'off',  'lim',          'exp' ],
-      [ '[1, 2], 3',       0,       null,          [ 'B@0', '[@0', 'N1@1', 'N1@4', ']@5', 'N1@8', 'E@9' ] ],
-      [ '"x"',             0,       null,          [ 'B@0', 'S3@0', 'E@3' ]  ],
-      [ '-3.05',           0,       null,          [ 'B@0', 'N5@0', 'E@5' ] ],
-      [ '-3.05',           1,       null,          [ 'B@1', 'N4@1', 'E@5' ] ],
-      [ '  true',          0,       null,          [ 'B@0', 't@2', 'E@6' ]  ],
-      [ ' false  ',        0,       null,          [ 'B@0', 'f@1', 'E@8' ]  ],
-      [ ' false   ',       1,       null,          [ 'B@1', 'f@1', 'E@9' ]  ],
-      [ '[1, 2, 3]',       0,       null,          [ 'B@0', '[@0', 'N1@1', 'N1@4', 'N1@7', ']@8', 'E@9' ]  ],
-      [ '[3.05E-2]',       0,       null,          [ 'B@0', '[@0', 'N7@1', ']@8', 'E@9' ] ],
-      [ '[3.05E-2]',       4,       5,             [ 'B@4', 'N1@4', 'E@5' ] ],
-      [ '{"a":1}',         0,       null,          [ 'B@0', '{@0', 'K3@1:N1@5', '}@6', 'E@7' ] ],
-      [ '{"a"  :1}',       0,       null,          [ 'B@0', '{@0', 'K3@1:N1@7', '}@8', 'E@9' ] ],
-      [ '{ "a" : 1 }',     0,       null,          [ 'B@0', '{@0', 'K3@2:N1@8', '}@10', 'E@11' ]  ],
-      [ '"\\""',           0,       null,          [ 'B@0', 'S4@0', 'E@4' ]  ],
-      [ '"\\\\"',          0,       null,          [ 'B@0', 'S4@0', 'E@4' ]  ],
-      [ '\t\t"x\\a\r"  ',  0,       null,          [ 'B@0', 'S6@2', 'E@10']  ],
-      [ '"\\"x\\"a\r\\""', 0,       null,          [ 'B@0', 'S11@0', 'E@11'] ],
-      [ ' [0,1,2]',        0,       null,          [ 'B@0', '[@1','N1@2','N1@4','N1@6',']@7','E@8']  ],
-      [ '["a", "bb"] ',    0,       null,          [ 'B@0', '[@0','S3@1','S4@6',']@10', 'E@12' ]     ],
-      [ '"x", 4\n, null, 3.2e5 , true, false',      null, null,   [ 'B@0', 'S3@0','N1@5','n@9','N5@15','t@23', 'f@29', 'E@34']         ],
-      [ '["a",1.3,\n\t{ "b" : ["v", "w"]\n}\t\n ]', null, null,   [ 'B@0', '[@0','S3@1','N3@5','{@11','K3@13:[@19','S3@20','S3@25',']@28','}@30',']@34', 'E@35' ] ],
+      [ 'src',                                      'off', 'lim', 'exp'                                             ],
+      [ '[1, 2], 3',                                0,     null,  [ ']@5,N1@8,E@9', 'DONE', '3.9/-/b_v/-' ]         ],
+      [ '"x"',                                      0,     null,  [ 'B@0,S3@0,E@3', 'DONE', '1.3/-/a_v/-' ]         ],
+      [ '-3.05',                                    0,     null,  [ 'B@0,N5@0,E@5', 'DONE', '0.5/-/bfv/-' ]         ],
+      [ '-3.05',                                    1,     null,  [ 'B@1,N4@1,E@5', 'DONE', '0.4/-/bfv/-' ]         ],
+      [ '  true',                                   0,     null,  [ 'B@0,t@2,E@6', 'DONE', '1.6/-/a_v/-' ]          ],
+      [ ' false  ',                                 0,     null,  [ 'B@0,f@1,E@8', 'DONE', '1.8/-/a_v/-' ]          ],
+      [ ' false   ',                                1,     null,  [ 'B@1,f@1,E@9', 'DONE', '1.8/-/a_v/-' ]          ],
+      [ '[1, 2, 3]',                                0,     null,  [ 'N1@7,]@8,E@9', 'DONE', '4.9/-/a_v/-' ]         ],
+      [ '[3.05E-2]',                                0,     null,  [ 'N7@1,]@8,E@9', 'DONE', '2.9/-/a_v/-' ]         ],
+      [ '[3.05E-2]',                                4,     5,     [ 'B@4,N1@4,E@5', 'DONE', '0.1/-/bfv/-' ]         ],
+      [ '{"a":1}',                                  0,     null,  [ 'K3@1:N1@5,}@6,E@7', 'DONE', '2.7/-/a_v/-' ]    ],
+      [ '{"a"  :1}',                                0,     null,  [ 'K3@1:N1@7,}@8,E@9', 'DONE', '2.9/-/a_v/-' ]    ],
+      [ '{ "a" : 1 }',                              0,     null,  [ 'K3@2:N1@8,}@10,E@11', 'DONE', '2.11/-/a_v/-' ] ],
+      [ '"\\""',                                    0,     null,  [ 'B@0,S4@0,E@4', 'DONE', '1.4/-/a_v/-' ]         ],
+      [ '"\\\\"',                                   0,     null,  [ 'B@0,S4@0,E@4', 'DONE', '1.4/-/a_v/-' ]         ],
+      [ '\t\t"x\\a\r"  ',                           0,     null,  [ 'B@0,S6@2,E@10', 'DONE', '1.10/-/a_v/-' ]       ],
+      [ '"\\"x\\"a\r\\""',                          0,     null,  [ 'B@0,S11@0,E@11', 'DONE', '1.11/-/a_v/-' ]      ],
+      [ ' [0,1,2]',                                 0,     null,  [ 'N1@6,]@7,E@8', 'DONE', '4.8/-/a_v/-' ]         ],
+      [ '["a", "bb"] ',                             0,     null,  [ 'S4@6,]@10,E@12', 'DONE', '3.12/-/a_v/-' ]      ],
+      [ '"x", 4\n, null, 3.2e5 , true, false',      null,  null,  [ 't@23,f@29,E@34', 'DONE', '6.34/-/a_v/-' ]      ],
+      [ '["a",1.3,\n\t{ "b" : ["v", "w"]\n}\t\n ]', null,  null,  [ '}@30,]@34,E@35', 'DONE', '7.35/-/a_v/-' ]      ],
     ],
     function (src, off, lim) {
       var hector = t.hector()
+      var endinfo = null
       var cb = function (src, koff, klim, tok, voff, vlim, info) {
         hector(jtok.args2str(koff, klim, tok, voff, vlim, info))
+        if (tok === TOK.ERR) {
+          err('error should not create an END callback') }
+        if (tok === TOK.END) { endinfo = info }
         return true
       }
-      jtok.tokenize(utf8.buffer(src), {off: off, lim: lim}, cb)
-      return hector.arg(0)
+      var info = jtok.tokenize(utf8.buffer(src), {off: off, lim: lim}, cb)
+      info === endinfo || err('expected returned info to equal endinfo')
+
+      return [ hector.arg(0).slice(-3).join(','), endinfo.ecode, endinfo.state.toString() ]
     }
   )
 })
