@@ -74,7 +74,7 @@ test('tokenize', function (t) {
       var info = jtok.tokenize(utf8.buffer(src), {off: off, lim: lim}, cb)
       info === endinfo || err('expected returned info to equal endinfo')
 
-      return [ hector.arg(0).slice(-3).join(','), endinfo.ecode, endinfo.state.toString() ]
+      return [ hector.arg(0).slice(-3).join(','), endinfo.ecode, endinfo.position.toString() ]
     }
   )
 })
@@ -135,7 +135,7 @@ test('tokenize - errors', function (t) {
         var info = jtok.tokenize(utf8.buffer(src), null, cb)
       } catch (e) {
         e.info === errinfo || err('expected returned info to equal errinfo')
-        return [ hector.arg(0).slice(-3).join(','), errinfo.ecode, errinfo.state.toString() ]
+        return [ hector.arg(0).slice(-3).join(','), errinfo.ecode, errinfo.position.toString() ]
       }
     }
   )
@@ -161,7 +161,7 @@ test('callback stop', function (t) {
         return (count++ === at_cb) ? ret : true
       }
       var info = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
-      return [ hector.arg(0).slice(-3).join(','), info.ecode, info.state.toString() ]
+      return [ hector.arg(0).slice(-3).join(','), info.ecode, info.position.toString() ]
     }
   )
 })
@@ -194,7 +194,7 @@ test('incremental clean',         function (t) {
       var info = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
       info === endinfo || err('expected returned info to equal endinfo')
 
-      return [ hector.arg(0).slice(-3).join(','), endinfo.ecode, endinfo.state.toString() ]
+      return [ hector.arg(0).slice(-3).join(','), endinfo.ecode, endinfo.position.toString() ]
     }
   )
 })
@@ -235,7 +235,7 @@ test('incremental', function (t) {
       var info = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
       info === endinfo || err('expected returned info to equal endinfo')
 
-      return [ hector.arg(0).slice(-3).join(','), info.ecode, info.state.toString() ]
+      return [ hector.arg(0).slice(-3).join(','), info.ecode, info.position.toString() ]
     }
   )
 })

@@ -197,10 +197,10 @@ function err (msg) { throw Error(msg) }
 
 // opt should hold previous values: src, koff, klim, tok...
 function restore_truncated (prev, next, cb, ret) {
-  ['trunc_val','state','src','koff','klim','tok','voff','vlim'].forEach(function (p) {
+  ['trunc_val','pos','src','koff','klim','tok','voff','vlim'].forEach(function (p) {
     prev[p] != null || err ('missing property ' + p + '. cannot restore truncated value')
   })
-  var state = prev.state
+  var pos = prev.pos
   switch (prev.tok) {
     case TOK.STR:
       var i = skip_str(next, off, lim)
@@ -210,11 +210,11 @@ function restore_truncated (prev, next, cb, ret) {
       if (prev.koff >= 0) {
 
       }
-      var nsrc = concat(prev.trunc_val, 0, state.trunc_val.length, next, off, i)
+      var nsrc = concat(prev.trunc_val, 0, pos.trunc_len, next, off, i)
       if (prev.koff !== -1) {
 
       }
-      cb(nsrc, prev.koff, prev.klim, tok, 0, nsrc.length, null)
+      cb(nsrc, prev.koff, prev.klim, prev.tok, 0, nsrc.length, null)
 
       // ret.off = i
       // ret.state0 =
@@ -228,7 +228,7 @@ function restore_truncated (prev, next, cb, ret) {
 // var info = {
 //   msg: null,
 //   ecode: ecode,
-//   state: new State(vcount, idx - off, pos_name, stackstr, TOK2TCODE[tok], trunc),
+//   pos: new Position(...)
 //   src: src,
 //   koff: koff,
 //   klim: klim,
@@ -432,7 +432,7 @@ function _tokenize (src, opt, cb) {
   var info = {
     msg: null,
     ecode: ecode,
-    state: new Position(
+    position: new Position(
       vcount,
       idx - off,
       RPOS_BY_INT[state0 & RPOS_MASK],
@@ -502,34 +502,35 @@ function figure_msg_tok (info, incremental) {
   }
 
   // enrich msg
-  var context = info.state.logical_context(info.ecode)
+  var pos = info.position.description(info.ecode)
   var range = (info.voff >= info.vlim - 1) ? info.voff : info.voff + '..' + (info.vlim - 1)
-  msg += ', ' + context + ' at ' + range
+  msg += ', ' + pos + ' at ' + range
 
   return { msg: msg, etok: etok }
 }
 
-// parse position information
-function Position (vcount, bytes, pos, stack, tcode, trunc_len) {
+// Position represents parse position information - both logical and absolute (bytes).  Format (line and column) is
+// not tracked by Position.
+function Position (vcount, bytes, rpos, stack, tcode, trunc_len) {
   this.vcount = vcount          // number of values parsed.  key-value pairs are considered one value.  ']' and '}' are counted while '[' and '{' are not (still open)
   this.bytes = bytes            // number of bytes parsed
   this.stack = stack            // string of '{' and '[', representing depth and container types
-  this.pos = pos                // relative position 'bfv' (before first value), 'a_k' (after key) ...
+  this.rpos = rpos              // relative position 'bfv' (before first value), 'a_k' (after key) ...
   this.tcode = tcode            // quicbit type-code: 's' = string, 'n' = number, 'N' = null, 'b' = boolean, 'o' = object, 'a' = array
   this.trunc_len = trunc_len    // length of truncated value, if value was incomplete
 }
 
 Position.prototype = {
   constructor: Position,
-  logical_context: function (ecode) {
+  description: function (ecode) {
     var ctx = this.in_arr() ? 'in array ' : (this.in_obj() ? 'in object ' : '')
-    return ctx + pos_str(this.pos, ecode)
+    return ctx + pos_str(this.rpos, ecode)
   },
   in_arr: function () { return this.stack[this.stack.length - 1] === '[' },
   in_obj: function () { return this.stack[this.stack.length - 1] === '{' },
   toString: function () {
     var truncstr = this.trunc_len ? this.tcode + this.trunc_len : '-'
-    return this.vcount + '.' + this.bytes + '/' + this.stack + '/' + this.pos + '/' + truncstr
+    return this.vcount + '.' + this.bytes + '/' + this.stack + '/' + this.rpos + '/' + truncstr
   }
 }
 
