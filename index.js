@@ -366,11 +366,11 @@ function tokenize (src, opt, cb) {
   }
 
   if (ecode === null ) {
+    voff = idx    // no value
     if (state0 === POS.bfv || state0 === POS.a_v) {
       ecode = END.CLEAN
     } else {
       ecode = END.TRUNC_SRC
-      voff = idx    // no value
     }
   } else if (ecode === END.UNEXP_VAL) {
     // non-delimiting bytes that follow a number are more clearly reported as unexpected byte instead of unexpected value
@@ -389,6 +389,7 @@ function tokenize (src, opt, cb) {
       // numbers outside of object or array context are not considered truncated: '3.23' or '1, 2, 3'
       cb(src, koff, klim, tok, voff, idx, null)
       ecode = END.CLEAN
+      voff = idx    // no value
     }
   }
 
@@ -440,10 +441,11 @@ function handle_end(p) {
   }
 
   var sinfo = state_info(p.state0, p.trunc)    // state info (bytes.values/stack/position/trunc)
-  var end_cb = function (koff, klim, voff, info) {p.cb(p.src, koff, klim, TOK.END, voff, p.vlim, info)}
+  var end_cb = function (info) {p.cb(p.src, p.koff, p.klim, TOK.END, p.voff, p.vlim, info)}
   var err_cb = function (msg) {
     var info = err_info(p.ecode, sinfo, msg)
     p.cb(p.src, p.koff, p.klim, TOK.ERR, p.voff, p.vlim, info)
+    return info
   }
 
   var rinfo = null    // return info
@@ -454,19 +456,19 @@ function handle_end(p) {
   switch (p.ecode) {
     case END.UNEXP_VAL:       // failed transition (state0 + tok => state1) === 0
       if (tok_str === 'token') { val_str = '"' + val_str + '"' }
-      err_cb('unexpected ' + tok_str + ' ' + val_str)
+      rinfo = err_cb('unexpected ' + tok_str + ' ' + val_str)
       break
 
     case END.UNEXP_BYTE:
-      err_cb('unexpected byte ' + '"' + val_str + '"')
+      rinfo = err_cb('unexpected byte ' + '"' + val_str + '"')
       break
 
     case END.TRUNC_VAL:
       if (p.incremental) {
-        end_cb(p.koff, p.klim, p.voff, sinfo)
+        end_cb(sinfo)
         rinfo = sinfo
       } else {
-        err_cb('truncated ' + tok_str)
+        rinfo = err_cb('truncated ' + tok_str)
       }
       break
 
@@ -474,17 +476,17 @@ function handle_end(p) {
       if (!p.cb_continue) {
         rinfo = sinfo       // requested stop
       } else if (p.incremental) {
-        end_cb(p.koff, p.klim, p.vlim, sinfo)
+        end_cb(sinfo)
         rinfo = sinfo
       } else {
-        err_cb('truncated input')
+        rinfo = err_cb('truncated input')
       }
       break
 
     case END.CLEAN:
       if (p.vlim === p.lim) {
         // done
-        end_cb(-1, -1, p.lim, null)
+        end_cb(null)
       } else {
         // unprocessed bytes but clean.  requested stop is the only way this can happen.
         !p.cb_continue || err('internal error - unexpected state')
