@@ -484,14 +484,14 @@ function handle_end(p) {
       break
 
     case END.CLEAN:
+      rinfo = sinfo
       if (p.vlim === p.lim) {
         // done
-        end_cb(null)
+        end_cb(sinfo)
       } else {
         // unprocessed bytes but clean.  requested stop is the only way this can happen.
         !p.cb_continue || err('internal error - unexpected state')
         // client requested stop - return state to allow parsing to restart
-        rinfo = sinfo
       }
       break
 

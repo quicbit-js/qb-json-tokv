@@ -155,32 +155,31 @@ test('callback stop', function (t) {
 test('incremental clean',         function (t) {
   t.table_assert(
     [
-      [ 'input',                  'exp' ],
-      [ '',                       [ 'B@0,E@0',                       null, null ] ],
-      [ '"abc"',                  [ 'B@0,S5@0,E@5',               null, null ] ],
-      [ '[ 83 ]',                 [ 'N2@2,]@5,E@6',               null, null ] ],
-      [ '[ 83, "a" ]',            [ 'S3@6,]@10,E@11',             null, null ] ],
-      [ '3.23e12',                [ 'B@0,N7@0,E@7',               null, null ] ],
-      [ '{ "a": 3 }',             [ 'K3@2:N1@7,}@9,E@10',         null, null ] ],
-      [ '{ "a": 3, "b": 8 }',     [ 'K3@10:N1@15,}@17,E@18',      null, null ] ],
-      [ '{ "a": 3, "b": [1,2] }', [ ']@19,}@21,E@22',             null, null ] ],
-      [ 'null',                   [ 'B@0,n@0,E@4',                null, null ] ],
-      [ ' 7E4 ',                  [ 'B@0,N3@1,E@5',               null, null ] ],
-      [ '{ "a": 93, "b": [] }',   [ ']@17,}@19,E@20',             null, null ] ],
+      [ 'input',                  'exp'                                        ],
+      [ '',                       [ 'B@0,E@0', '0.0/-/bfv/-', ]                ],
+      [ '"abc"',                  [ 'B@0,S5@0,E@5', '1.5/-/a_v/-', ]           ],
+      [ '[ 83 ]',                 [ 'N2@2,]@5,E@6', '2.6/-/a_v/-', ]           ],
+      [ '[ 83, "a" ]',            [ 'S3@6,]@10,E@11', '3.11/-/a_v/-', ]        ],
+      [ '3.23e12',                [ 'B@0,N7@0,E@7', '0.7/-/bfv/-', ]           ],
+      [ '{ "a": 3 }',             [ 'K3@2:N1@7,}@9,E@10', '2.10/-/a_v/-', ]    ],
+      [ '{ "a": 3, "b": 8 }',     [ 'K3@10:N1@15,}@17,E@18', '3.18/-/a_v/-', ] ],
+      [ '{ "a": 3, "b": [1,2] }', [ ']@19,}@21,E@22', '5.22/-/a_v/-', ]        ],
+      [ 'null',                   [ 'B@0,n@0,E@4', '1.4/-/a_v/-', ]            ],
+      [ ' 7E4 ',                  [ 'B@0,N3@1,E@5', '1.5/-/a_v/-', ]           ],
+      [ '{ "a": 93, "b": [] }',   [ ']@17,}@19,E@20', '3.20/-/a_v/-', ]        ],
     ],
     function (src) {
       var hector = t.hector()
       var endinfo = null
       var cb = function (src, koff, klim, tok, voff, vlim, info) {
         hector(jtok.args2str(koff, klim, tok, voff, vlim, info))
-        if (tok === TOK.END) {
-          endinfo = info
-        }
+        if (tok === TOK.END) { endinfo = info }
         return true
       }
       var info = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
+      info === endinfo || err('expected returned info to equal endinfo')
 
-      return [ hector.arg(0).slice(-3).join(','), endinfo, info ]
+      return [ hector.arg(0).slice(-3).join(','), endinfo.toString() ]
     }
   )
 })
