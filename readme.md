@@ -179,9 +179,9 @@ within an array, object - or nothing (zero depth - CSV parsing).
 
 Parse positions are 
     
-    before-first-valueue  'bfv'
-    before-valueue        'bv'
-    after-valueue         'av'
+    before-first-value  'bfv'
+    before-value        'bv'
+    after-value         'av'
     
     before-first-key    'bfk'
     before-key          'bk'
@@ -194,17 +194,17 @@ Parse positions are
 For example:
         
         
-        arr|before-first-valueue    // array context...
+        arr|before-first-value    // array context...
         |
         |  
         |    
-        |     arr|after-valueue
+        |     arr|after-value
         |     |
-        |     |arr|before-valueue
+        |     |arr|before-value
         |     ||
         |     ||
         |     ||   
-        |     ||       arr|after-valueue
+        |     ||       arr|after-value
         |     ||       | 
         |     ||       | 
         |     ||       | 
@@ -226,12 +226,12 @@ So mappings are read like this:
     // means:
 
     for contexts (none, in-array and in-object)            
-        for positions (before-first-valueue and before-valueue) 
+        for positions (before-first-value and before-value) 
             for token ('[')
     
                 allow transition to state:
             
-                    in-array, before-first-valueue
+                    in-array, before-first-value
 
 
     // and this mapping:
@@ -241,12 +241,12 @@ So mappings are read like this:
     // means:
     
     for the context (array-context)
-        for positions (before-first-valueue, before-valueue)
+        for positions (before-first-value, before-value)
             for tokens ('"ntf-0123456789')                  (all legal value start ascii)
             
                 allow transition to state:
                     
-                    in-array-after-valueue
+                    in-array-after-value
                     
     and so on...           
         
@@ -275,7 +275,7 @@ If that made sense, I encourage looking at the code - it is just as understandab
 
 
 To make the graph tolerate trailing commas in arrays <code>[1,2,3,]</code>, add an array-end rule where a 
-value is expected (before-valueue):
+value is expected (before-value):
 
       map([arr],    [b_v],        ']',     a_v )    // note that we don't set a context for ending array or objects - that is done for us using the stack
       
@@ -290,7 +290,7 @@ value is expected (before-valueue):
       
       
 To make the graph also tolerate trailing commas in an empty array <code>[,]</code>, add an array-comma rule where 
-a first value is expected (before-first-valueue):
+a first value is expected (before-first-value):
 
       map([arr], [bfv], ',',  arr|b_v )
 
@@ -302,12 +302,12 @@ Even if you aren't familiar with bit twiddling, you can easily understand and mo
 graph is defined as a series of allowed state transitions.  If the state graph is in a variable called 'states', then we
 could check and perform state transition from state0 (current state) to state1 (next state) with:
 
-    var state1 = states[state0 + ascii-valueue]
+    var state1 = states[state0 + ascii-value]
 
 If the state isn't allowed, then state1 is undefined.  If allowed, then it is defined (an integer) that can be
 used again to get the next state:
 
-    var state2 = states[state1 + ascii-valueue]
+    var state2 = states[state1 + ascii-value]
     
 This simple mechanism works for all state transitions, except when we leave context of an object or array.  
 When a '}' or ']' is encountered, the new state will have no context set (you can see this for yourself in
