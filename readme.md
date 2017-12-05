@@ -23,11 +23,20 @@ A fast, zero-dependency, *validating* JSON parser (~300 MB/sec running node 6 on
 qb-json-tokv started out as an update to qb-json-tok (which is faster but with no validation), but winded up making more
 sense as a new package.  Very fast JSON parsing under a complete validating parse-graph.
 
-**Complies with the 100% test coverage and minimum dependency requirements** of 
+
+**ALMOST (LOL - working on this product) Complies with the 100% test coverage and minimum dependency requirements** of 
 [qb-standard](http://github.com/quicbit-js/qb-standard) . 
 
 
 ## Install
+
+**NB qb-json-tokv is undergoing some changes as I apply it to parse from any start/end point**  
+
+If you care, please contact me so I know that careful change management is needed.  Until I hear from people 
+using the products, I may
+change and improve them vigorously in interest to move them forward as fast as possible.  Once I know 
+they are used in earnest, I will be much more careful with
+changes.
 
     npm install qb-json-tokv
 
