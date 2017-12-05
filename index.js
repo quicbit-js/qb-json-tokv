@@ -412,6 +412,7 @@ function tokenize (src, opt, cb) {
     incremental: !!opt.incremental,
     cb: cb,
     cb_continue: cb_continue,
+    trunc: ecode === END.TRUNC_VAL && src.slice(voff, idx) || null,
   })
 }
 
@@ -461,7 +462,7 @@ function handle_end(p) {
   var end_cb = function (koff, klim, voff, info) { p.cb(p.src, koff, klim, TOK.END, voff, p.vlim, info)}
   var err_cb = function (info) { p.cb(p.src, p.koff, p.klim, TOK.ERR, p.voff, p.vlim, info)}
   var rinfo = null    // return info
-  var sinfo = null    // state info (bytes.values/stack/position/trunc)
+  var sinfo = state_info(p.state0, p.trunc)    // state info (bytes.values/stack/position/trunc)
 
   switch (p.ecode) {
     //
@@ -469,15 +470,11 @@ function handle_end(p) {
     //
     case END.UNEXP_VAL:       // failed transition (state0 + tok => state1) === 0
     case END.UNEXP_BYTE:
-      sinfo = state_info(p.state0, null)
       rinfo = err_info(p.ecode, sinfo)
       err_cb(rinfo)
       break
 
     case END.TRUNC_VAL:
-      // state0 points to the location before the value (like unexpected values)
-      var trunc = p.src.slice(p.voff, p.vlim)
-      sinfo = state_info(p.state0, trunc)
       if (p.incremental) {
         end_cb(p.koff, p.klim, p.voff, sinfo)
         rinfo = sinfo
@@ -488,7 +485,6 @@ function handle_end(p) {
       break
 
     case END.TRUNC_SRC:
-      sinfo = state_info(p.state0, null)
       if (!p.cb_continue) {
         rinfo = sinfo       // requested stop
       } else if (p.incremental) {
@@ -507,7 +503,6 @@ function handle_end(p) {
       } else {
         // clean but not done (unprocessed bytes).  requested stop is the only way this can happen.
         !p.cb_continue || err('internal error - unexpected state')
-        sinfo = state_info(p.state0, null)
         // client requested stop - return state to allow parsing to restart
         rinfo = sinfo
       }
