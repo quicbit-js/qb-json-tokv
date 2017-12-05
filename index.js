@@ -193,21 +193,48 @@ function concat (src1, off1, lim1, src2, off2, lim2) {
 }
 
 function err (msg) { throw Error(msg) }
-function restore_truncated (src, init, ret, cb) {
-  switch (init.tok) {
+
+// opt should hold previous values: src, koff, klim, tok...
+function restore_truncated (prev, next, cb, ret) {
+  ['trunc_val','state','src','koff','klim','tok','voff','vlim'].forEach(function (p) {
+    prev[p] != null || err ('missing property ' + p + '. cannot restore truncated value')
+  })
+  var state = prev.state
+  switch (prev.tok) {
     case TOK.STR:
-      var i = skip_str(src, init.off, init.lim)
-      i !== -1 || err('could not complete truncated value')
+      var i = skip_str(next, off, lim)
+      i !== -1 || err('could not complete truncated value')   // todo: handle incomplete truncated value
       i++     // skip quote
-      // var src = concat(init.src.slice(init.voff, init.lim), src,
-      ret.off = i
+      // var off =
+      if (prev.koff >= 0) {
+
+      }
+      var nsrc = concat(prev.trunc_val, 0, state.trunc_val.length, next, off, i)
+      if (prev.koff !== -1) {
+
+      }
+      cb(nsrc, prev.koff, prev.klim, tok, 0, nsrc.length, null)
+
+      // ret.off = i
+      // ret.state0 =
       // ret.state = ((init.state & !POS_MASK) | AFTER)      // INSIDE -> AFTER
-
-      break
-
   }
 }
 
+
+// returned info is of the form
+//
+// var info = {
+//   msg: null,
+//   ecode: ecode,
+//   state: new State(vcount, idx - off, pos_name, stackstr, TOK2TCODE[tok], trunc),
+//   src: src,
+//   koff: koff,
+//   klim: klim,
+//   tok: tok,
+//   voff: voff,
+//   vlim: idx,
+// }
 function restore (src, opt, cb) {
   var ret = {}
   var init = opt.init || {}
@@ -236,6 +263,13 @@ function restore (src, opt, cb) {
 }
 
 function tokenize (src, opt, cb) {
+  // if (opt.restore) {
+  //   var args = restore(src, opt, cb)
+  // }
+  return _tokenize(src, opt, cb)
+}
+
+function _tokenize (src, opt, cb) {
   // localized constants for faster access
   var states = STATE_MAP
   var pos_mask = POS_MASK
@@ -394,13 +428,17 @@ function tokenize (src, opt, cb) {
     }
   }
 
-  var trunc = ecode === END.TRUNC_VAL ? src.slice(voff, idx) : null
-  var stackstr = stack.map(function (b) { return String.fromCharCode(b) }).join('') || '-'
-  var pos_name = POS_NAMES_BY_INT[state0 & POS_MASK]
-
   var info = {
+    msg: null,
     ecode: ecode,
-    state: new State(vcount, idx - off, pos_name, stackstr, TOK2TCODE[tok], trunc),
+    state: new State(
+      vcount,
+      idx - off,
+      POS_NAMES_BY_INT[state0 & POS_MASK],
+      stack.map(function (b) { return String.fromCharCode(b) }).join('') || '-',
+      TOK2TCODE[tok],
+      ecode === END.TRUNC_VAL ? idx - voff : 0
+    ),
     src: src,
     koff: koff,
     klim: klim,
@@ -412,9 +450,10 @@ function tokenize (src, opt, cb) {
   var more_info = figure_msg_tok(info, opt.incremental)
   info.msg = more_info.msg
 
-  if (cb_continue) {  // skip callback if stop was requested
+  if (cb_continue) {
     cb(src, koff, klim, more_info.etok, voff, idx, info)
-  }
+  } // else callback was stopped - don't call
+
   if (more_info.etok === TOK.ERR) {
     var err = new Error(info.msg + ' (error.info has details)')
     err.info = info
@@ -437,32 +476,26 @@ function figure_msg_tok (info, incremental) {
       msg = 'unexpected ' + tok_str + ' ' + val_str
       etok = TOK.ERR
       break
-
     case END.UNEXP_BYTE:
       msg = 'unexpected byte ' + '"' + val_str + '"'
       etok = TOK.ERR
       break
-
     case END.TRUNC_VAL:
       msg = 'truncated ' + tok_str
       etok = incremental ? TOK.END : TOK.ERR
       break
-
     case END.TRUNC_SRC:
       msg = 'truncated input'
       etok = incremental ? TOK.END : TOK.ERR
       break
-
     case END.CLEAN_STOP:
       msg = 'stopped early with clean state'
-      etok = TOK.ENDs
+      etok = TOK.END
       break
-
     case END.DONE:
       msg = 'done'
       etok = TOK.END
       break
-
     default:
       err('internal error, end state not handled: ' + info.ecode)
   }
@@ -475,13 +508,13 @@ function figure_msg_tok (info, incremental) {
   return { msg: msg, etok: etok }
 }
 
-function State (vcount, bytes, pos, stack, tcode, trunc) {
+function State (vcount, bytes, pos, stack, tcode, trunc_val_len) {
   this.vcount = vcount
   this.bytes = bytes
   this.stack = stack
   this.pos = pos
-  this.type = tcode
-  this.trunc = trunc    // truncated value src (if a value was incomplete)
+  this.tcode = tcode    // quicbit type-code: 's' = string, 'n' = number, 'N' = null, 'b' = boolean, 'o' = object, 'a' = array
+  this.trunc_val_len = trunc_val_len    // truncated value src (if a value was incomplete)
 }
 
 State.prototype = {
@@ -493,7 +526,7 @@ State.prototype = {
   in_arr: function () { return this.stack[this.stack.length - 1] === '[' },
   in_obj: function () { return this.stack[this.stack.length - 1] === '{' },
   toString: function () {
-    var truncstr = this.trunc ? this.type + this.trunc.length : '-'
+    var truncstr = this.trunc_val_len ? this.tcode + this.trunc_val_len : '-'
     return this.vcount + '.' + this.bytes + '/' + this.stack + '/' + this.pos + '/' + truncstr
   }
 }

@@ -401,7 +401,7 @@ or value plus a **first** indicator to indicate if it is the first item in a new
 
 So state management is the matter of a bitwise-or and one or two array lookups per token.
 
-## Packets and Incremental Parsing
+## Incremental Parsing and Packets
 
 A chunk of data is called a "packet".  In Quicbit, packets contain a start and
 end state which indicates the precise parse starting and ending point of a packet.  Quicbit is
