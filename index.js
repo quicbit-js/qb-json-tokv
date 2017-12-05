@@ -279,25 +279,25 @@ function _tokenize (src, opt, cb) {
 
   // init state
   opt = opt || {}
-  var off = opt.off || 0
-  var lim = opt.lim == null ? src.length : opt.lim
-  var koff = opt.koff || -1
-  var klim = opt.klim || -1
-  var tok = opt.tok || 0        // current token/byte being handled
-  var voff = opt.voff || off    // value start index
-  var vlim = opt.vlim || voff   // current value limit - also the current index searching ahead
-  var ecode = opt.ecode || null
-  var stack = opt.stack || []
-  var state0 = opt.state || RPOS.bfv
+  var off = opt.off || 0                            // src initial offset
+  var lim = opt.lim == null ? src.length : opt.lim  // src limit (exclusive)
+  var koff = opt.koff || -1                         // key offset
+  var klim = opt.klim || -1                         // key limit (exclusive)
+  var tok = opt.tok || 0                            // current token/byte being handled
+  var voff = opt.voff || off                        // value start index
+  var vlim = opt.vlim || voff                       // current value limit - also the current index searching ahead
+  var ecode = opt.ecode || null                     // end code (not necessarily an error - depends on settings)
+  var stack = opt.stack || []                       // ascii codes 91 and 123 for array / object depth
+  var state0 = opt.state || RPOS.bfv                // container context and relative position encoded as an int
 
   var state1 = state0   // state1 possibilities are:
                         //    1. state1 = 0;                        unsupported transition
                         //    2. state1 > 0, state1 == state0;      OK, no pending callback
                         //    3. state1 > 0, state1 != state0;      OK, callback pending
 
-  var vcount = 0        // value count (number of complete values sent, such as str or num or end-obj, but beg-obj, beg-arr.
+  var vcount = 0        // number of complete values parsed, such as STR, NUM or OBJ_END, but not counting OBJ_BEG or ARR_BEG.
 
-  // BEG and END signals are the only calls with zero length (voff === vlim)
+  // BEG and END signals are the only calls with zero length (where voff === vlim)
   var cb_continue = cb(src, -1, -1, TOK.BEG, vlim, vlim)                      // 'B' - BEGIN parse
   if (cb_continue) {
     // breaking main_loop before vlim == lim means callback returned falsey or we have an error
