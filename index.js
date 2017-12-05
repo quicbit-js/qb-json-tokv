@@ -33,9 +33,9 @@ var POS = {
 
 // pos 'bfk', b_k'...
 var POS_NAMES_BY_INT = Object.keys(POS).reduce(function (a,n) { a[POS[n]] = n; return a }, [])
-function pos_str (pos, truncated) {
+function pos_str (pos, end_code) {
   var ret = []
-  if (!truncated) { ret.push(pos[0] === 'b' ? 'before' : (pos[0] === 'a' ? 'after' : '?' )) }
+  if (end_code !== END.TRUNC_VAL) { ret.push(pos[0] === 'b' ? 'before' : (pos[0] === 'a' ? 'after' : '?' )) }
   if (pos[1] === 'f') { ret.push('first') }
   ret.push(pos[2] === 'k' ? 'key' : (pos[2] === 'v' ? 'value' : '?'))
   return ret.join(' ')
@@ -409,96 +409,75 @@ function tokenize (src, opt, cb) {
     vlim: idx,
     incremental: !!opt.incremental,
     cb: cb,
-    cb_continue: cb_continue,
-    trunc: ecode === END.TRUNC_VAL && src.slice(voff, idx) || null,
+    cb_stopped: !cb_continue,
   })
 }
 
 function handle_end(p) {
-// same info is passed to callbacks as error and end events as well as returned from this function
-  var state_info = function (state, trunc) {
-    var stackstr = p.stack.map(function (b) { return String.fromCharCode(b) }).join('') || '-'
-    var pos_name = POS_NAMES_BY_INT[state & POS_MASK]
-    var tcode = TOK2TCODE[p.tok]
-    return new State(p.vcount, p.bytes, pos_name, stackstr, tcode, trunc)
-  }
-
-  var err_info = function (err, sinfo, msg) {
-    var context = sinfo.logical_context(err === END.TRUNC_VAL)
-    var range = (p.voff >= p.vlim - 1) ? p.voff : p.voff + '..' + (p.vlim - 1)
-    msg += ', ' + context + ' at ' + range
-
-    return {
-      msg: msg,
-      state: sinfo,
-      src: p.src,
-      koff: p.koff,
-      klim: p.klim,
-      tok: p.tok,
-      voff: p.voff,
-      vlim: p.vlim,
-    }
-  }
-
-  var sinfo = state_info(p.state0, p.trunc)    // state info (bytes.values/stack/position/trunc)
-  var end_cb = function (info) {p.cb(p.src, p.koff, p.klim, TOK.END, p.voff, p.vlim, info)}
-  var err_cb = function (msg) {
-    var info = err_info(p.ecode, sinfo, msg)
-    p.cb(p.src, p.koff, p.klim, TOK.ERR, p.voff, p.vlim, info)
-    return info
-  }
-
-  var rinfo = null    // return info
-
   var tok_str = p.tok === TOK.NUM ? 'number' : (p.tok === TOK.STR ? 'string' : 'token')
   var val_str = esc_str(p.src, p.voff, p.vlim)
+  var msg
+  var is_err
 
   switch (p.ecode) {
     case END.UNEXP_VAL:       // failed transition (state0 + tok => state1) === 0
       if (tok_str === 'token') { val_str = '"' + val_str + '"' }
-      rinfo = err_cb('unexpected ' + tok_str + ' ' + val_str)
+      msg = 'unexpected ' + tok_str + ' ' + val_str
+      is_err = true
       break
 
     case END.UNEXP_BYTE:
-      rinfo = err_cb('unexpected byte ' + '"' + val_str + '"')
+      msg = 'unexpected byte ' + '"' + val_str + '"'
+      is_err = true
       break
 
     case END.TRUNC_VAL:
-      if (p.incremental) {
-        end_cb(sinfo)
-        rinfo = sinfo
-      } else {
-        rinfo = err_cb('truncated ' + tok_str)
-      }
+      msg = 'truncated ' + tok_str
+      is_err = !p.incremental
       break
 
     case END.TRUNC_SRC:
-      if (!p.cb_continue) {
-        rinfo = sinfo       // requested stop
-      } else if (p.incremental) {
-        end_cb(sinfo)
-        rinfo = sinfo
-      } else {
-        rinfo = err_cb('truncated input')
-      }
+      msg = 'truncated input'
+      is_err = !p.cb_stopped && !p.incremental
       break
 
     case END.CLEAN:
-      rinfo = sinfo
-      if (p.vlim === p.lim) {
-        // done
-        end_cb(sinfo)
-      } else {
-        // unprocessed bytes but clean.  requested stop is the only way this can happen.
-        !p.cb_continue || err('internal error - unexpected state')
-        // client requested stop - return state to allow parsing to restart
-      }
+      msg = p.vlim === p.lim ? 'done' : 'stopped with clean context'
       break
 
-    default: err('oops')
+    default:
+      err('internal error, end state not handled: ' + p.ecode)
   }
 
-  return rinfo
+  // make state info
+  var trunc = p.ecode === END.TRUNC_VAL ? p.src.slice(p.voff, p.vlim) : null
+  var stackstr = p.stack.map(function (b) { return String.fromCharCode(b) }).join('') || '-'
+  var pos_name = POS_NAMES_BY_INT[p.state0 & POS_MASK]
+  var tcode = TOK2TCODE[p.tok]
+  var sinfo = new State(p.vcount, p.bytes, pos_name, stackstr, tcode, trunc)
+
+  // enrich msg
+  var context = sinfo.logical_context(p.ecode)
+  var range = (p.voff >= p.vlim - 1) ? p.voff : p.voff + '..' + (p.vlim - 1)
+  msg += ', ' + context + ' at ' + range
+
+  // create info
+  var info = {
+    msg: msg,
+    ecode: p.ecode,
+    state: sinfo,
+    src: p.src,
+    koff: p.koff,
+    klim: p.klim,
+    tok: p.tok,
+    voff: p.voff,
+    vlim: p.vlim,
+  }
+
+  if (p.cb_stopped) { return info }
+  // todo: instead of ERR/END, have 3-states: ERROR, OK_CLEAN, OK_DIRTY
+  p.cb(p.src, p.koff, p.klim, is_err ? TOK.ERR : TOK.END, p.voff, p.vlim, info)
+  return info
 }
 
 //
@@ -563,14 +542,14 @@ function State (vcount, bytes, pos, stack, tcode, trunc) {
   this.stack = stack
   this.pos = pos
   this.type = tcode
-  this.trunc = trunc    // truncated value as a string (if a value was incomplete)
+  this.trunc = trunc    // truncated value src (if a value was incomplete)
 }
 
 State.prototype = {
   constructor: State,
-  logical_context: function (truncated) {
+  logical_context: function (ecode) {
     var ctx = this.in_arr() ? 'in array ' : (this.in_obj() ? 'in object ' : '')
-    return ctx + pos_str(this.pos, truncated)
+    return ctx + pos_str(this.pos, ecode)
   },
   in_arr: function () { return this.stack[this.stack.length - 1] === '[' },
   in_obj: function () { return this.stack[this.stack.length - 1] === '{' },

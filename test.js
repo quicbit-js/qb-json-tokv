@@ -131,11 +131,11 @@ test('callback stop', function (t) {
   t.table_assert(
     [
       [ 'src',                          'at_cb', 'ret',   'exp' ],
-      // [ '{ "a": 7, "b": 4 }',           0,        false,  [ 'B@0' ] ],
+      [ '{ "a": 7, "b": 4 }',           0,        false,  [ 'B@0' ] ],
       [ '{ "a": 7, "b": 4 }',           1,        false,  [ 'B@0', '{@0' ] ],
       [ '{ "a": 7, "b": 4 }',           2,        false,  [ 'B@0', '{@0', 'K3@2:N1@7' ] ],
       [ '{ "a": 7, "b": 4 }',           3,        false,  [ 'B@0', '{@0', 'K3@2:N1@7', 'K3@10:N1@15' ] ],
-      [ '{ "a": 7, "b": 4 }',           4,        false,  [ 'B@0', '{@0', 'K3@2:N1@7', 'K3@10:N1@15', '}@17', 'E@18' ] ],
+      [ '{ "a": 7, "b": 4 }',           4,        false,  [ 'B@0', '{@0', 'K3@2:N1@7', 'K3@10:N1@15', '}@17' ] ],
       [ '{ "a": 7, "b": 4 }',           5,        false,  [ 'B@0', '{@0', 'K3@2:N1@7', 'K3@10:N1@15', '}@17', 'E@18' ] ],
     ],
     function (src, at_cb, ret) {
@@ -179,7 +179,7 @@ test('incremental clean',         function (t) {
       var info = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
       info === endinfo || err('expected returned info to equal endinfo')
 
-      return [ hector.arg(0).slice(-3).join(','), endinfo.toString() ]
+      return [ hector.arg(0).slice(-3).join(','), endinfo.state.toString() ]
     }
   )
 })
@@ -218,7 +218,7 @@ test('incremental', function (t) {
       var info = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
       info === endinfo || err('expected returned info to equal endinfo')
 
-      return [ hector.arg(0).slice(-3).join(','), info.toString() ]
+      return [ hector.arg(0).slice(-3).join(','), info.state.toString() ]
     }
   )
 })
