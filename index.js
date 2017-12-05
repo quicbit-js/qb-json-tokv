@@ -21,8 +21,9 @@ var CTX = {
   obj: 0x0200,
 }
 
-var POS_MASK = 0x1C00
-var POS = {
+// relative positions.  before first key, after value, ...
+var RPOS_MASK = 0x1C00
+var RPOS = {
   bfk: 0x0400,
   b_k: 0x0800,
   bfv: 0x0C00,
@@ -31,8 +32,8 @@ var POS = {
   a_k: 0x1800,
 }
 
-// pos 'bfk', b_k'...
-var POS_NAMES_BY_INT = Object.keys(POS).reduce(function (a,n) { a[POS[n]] = n; return a }, [])
+// relative positions 'bfk', b_k'...
+var RPOS_BY_INT = Object.keys(RPOS).reduce(function (a,n) { a[RPOS[n]] = n; return a }, [])
 function pos_str (pos, end_code) {
   var ret = []
   if (end_code !== END.TRUNC_VAL) { ret.push(pos[0] === 'b' ? 'before' : (pos[0] === 'a' ? 'after' : '?' )) }
@@ -69,7 +70,7 @@ var TOK = {
   ERR: 0,         //  0   - error.  unexpected state.  check info for details.
 }
 
-var TOK2TCODE = (function (){
+var TCODE_BY_TOK = (function (){
   var ret = []
   ret[TOK.NUM] = 'n'
   ret[TOK.STR] = 's'
@@ -101,12 +102,12 @@ function state_map () {
     })
   }
 
-  var bfv = POS.bfv
-  var b_v = POS.b_v
-  var a_v = POS.a_v
-  var bfk = POS.bfk
-  var b_k = POS.b_k
-  var a_k = POS.a_k
+  var bfv = RPOS.bfv
+  var b_v = RPOS.b_v
+  var a_v = RPOS.a_v
+  var bfk = RPOS.bfk
+  var b_k = RPOS.b_k
+  var a_k = RPOS.a_k
   var arr = CTX.arr
   var obj = CTX.obj
   var non = 0
@@ -247,7 +248,7 @@ function restore (src, opt, cb) {
   }
   ret.soff = init.soff || 0   // src offset
   ret.stack = init.stack || []
-  ret.state = init.state || POS.bfv
+  ret.state = init.state || RPOS.bfv
   ret.koff = init.koff || -1
   ret.klim = init.klim || -1
   // if (init.state) {
@@ -272,8 +273,8 @@ function tokenize (src, opt, cb) {
 function _tokenize (src, opt, cb) {
   // localized constants for faster access
   var states = STATE_MAP
-  var pos_mask = POS_MASK
-  var after_key = POS.a_k
+  var rpos_mask = RPOS_MASK
+  var after_key = RPOS.a_k
   var in_arr = CTX.arr
   var in_obj = CTX.obj
   var whitespace = WHITESPACE
@@ -341,7 +342,7 @@ function _tokenize (src, opt, cb) {
           if (state1 === 0) { ecode = END.UNEXP_VAL; break main_loop }
 
           // key
-          if ((state1 & pos_mask) === after_key) {
+          if ((state1 & rpos_mask) === after_key) {
             koff = voff
             klim = idx
             state0 = state1
@@ -402,7 +403,7 @@ function _tokenize (src, opt, cb) {
   // check and clarify end state (before handling end state)
   if (ecode === null) {
     voff = idx    // no value
-    if (state0 === POS.bfv || state0 === POS.a_v) {
+    if (state0 === RPOS.bfv || state0 === RPOS.a_v) {
       ecode = idx === lim ? END.DONE : END.CLEAN_STOP
     } else {
       ecode = END.TRUNC_SRC
@@ -420,7 +421,7 @@ function _tokenize (src, opt, cb) {
       ecode = END.UNEXP_BYTE
     }
   } else if (ecode === END.TRUNC_VAL) {
-    if (idx === lim && tok === TOK.NUM && (state0 === POS.bfv || state0 === POS.b_v)) {
+    if (idx === lim && tok === TOK.NUM && (state0 === RPOS.bfv || state0 === RPOS.b_v)) {
       // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
       cb(src, koff, klim, tok, voff, idx, null)
       ecode = END.DONE
@@ -431,12 +432,12 @@ function _tokenize (src, opt, cb) {
   var info = {
     msg: null,
     ecode: ecode,
-    state: new State(
+    state: new Position(
       vcount,
       idx - off,
-      POS_NAMES_BY_INT[state0 & POS_MASK],
+      RPOS_BY_INT[state0 & RPOS_MASK],
       stack.map(function (b) { return String.fromCharCode(b) }).join('') || '-',
-      TOK2TCODE[tok],
+      TCODE_BY_TOK[tok],
       ecode === END.TRUNC_VAL ? idx - voff : 0
     ),
     src: src,
@@ -508,17 +509,18 @@ function figure_msg_tok (info, incremental) {
   return { msg: msg, etok: etok }
 }
 
-function State (vcount, bytes, pos, stack, tcode, trunc_val_len) {
-  this.vcount = vcount
-  this.bytes = bytes
-  this.stack = stack
-  this.pos = pos
-  this.tcode = tcode    // quicbit type-code: 's' = string, 'n' = number, 'N' = null, 'b' = boolean, 'o' = object, 'a' = array
-  this.trunc_val_len = trunc_val_len    // truncated value src (if a value was incomplete)
+// parse position information
+function Position (vcount, bytes, pos, stack, tcode, trunc_len) {
+  this.vcount = vcount          // number of values parsed.  key-value pairs are considered one value.  ']' and '}' are counted while '[' and '{' are not (still open)
+  this.bytes = bytes            // number of bytes parsed
+  this.stack = stack            // string of '{' and '[', representing depth and container types
+  this.pos = pos                // relative position 'bfv' (before first value), 'a_k' (after key) ...
+  this.tcode = tcode            // quicbit type-code: 's' = string, 'n' = number, 'N' = null, 'b' = boolean, 'o' = object, 'a' = array
+  this.trunc_len = trunc_len    // length of truncated value, if value was incomplete
 }
 
-State.prototype = {
-  constructor: State,
+Position.prototype = {
+  constructor: Position,
   logical_context: function (ecode) {
     var ctx = this.in_arr() ? 'in array ' : (this.in_obj() ? 'in object ' : '')
     return ctx + pos_str(this.pos, ecode)
@@ -526,7 +528,7 @@ State.prototype = {
   in_arr: function () { return this.stack[this.stack.length - 1] === '[' },
   in_obj: function () { return this.stack[this.stack.length - 1] === '{' },
   toString: function () {
-    var truncstr = this.trunc_val_len ? this.tcode + this.trunc_val_len : '-'
+    var truncstr = this.trunc_len ? this.tcode + this.trunc_len : '-'
     return this.vcount + '.' + this.bytes + '/' + this.stack + '/' + this.pos + '/' + truncstr
   }
 }
