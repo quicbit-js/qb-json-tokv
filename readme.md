@@ -60,7 +60,7 @@ process can be controlled/stopped via the function return value)
             stack       array of '[' or '{' ascii codes (91 and 123) representing parse depth
                     
     
-    callback   A function called for each token encountered.
+    callback   A function called for each token or each key/value pair.
     
         src         the buffer being parsed
         koff        index of key start (inclusive) in current object, in arrays koff is -1
@@ -91,15 +91,13 @@ process can be controlled/stopped via the function return value)
         voff        index of value offset (inclusive) in current object or array
         vlim        index of value limit (non-inclusive) in current object or array
         
-        info        (object) if tok === TOK.ERR or tok === TOK.END, then info holds all the details that can be 
+        info        (object) if tok === TOK.ERR or tok === TOK.END, then info holds details that can be 
                     used to recover or handle values split across buffers.  info.toString() gives 
                     useful details as well as methods that report the state in readable form such as:
                     
-                        info.before()        true if state was positioned 'before' a key or value
-                        info.key()           true if the state was positioned relative to a 'key' rather than 'value'
                         in_obj()             true if context was within an object
                         in_arr()             true if context was within an array 
-                            (false for both in_arr() and in_obj() mean that parse state was in plain csv context)
+                            (false for both means that parse state was in plain csv-like context)
                      
         return      return truthy to continue processing, falsey to halt processing (returning a true boolean may be 
                     slighty faster than other values)
