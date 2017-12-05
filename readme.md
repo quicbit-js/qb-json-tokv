@@ -341,7 +341,7 @@ container the parser is within:
                |                             |                |           |          
                { "name" : "Samuel", "tags" : [ "Sam", "Sammy" ]           }
 
-State also describes which of the 2 item types: **key** or **value**(UE) the position of the parser is near.  Note that
+State also describes which of the 2 item types: **key** or **value** the position of the parser is near.  Note that
 both the start and end of arrays and objects
 are considered a values when describing position. 
 
