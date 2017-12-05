@@ -480,62 +480,6 @@ function handle_end(p) {
   return info
 }
 
-//
-//
-// each packet contains start and end information in a path-like string:
-//
-// begin: 2/3.53/0.0/{[/bfv    = packet 2, 3rd value,  53rd byte, 0th packet value,  0th byte, in-obj-arr, before-first-value
-// end:   2/8.103/5.50/{[{/ak  = packet 2, 8th value, 103rd byte, 5th packet value, 50th byte, in-obj-arr-obj, after-key
-//
-// with truncated values enabled, another part is added giving truncated value information
-//
-// begin:   2/3.530/0.00/{[/bfv/s6             inside string 6 bytes (including quote, expect to finish string)
-// end:     2/3.530/0.00/{[/bfv/n2             ended at number of 2 bytes - (may or may not have continuing bytes)
-//
-// This information is an exact 
-//
-// The parts of the packet
-//
-//
-//                  multi-packet state      /         single packet state
-//
-//                  packet-number (starts at 1)
-//                  |
-//                  |      value-count (total)
-//                  |      |
-//                  |      | byte-count (total)
-//                  |      | |
-//                  |      | |                      value-count ( local - in packet )
-//                  |      | |                      |
-//                  |      | |                      | byte-count (local - in packet )
-//                  |      | |                      | |
-//                  |      | |                      | |     stack (inside object, array, object...)
-//                  |      | |                      | |     |
-//                  |      | |                      | |     |   position (before-value, after-key, etc)
-//                  |      | |                      | |     |   |
-//                  |      | |                      | |     |   |     truncated type (- = no truncation, s = string, n = number...)
-//                  |      | |                      | |     |   |     |
-//                  |      | |                      | |     |   |     |truncated length (if truncated)
-//                  |      | |                      | |     |   |     ||
-// begin 1          1 /    0.0            /         0.0 /   - / bfv / -     // before-first-value (no context)
-// end   1          1 /   3.53            /        3.53 /  {[ / b_v / s6    // before-value (inside array), truncated string at length 6
-//
-// begin 2          2 /   3.53            /         0.0 /  {[ / bfv / s6    // before-first-value, string continued
-// end   2          2 /  8.103            /        5.50 / {[{ / a_k / n2    // after-key, a number is truncated at length 2
-//
-// begin 3          3 /  8.103            /        0.00 / {[{ / a_k / n2    // after-key, number continued (at length 3)
-// end   3          3 / 15.184            /        7.81 /   { / b_v / -     // before-value (no truncation)
-//
-// begin 4          4 / 15.184            /         0.0 /   { / b_v / -
-// end   4          4 / 18.193            /         3.9 /   - / a_v / -     // clean end state
-//
-// State holds "single packet state", plus any unfinished "truncated" value that may be needed
-// to process the next packet.
-// The "multi packet state" is managed outside of this module (by the caller that is calling this function
-// across multiple buffers).
-// Note that the toString() returns the canonical State string, which shows exact parse state, but does not
-// include the state value.
-//
 function State (vcount, bytes, pos, stack, tcode, trunc) {
   this.vcount = vcount
   this.bytes = bytes

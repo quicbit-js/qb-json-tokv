@@ -400,3 +400,86 @@ or value plus a **first** indicator to indicate if it is the first item in a new
     
 
 So state management is the matter of a bitwise-or and one or two array lookups per token.
+
+## Packets and Incremental Parsing
+
+A chunk of data is called a "packet".  In Quicbit, packets contain a start and
+end state which indicates the precise parse starting and ending point of a packet.  Quicbit is
+able to start and end parsing at any point, even across split values (allowing split values
+in packages is configurable).
+
+### Begin and End State
+
+Begin and end state is encoded in a concise path-like format.  For JSON packets, a state string might look like this:
+    
+    begin: "2/3.53/0.0/{[/bfv/-"
+      
+        = packet 2, 3rd value,  53rd byte, 0th packet value,  0th byte, 
+            inside object then array, before-first-value
+    
+    end:   "2/8.103/5.50/{[{/ak/-"
+      
+        = packet 2, 8th value, 103rd byte, 5th packet value, 50th byte, 
+            inside object then array then object, after-key
+    
+Those dashes at the end are truncated value information.  If parsing stopped inside an object key, 6 bytes into the string in
+the first packet and then continued in the next packet, the begin state might look like this:
+    
+    begin:   2/3.530/0.00/{[{/bfk/s6    
+             
+        = packet 2, ..., before-first-key, within the key string of 6 bytes (including start quote)
+        
+If that same packet ended 2 bytes into a number in an array (which may or may not have continuing bytes), the end state might
+look like this:
+        
+    end:     2/3.530/0.00/{[/b_v/n2            
+     
+        = packet 2, ..., before-value, ended unfinished on a number of 2 bytes (so far)
+    
+    
+The parts of the packet can be divided into 2 - the multi-packet totals (left side), and the single-packet state
+(right side).  qb-json-tokv generates the right-hand side.  Incremental parsers that leverage this handy feature,
+may prepend the left side totals as well to create the complete packet state (in context of a packet stream).
+    
+    
+            multi-packet state      |         single packet state
+            
+            
+    
+                     packet-number (starts at 1)
+                     |
+                     |      total-value-count
+                     |      |
+                     |      | total-byte-count
+                     |      | |
+                     |      | |             value-count ( within the packet )
+                     |      | |             |
+                     |      | |             | byte-count ( within packet )
+                     |      | |             | |
+                     |      | |             | |     stack (array and object depth)
+                     |      | |             | |     |
+                     |      | |             | |     |   position (before-value, after-key, etc)
+                     |      | |             | |     |   |
+                     |      | |             | |     |   |     truncated type (- = no truncation, s = string, n = number...)
+                     |      | |             | |     |   |     |
+                     |      | |             | |     |   |     |truncated length (if truncated)
+                     |      | |             | |     |   |     ||
+    begin 1          1 /    0.0      /      0.0 /   - / bfv / -          before-first-value (no context)
+    end   1          1 /   3.53      /     3.53 / {[{ / bfk / s6         before-first-key, inside a truncated key (string) of 6 bytes
+                                                                        
+    begin 2          2 /   3.53      /      0.0 / {[{ / bfk / s6         key (string) continued (6 bytes are in the previous packet)
+    end   2          2 /  8.103      /     5.50 /  {[ / b_v / n2         before-value, a number in an array is truncated at length 2
+                                                                        
+    begin 3          3 /  8.103      /     0.00 /  {[ / b_v / n2         before-value, the number continues from previous packet (at byte 3)
+    end   3          3 / 15.184      /     7.81 /  {[ / bfv / -          before-value (parsing ends expecting the first value in an array)
+                                                                        
+    begin 4          4 / 15.184      /      0.0 /  {[ / bfv / -          packet 4 begins expecting the first value of an array
+    end   4          4 / 18.193      /      3.9 /   - / a_v / -          clean end state
+    
+    State holds "single packet state", plus any unfinished "truncated" value that may be needed
+    to process the next packet.
+    The "multi packet state" is managed outside of this module (by the caller that is calling this function
+    across multiple buffers).
+    Note that the toString() returns the canonical State string, which shows exact parse state, but does not
+    include the state value.
+    
