@@ -33,15 +33,12 @@ var POS = {
 
 // pos 'bfk', b_k'...
 var POS_NAMES_BY_INT = Object.keys(POS).reduce(function (a,n) { a[POS[n]] = n; return a }, [])
-function pos_str (pos, long) {
-  var ret = pos
-  if (long) {
-    var lname = ret[0] === 'b' ? 'before' : (ret[0] === 'a' ? 'after' : '?')
-    lname += ret[1] === 'f' ? ' first' : (ret[1] === '_' ? '' : ' ?')
-    lname += ret[2] === 'k' ? ' key' : (ret[2] === 'v' ? ' value' : '?')
-    ret = lname
-  }
-  return ret
+function pos_str (pos, truncated) {
+  var ret = []
+  if (!truncated) { ret.push(pos[0] === 'b' ? 'before' : (pos[0] === 'a' ? 'after' : '?' )) }
+  if (pos[1] === 'f') { ret.push('first') }
+  ret.push(pos[2] === 'k' ? 'key' : (pos[2] === 'v' ? 'value' : '?'))
+  return ret.join(' ')
 }
 
 var END = {
@@ -426,26 +423,9 @@ function handle_end(p) {
   }
 
   var err_info = function (err, sinfo, msg) {
-    var tok_str = p.tok === TOK.NUM ? 'number' : (p.tok === TOK.STR ? 'string' : 'token')
-    var val_str = esc_str(p.src, p.voff, p.vlim)
-    var range = rangestr(p.voff, p.vlim)
-    var context = sinfo.logical_context()
-    switch (err) {
-      case END.TRUNC_VAL:
-        msg = 'truncated ' + tok_str + ',' + ' at ' + range;
-        break
-      case END.TRUNC_SRC:
-        msg = 'truncated input, ' + context + ' at ' + p.vlim;
-        break
-      case END.UNEXP_VAL:
-        if (tok_str === 'token') { val_str = '"' + val_str + '"' }
-        msg = 'unexpected ' + tok_str + ' ' + val_str + ', ' + context + ' at ' + range;
-        break
-      case END.UNEXP_BYTE:
-        val_str = '"' + val_str + '"'
-        msg = 'unexpected byte ' + val_str + ', ' + context + ' at ' + p.voff;
-        break
-    }
+    var context = sinfo.logical_context(err === END.TRUNC_VAL)
+    var range = (p.voff >= p.vlim - 1) ? p.voff : p.voff + '..' + (p.vlim - 1)
+    msg += ', ' + context + ' at ' + range
 
     return {
       msg: msg,
@@ -459,18 +439,26 @@ function handle_end(p) {
     }
   }
 
-  var end_cb = function (koff, klim, voff, info) { p.cb(p.src, koff, klim, TOK.END, voff, p.vlim, info)}
+  var end_cb = function (koff, klim, voff, info) {
+    p.cb(p.src, koff, klim, TOK.END, voff, p.vlim, info)
+  }
   var err_cb = function (info) { p.cb(p.src, p.koff, p.klim, TOK.ERR, p.voff, p.vlim, info)}
   var rinfo = null    // return info
   var sinfo = state_info(p.state0, p.trunc)    // state info (bytes.values/stack/position/trunc)
 
+  var tok_str = p.tok === TOK.NUM ? 'number' : (p.tok === TOK.STR ? 'string' : 'token')
+  var val_str = esc_str(p.src, p.voff, p.vlim)
+
   switch (p.ecode) {
-    //
-    // error states
-    //
     case END.UNEXP_VAL:       // failed transition (state0 + tok => state1) === 0
+      if (tok_str === 'token') { val_str = '"' + val_str + '"' }
+      rinfo = err_info(p.ecode, sinfo, 'unexpected ' + tok_str + ' ' + val_str)
+      err_cb(rinfo)
+      break
+
     case END.UNEXP_BYTE:
-      rinfo = err_info(p.ecode, sinfo)
+      val_str = '"' + val_str + '"'
+      rinfo = err_info(p.ecode, sinfo, 'unexpected byte ' + val_str)
       err_cb(rinfo)
       break
 
@@ -479,7 +467,7 @@ function handle_end(p) {
         end_cb(p.koff, p.klim, p.voff, sinfo)
         rinfo = sinfo
       } else {
-        rinfo = err_info(END.TRUNC_VAL, sinfo)
+        rinfo = err_info(p.ecode, sinfo, 'truncated ' + tok_str)
         err_cb(rinfo)
       }
       break
@@ -491,7 +479,7 @@ function handle_end(p) {
         end_cb(p.koff, p.klim, p.vlim, sinfo)
         rinfo = sinfo
       } else {
-        rinfo = err_info(END.TRUNC_SRC, sinfo)
+        rinfo = err_info(p.ecode, sinfo, 'truncated input')
         err_cb(rinfo)
       }
       break
@@ -501,7 +489,7 @@ function handle_end(p) {
         // done
         end_cb(-1, -1, p.lim, null)
       } else {
-        // clean but not done (unprocessed bytes).  requested stop is the only way this can happen.
+        // unprocessed bytes but clean.  requested stop is the only way this can happen.
         !p.cb_continue || err('internal error - unexpected state')
         // client requested stop - return state to allow parsing to restart
         rinfo = sinfo
@@ -581,9 +569,9 @@ function State (vcount, bytes, pos, stack, tcode, trunc) {
 
 State.prototype = {
   constructor: State,
-  logical_context: function () {
+  logical_context: function (truncated) {
     var ctx = this.in_arr() ? 'in array ' : (this.in_obj() ? 'in object ' : '')
-    return ctx + pos_str(this.pos, true)
+    return ctx + pos_str(this.pos, truncated)
   },
   in_arr: function () { return this.stack[this.stack.length - 1] === '[' },
   in_obj: function () { return this.stack[this.stack.length - 1] === '{' },
@@ -591,10 +579,6 @@ State.prototype = {
     var truncstr = this.trunc ? this.type + this.trunc.length : '-'
     return this.vcount + '.' + this.bytes + '/' + this.stack + '/' + this.pos + '/' + truncstr
   }
-}
-
-function rangestr(off, lim) {
-  return (off === lim - 1) ? off : off + '..' + (lim - 1)
 }
 
 function esc_str (src, off, lim) {

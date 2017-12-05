@@ -93,21 +93,21 @@ test('tokenize - errors', function (t) {
       [ '{ fal',            [ 'B@0', '{@0', '!3@2: unexpected token "fal", in object before first key at 2..4' ] ],
       [ '{ fal:',           [ 'B@0', '{@0', '!3@2: unexpected token "fal", in object before first key at 2..4' ] ],
       [ '{"a": "b", 3: 4}', [ 'B@0', '{@0', 'K3@1:S3@6', '!1@11: unexpected number 3, in object before key at 11' ] ],
-
-      // truncated values / keys
-      [ 'fal',              [ 'B@0', '!3@0: truncated token, at 0..2' ] ],
-      [ '"ab',              [ 'B@0', '!3@0: truncated string, at 0..2' ] ],
-      [ '"ab:',             [ 'B@0', '!4@0: truncated string, at 0..3' ] ],
-      [ '"\\\\\\"',         [ 'B@0', '!5@0: truncated string, at 0..4' ] ],
-      [ '[3.05E-2',         [ 'B@0', '[@0', '!7@1: truncated number, at 1..7' ] ],
-      [ '[3.05E-2,4.',      [ 'B@0', '[@0', 'N7@1', '!2@9: truncated number, at 9..10' ] ],
       [ '{ 2.4 ]',          [ 'B@0', '{@0', '!3@2: unexpected number 2.4, in object before first key at 2..4' ] ],
       [ '{ "a" ]',          [ 'B@0', '{@0', 'K3@2:!1@6: unexpected token "]", in object after key at 6' ] ],
-      [ '{"a": t,',         [ 'B@0', '{@0', 'K3@1:!1@6: truncated token, at 6' ] ],
       [ '[ 1, 2 ] "c"',     [ 'B@0', '[@0', 'N1@2', 'N1@5', ']@7', '!3@9: unexpected string "c", after value at 9..11' ] ],
       // unexpected token has precidence over truncation (be relatively optimistic about truncation)
       [ '[ 1, 2 ] "c',      [ 'B@0', '[@0', 'N1@2', 'N1@5', ']@7', '!2@9: unexpected string "c, after value at 9..10' ] ],
-      [ '{"a',              [ 'B@0', '{@0', '!2@1: truncated string, at 1..2' ] ],
+
+      // truncated values / keys
+      [ 'fal',              [ 'B@0', '!3@0: truncated token, first value at 0..2' ] ],
+      [ '"ab',              [ 'B@0', '!3@0: truncated string, first value at 0..2' ] ],
+      [ '"ab:',             [ 'B@0', '!4@0: truncated string, first value at 0..3' ] ],
+      [ '"\\\\\\"',         [ 'B@0', '!5@0: truncated string, first value at 0..4' ] ],
+      [ '[3.05E-2',         [ 'B@0', '[@0', '!7@1: truncated number, in array first value at 1..7' ] ],
+      [ '[3.05E-2,4.',      [ 'B@0', '[@0', 'N7@1', '!2@9: truncated number, in array value at 9..10' ] ],
+      [ '{"a": t,',         [ 'B@0', '{@0', 'K3@1:!1@6: truncated token, in object value at 6' ] ],
+      [ '{"a',              [ 'B@0', '{@0', '!2@1: truncated string, in object first key at 1..2' ] ],
 
       // truncated src (not an error in incremental mode)
       [ '{"a" : ',          [ 'B@0', '{@0', 'K3@1:!0@7: truncated input, in object before value at 7' ] ],
