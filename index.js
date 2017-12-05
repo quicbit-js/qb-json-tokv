@@ -44,19 +44,13 @@ function pos_str (pos, long) {
   return ret
 }
 
-// state upper range uses these error codes:
-var ERR_CODE = {
-  UNEXP_VAL: 0x2001,    // token is well-formed, but not expected.  i.e. (state0 + tok) -> 0.
-  UNEXP_BYTE: 0x2002,   // encountered invalid byte - not a token or legal number value
-  TRUNC_VAL: 0x2003,    // a multi-byte value (string, number, true, false, null, object-key) doesn't complete
-  TRUNC_SRC: 0x2004,    // src is valid, but does not complete (still in object, in array, or trailing comma, ...)
-}
-
-var ERR = {
+var END = {
   UNEXP_VAL: 'UNEXP_VAL',
   UNEXP_BYTE: 'UNEXP_BYTE',
   TRUNC_VAL: 'TRUNC_VAL',
   TRUNC_SRC: 'TRUNC_SRC',
+  CLEAN: 'STOP_REQ',
+  OK: 'OK',
 }
 
 // ascii tokens as well as special codes for number, error, begin and end.
@@ -158,7 +152,7 @@ function ascii_to_bytes (bychar) {
   }, [])
 }
 
-var WHITESPACE = ascii_to_code('\n\t\r ', 1)
+var WHITESPACE = ascii_to_code('\b\f\n\t\r ', 1)
 var ALL_NUM_CHARS = ascii_to_code('-0123456789+.eE', 1)
 var TOK_BYTES = ascii_to_bytes({ f: 'false', t: 'true', n: 'null' })
 
@@ -222,7 +216,7 @@ function restore (src, opt, cb) {
   var init = opt.init || {}
   if (init.err) {
     switch (init.err) {
-      case ERR.TRUNC_VAL:
+      case END.TRUNC_VAL:
         restore_truncated(src, init, ret, cb)
         break
     }
@@ -261,13 +255,15 @@ function tokenize (src, opt, cb) {
   var klim = init.klim
   var state0 = init.state
   var stack = init.stack
-  var idx = opt.off || 0
+  var off = opt.off || 0
   var lim = opt.lim == null ? src.length : opt.lim
+  var idx = off
   var tok = 0           // current token/byte being handled
+  var ecode = null
   var state1 = state0   // state1 possibilities are:
-                        //    1. state1 < 0    (parse error - see STATE_ERR codes)
-                        //    2. state1 = 0    (unsupported transition - will be later be mapped to TOK.UNEXPECTED_TOK)
-                        //    3. state1 > 0    (OK.  state1 !== state0 means callback is pending )
+                        //    1. state1 = 0;                        unsupported transition
+                        //    2. state1 > 0, state1 == state0;      OK, no pending callback
+                        //    3. state1 > 0, state1 != state0;      OK, callback pending
 
   var voff = idx        // value start index
   var vcount = 0        // value count (number of complete values sent, such as str or num or end-obj, but beg-obj, beg-arr.
@@ -280,7 +276,7 @@ function tokenize (src, opt, cb) {
       voff = idx
       tok = src[idx]
       switch (tok) {
-        case 9:case 10:case 13:case 32:
+        case 8: case 9: case 10: case 12: case 13: case 32:
           if (whitespace[src[++idx]] && idx < lim) {
             while (whitespace[src[++idx]] === 1 && idx < lim) {}
           }
@@ -292,7 +288,7 @@ function tokenize (src, opt, cb) {
         case 58:                                  // :    COLON
           state1 = states[state0 | tok]
           idx++
-          if (state1 === 0) { break main_loop }
+          if (state1 === 0) { ecode = END.UNEXP_VAL; break main_loop }
           state0 = state1
           continue
 
@@ -301,28 +297,17 @@ function tokenize (src, opt, cb) {
         case 116:                                 // t    true
           idx = skip_bytes(src, idx, lim, tok_bytes[tok])
           state1 = states[state0 | tok]
-          if (idx <= 0) {
-            // not all bytes matched
-            idx = -idx
-            if (state1 !== 0) { state1 = ERR_CODE.TRUNC_VAL }
-            break main_loop
-          }
-          // full match
-          if (state1 === 0) { break main_loop }
+          if (idx <= 0) { idx = -idx; ecode = state1 === 0 ? END.UNEXP_VAL : END.TRUNC_VAL; break main_loop }
+          if (state1 === 0) { ecode = END.UNEXP_VAL; break main_loop }
           vcount++
           break
 
         case 34:                                  // "    QUOTE
           state1 = states[state0 | tok]
           idx = skip_str(src, idx + 1, lim, 34, 92)
-          if (idx === -1) {
-            // break for bad transition (state1 === 0) or for truncation, in that order.
-            idx = lim
-            if (state1 !== 0) { state1 = ERR_CODE.TRUNC_VAL }
-            break main_loop
-          }
+          if (idx === -1) { idx = lim; ecode = state1 === 0 ? END.UNEXP_VAL : END.TRUNC_VAL; break main_loop }
           idx++    // skip quote
-          if (state1 === 0) { break main_loop }
+          if (state1 === 0) { ecode = END.UNEXP_VAL; break main_loop }
 
           // key
           if ((state1 & pos_mask) === after_key) {
@@ -340,12 +325,8 @@ function tokenize (src, opt, cb) {
           state1 = states[state0 | tok]
           tok = 78                                // N  Number
           while (all_num_chars[src[++idx]] === 1 && idx < lim) {}
-          if (state1 === 0) { break main_loop }
-          // the number *might* be truncated - flag it here and handle below
-          if (idx === lim) {
-            state1 = ERR_CODE.TRUNC_VAL;
-            break main_loop
-          }
+          if (state1 === 0) { ecode = END.UNEXP_VAL; break main_loop }
+          if (idx === lim) { ecode = END.TRUNC_VAL; break main_loop }  // *might* be truncated - flag it here and handle below
           vcount++
           break
 
@@ -353,7 +334,7 @@ function tokenize (src, opt, cb) {
         case 123:                                 // {    OBJECT START
           state1 = states[state0 | tok]
           idx++
-          if (state1 === 0) { break main_loop }
+          if (state1 === 0) { ecode = END.UNEXP_VAL; break main_loop }
           stack.push(tok)
           break
 
@@ -361,7 +342,7 @@ function tokenize (src, opt, cb) {
         case 125:                                 // }    OBJECT END
           state1 = states[state0 | tok]
           idx++
-          if (state1 === 0) { break main_loop }
+          if (state1 === 0) { ecode = END.UNEXP_VAL; break main_loop }
           stack.pop()
           // state1 context is unset after closing brace (see state map).  we set it here.
           if (stack.length !== 0) { state1 |= (stack[stack.length - 1] === 91 ? in_arr : in_obj) }
@@ -369,8 +350,8 @@ function tokenize (src, opt, cb) {
           break
 
         default:
-          state1 = ERR_CODE.UNEXP_BYTE          // no legal transition for this token
           idx++
+          ecode = END.UNEXP_BYTE          // no legal transition for this token
           break main_loop
       }
       // clean transition was made from state0 to state1
@@ -387,21 +368,44 @@ function tokenize (src, opt, cb) {
     }  // end main_loop: while(idx < lim) {...
   }
 
+  if (ecode === null ) {
+    var pos = state0 & pos_mask
+    if (stack.length === 0 && (pos === POS.bfv || pos === POS.a_v)) {
+      ecode = END.CLEAN
+    } else {
+      ecode = END.TRUNC_SRC
+      voff = idx    // no value
+    }
+  } else if (ecode === END.UNEXP_VAL) {
+    // non-delimiting bytes that follow a number are more clearly reported as unexpected byte instead of unexpected value
+    // we backtrack here to check rather than check in the main_loop.
+    var delim = ascii_to_code('{[]},:"', 1)
+    if (
+      voff > off
+      && all_num_chars[src[voff-1]]
+      && !delim[src[voff]]
+      && !whitespace[src[voff]]
+    ){
+      ecode = END.UNEXP_BYTE
+    }
+  }
+
   return handle_end_state({
     src: src,
     off: opt.off || 0,
     lim: lim,
-    bytes: idx - (opt.off || 0),
+    bytes: idx - off,
     vcount: vcount,
     state0: state0,
     state1: state1,
+    ecode: ecode,
     stack: stack,
     koff: koff,
     klim: klim,
     tok: tok,
     voff: voff,
     vlim: idx,
-    opt: opt,
+    incremental: !!opt.incremental,
     cb: cb,
     cb_continue: cb_continue,
   })
@@ -418,22 +422,24 @@ function handle_end_state(p) {
 
   var err_info = function (state, err, sinfo) {
     var tok_str = p.tok === TOK.NUM ? 'number' : (p.tok === TOK.STR ? 'string' : 'token')
-    var val_str = json_str(p.src, p.voff, p.vlim, p.tok)
+    var val_str = esc_str(p.src, p.voff, p.vlim)
     var range = rangestr(p.voff, p.vlim)
-    var sstr = sinfo.logical_context()
+    var context = sinfo.logical_context()
     var msg
     switch (err) {
-      case ERR.TRUNC_VAL:
+      case END.TRUNC_VAL:
         msg = 'truncated ' + tok_str + ',' + ' at ' + range;
         break
-      case ERR.TRUNC_SRC:
-        msg = 'truncated input, ' + sstr + ' at ' + p.vlim;
+      case END.TRUNC_SRC:
+        msg = 'truncated input, ' + context + ' at ' + p.vlim;
         break
-      case ERR.UNEXP_VAL:
-        msg = 'unexpected ' + tok_str + ' ' + val_str + ', ' + sstr + ' at ' + range;
+      case END.UNEXP_VAL:
+        if (tok_str === 'token') { val_str = '"' + val_str + '"' }
+        msg = 'unexpected ' + tok_str + ' ' + val_str + ', ' + context + ' at ' + range;
         break
-      case ERR.UNEXP_BYTE:
-        msg = 'unexpected byte ' + val_str + ', ' + sstr + ' at ' + p.voff;
+      case END.UNEXP_BYTE:
+        val_str = '"' + val_str + '"'
+        msg = 'unexpected byte ' + val_str + ', ' + context + ' at ' + p.voff;
         break
     }
 
@@ -449,39 +455,24 @@ function handle_end_state(p) {
   }
 
   var end_cb = function (koff, klim, voff, info) { p.cb(p.src, koff, klim, TOK.END, voff, p.vlim, info)}
-  var err_cb = function (voff, info) { p.cb(p.src, p.koff, p.klim, TOK.ERR, voff, p.vlim, info)}
+  var err_cb = function (info) { p.cb(p.src, p.koff, p.klim, TOK.ERR, p.voff, p.vlim, info)}
   var cb = function (tok, info) { return p.cb(p.src, p.koff, p.klim, tok, p.voff, p.vlim, info)}
   var rinfo = null    // return info
   var sinfo = null    // state info (bytes.values/stack/position/trunc)
 
-  var info_state = p.state1 === ERR_CODE.TRUNC_VAL ? p.state1 : p.state0
-
-  switch (p.state1) {
+  switch (p.ecode) {
     //
     // error states
     //
-    case 0:
-      // failed transition (state0 + tok => state1) === 0
-      var sep_chars = ascii_to_code('{[]},:"', 1)
-      var is_separate =
-        p.voff === p.off ||
-        sep_chars[p.tok] ||
-        sep_chars[p.src[p.voff - 1]] ||
-        WHITESPACE[p.src[p.voff - 1]]
-
+    case END.UNEXP_VAL:       // failed transition (state0 + tok => state1) === 0
+    case END.UNEXP_BYTE:
       sinfo = state_info(p.state0, null)
-      rinfo = err_info(p.state0, is_separate ? ERR.UNEXP_VAL : ERR.UNEXP_BYTE, sinfo)
-      err_cb(p.voff, rinfo)
+      rinfo = err_info(p.state0, p.ecode, sinfo)
+      err_cb(rinfo)
       break
 
-    case ERR_CODE.UNEXP_BYTE:
-      sinfo = state_info(p.state0, null)
-      rinfo = err_info(p.state0, ERR.UNEXP_BYTE, sinfo)
-      err_cb(p.voff, rinfo)
-      break
-
-    case ERR_CODE.TRUNC_VAL:
-      // truncated values do NOT advance state. state0 is left one step before the value (like unexpected values).
+    case END.TRUNC_VAL:
+      // truncated values do not advance state. state0 is left one step before the value (like unexpected values).
       if (p.tok === TOK.NUM && (p.state0 === (POS.bfv) || p.state0 === (POS.b_v))) {
         // numbers outside of object or array context are not considered truncated: '3.23' or '1, 2, 3'
         cb(p.tok, rinfo, null)
@@ -490,42 +481,47 @@ function handle_end_state(p) {
       } else {
         var trunc = p.src.slice(p.voff, p.vlim)
         sinfo = state_info(p.state0, trunc)
-        if (p.opt.incremental) {
+        if (p.incremental) {
           end_cb(p.koff, p.klim, p.voff, sinfo)
           rinfo = sinfo
         } else {
-          rinfo = err_info(p.state0, ERR.TRUNC_VAL, sinfo)
-          err_cb(p.voff, rinfo)
+          rinfo = err_info(p.state0, END.TRUNC_VAL, sinfo)
+          err_cb(rinfo)
         }
       }
       break
 
-    //
-    // complete end states (no context)
-    //
-    case POS.bfv:
-    case POS.a_v:
-      end_cb(-1, -1, p.vlim, p.vlim === p.lim ? null : rinfo)
+    case END.TRUNC_SRC:
+      sinfo = state_info(p.state1, null)
+      if (!p.cb_continue) {
+        rinfo = sinfo       // requested stop
+      } else if (p.incremental) {
+        end_cb(p.koff, p.klim, p.vlim, sinfo)
+        rinfo = sinfo
+      } else {
+        rinfo = err_info(p.state1, END.TRUNC_SRC, sinfo)
+        err_cb(rinfo)
+      }
       break
 
-    //
-    // incomplete end states (in object, in array, trailing comma...)
-    //
-    default:
-      if (p.cb_continue) {
-        // incomplete state was not caused of the callback halting process
+    case END.CLEAN:
+      if (p.vlim === p.lim) {
+        end_cb(-1, -1, p.lim, null)         // done with no pending state
+      } else {
+        // not finished
         sinfo = state_info(p.state1, null)
-        if (p.opt.incremental) {
-          end_cb(p.koff, p.klim, p.vlim, sinfo)
+        if (!p.cb_continue) {
+          rinfo = sinfo                     // client requested stop - return state to allow parsing to restart
+        } else if (p.incremental) {
+          end_cb(p.koff, p.klim, p.voff, rinfo)
           rinfo = sinfo
         } else {
-          rinfo = err_info(p.state1, ERR.TRUNC_SRC, sinfo)
-          err_cb(p.vlim, rinfo)
+          err_cb(rinfo)
         }
-      } else {
-        // callback requested stop.  don't create end event or error, but do return state so parsing can be restarted.
-        rinfo = state_info(p.state1, null)
       }
+      break
+
+    default: err('oops')
   }
 
   return rinfo
@@ -618,14 +614,9 @@ function esc_str (src, off, lim) {
   var ret = ''
   for (var i = off; i < lim; i++) {
     var b = src[i]
-    ret += (b > 31 && b < 127) ? String.fromCharCode(b) : '0x' + b.toString(16)
+    ret += (b > 31 && b < 127) ? String.fromCharCode(b) : '\\u' + ("0000" + b.toString(16)).slice(-4)
   }
   return ret
-}
-
-function json_str (src, off, lim, tok) {
-  var ret = esc_str(src, off, lim)
-  return (tok === TOK.STR || tok === TOK.NUM) ? ret : '"' + ret + '"'
 }
 
 // a convenience function for summarizing/logging/debugging callback arguments as compact strings
@@ -655,8 +646,4 @@ module.exports = {
   tokenize: tokenize,
   args2str: args2str,
   TOK: TOK,
-  CTX: CTX,     // state 3-letter codes - for concise expressions
-  POS: POS,
-  POS_MASK: POS_MASK,
-  ERR: ERR,
 }

@@ -18,8 +18,6 @@ var test = require('test-kit').tape()
 var utf8 = require('qb-utf8-ez')
 var jtok = require('.')
 var TOK = jtok.TOK
-var POS = jtok.POS
-var CTX = jtok.CTX
 
 // other tokens are intuitive - they are the same char code as the first byte parsed
 // 't' for true
@@ -132,20 +130,20 @@ test('tokenize - errors', function (t) {
 test('callback stop', function (t) {
   t.table_assert(
     [
-      [ 'src',                          'at',    'ret',   'exp' ],
-      [ '{ "a": 7, "b": 4 }',           0,        false,  [ 'B@0', 'E@0' ] ],
+      [ 'src',                          'at_cb', 'ret',   'exp' ],
+      // [ '{ "a": 7, "b": 4 }',           0,        false,  [ 'B@0' ] ],
       [ '{ "a": 7, "b": 4 }',           1,        false,  [ 'B@0', '{@0' ] ],
       [ '{ "a": 7, "b": 4 }',           2,        false,  [ 'B@0', '{@0', 'K3@2:N1@7' ] ],
       [ '{ "a": 7, "b": 4 }',           3,        false,  [ 'B@0', '{@0', 'K3@2:N1@7', 'K3@10:N1@15' ] ],
       [ '{ "a": 7, "b": 4 }',           4,        false,  [ 'B@0', '{@0', 'K3@2:N1@7', 'K3@10:N1@15', '}@17', 'E@18' ] ],
       [ '{ "a": 7, "b": 4 }',           5,        false,  [ 'B@0', '{@0', 'K3@2:N1@7', 'K3@10:N1@15', '}@17', 'E@18' ] ],
     ],
-    function (src, at_tok, ret) {
+    function (src, at_cb, ret) {
       var count = 0
       var hector = t.hector()
       var cb = function (src, koff, klim, tok, voff, vlim, info) {
         hector(jtok.args2str(koff, klim, tok, voff, vlim, info))
-        return (count++ === at_tok) ? ret : true
+        return (count++ === at_cb) ? ret : true
       }
       jtok.tokenize(utf8.buffer(src), null, cb)
       return hector.arg(0)
@@ -191,7 +189,7 @@ test('incremental', function (t) {
   t.table_assert(
     [
       [ 'input'              , 'exp' ],
-      [ '"abc", '            , [ 'B@0,S5@0,E@7',              '1.7/-/b_v/-' ] ],
+      // [ '"abc", '            , [ 'B@0,S5@0,E@7',              '1.7/-/b_v/-' ] ],
       [ '['                  , [ 'B@0,[@0,E@1',               '0.1/[/bfv/-' ] ],
       [ '[ 83 '              , [ '[@0,N2@2,E@5',              '1.5/[/a_v/-' ] ],
       [ '[ 83 ,'             , [ '[@0,N2@2,E@6',              '1.6/[/b_v/-' ] ],
@@ -223,11 +221,7 @@ test('incremental', function (t) {
   )
 })
 
-var a_K = POS.a_k
-var BFV = POS.bfv
-var OBJ = CTX.obj
-
-
+/*
 
 function err (msg) { throw Error(msg) }
 test('initial state', function (t) {
