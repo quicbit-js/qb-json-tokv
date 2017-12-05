@@ -402,7 +402,6 @@ function tokenize (src, opt, cb) {
     bytes: idx - off,
     vcount: vcount,
     state0: state0,
-    state1: state1,
     ecode: ecode,
     stack: stack,
     koff: koff,
@@ -461,7 +460,6 @@ function handle_end(p) {
 
   var end_cb = function (koff, klim, voff, info) { p.cb(p.src, koff, klim, TOK.END, voff, p.vlim, info)}
   var err_cb = function (info) { p.cb(p.src, p.koff, p.klim, TOK.ERR, p.voff, p.vlim, info)}
-  var cb = function (tok, info) { return p.cb(p.src, p.koff, p.klim, tok, p.voff, p.vlim, info)}
   var rinfo = null    // return info
   var sinfo = null    // state info (bytes.values/stack/position/trunc)
 
@@ -477,27 +475,20 @@ function handle_end(p) {
       break
 
     case END.TRUNC_VAL:
-      // truncated values do not advance state. state0 is left one step before the value (like unexpected values).
-      if (p.tok === TOK.NUM && (p.state0 === (POS.bfv) || p.state0 === (POS.b_v))) {
-        // numbers outside of object or array context are not considered truncated: '3.23' or '1, 2, 3'
-        cb(p.tok, rinfo, null)
-        end_cb(-1, -1, p.vlim, null)
-        rinfo = null
+      // state0 points to the location before the value (like unexpected values)
+      var trunc = p.src.slice(p.voff, p.vlim)
+      sinfo = state_info(p.state0, trunc)
+      if (p.incremental) {
+        end_cb(p.koff, p.klim, p.voff, sinfo)
+        rinfo = sinfo
       } else {
-        var trunc = p.src.slice(p.voff, p.vlim)
-        sinfo = state_info(p.state0, trunc)
-        if (p.incremental) {
-          end_cb(p.koff, p.klim, p.voff, sinfo)
-          rinfo = sinfo
-        } else {
-          rinfo = err_info(END.TRUNC_VAL, sinfo)
-          err_cb(rinfo)
-        }
+        rinfo = err_info(END.TRUNC_VAL, sinfo)
+        err_cb(rinfo)
       }
       break
 
     case END.TRUNC_SRC:
-      sinfo = state_info(p.state1, null)
+      sinfo = state_info(p.state0, null)
       if (!p.cb_continue) {
         rinfo = sinfo       // requested stop
       } else if (p.incremental) {
@@ -511,18 +502,14 @@ function handle_end(p) {
 
     case END.CLEAN:
       if (p.vlim === p.lim) {
-        end_cb(-1, -1, p.lim, null)         // done with no pending state
+        // done
+        end_cb(-1, -1, p.lim, null)
       } else {
-        // not finished
-        sinfo = state_info(p.state1, null)
-        if (!p.cb_continue) {
-          rinfo = sinfo                     // client requested stop - return state to allow parsing to restart
-        } else if (p.incremental) {
-          end_cb(p.koff, p.klim, p.voff, rinfo)
-          rinfo = sinfo
-        } else {
-          err_cb(rinfo)
-        }
+        // clean but not done (unprocessed bytes).  requested stop is the only way this can happen.
+        !p.cb_continue || err('internal error - unexpected state')
+        sinfo = state_info(p.state0, null)
+        // client requested stop - return state to allow parsing to restart
+        rinfo = sinfo
       }
       break
 
