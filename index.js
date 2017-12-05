@@ -412,9 +412,16 @@ function tokenize (src, opt, cb) {
   var more_info = figure_msg_tok(info, opt.incremental)
   info.msg = more_info.msg
 
-  if (!cb_continue) { return info }   // skip callback if stop was requesteds
-  cb(src, koff, klim, more_info.etok, voff, idx, info)
-  return info
+  if (cb_continue) {  // skip callback if stop was requested
+    cb(src, koff, klim, more_info.etok, voff, idx, info)
+  }
+  if (more_info.etok === TOK.ERR) {
+    var err = new Error(info.msg + ' (error.info has details)')
+    err.info = info
+    throw err
+  } else {
+    return info
+  }
 }
 
 // figure out end/error message and callback token

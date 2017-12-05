@@ -131,10 +131,12 @@ test('tokenize - errors', function (t) {
         if (tok === TOK.ERR) { errinfo = info }
         return true
       }
-      var info = jtok.tokenize(utf8.buffer(src), null, cb)
-      info === errinfo || err('expected returned info to equal errinfo')
-
-      return [ hector.arg(0).slice(-3).join(','), errinfo.ecode, errinfo.state.toString() ]
+      try {
+        var info = jtok.tokenize(utf8.buffer(src), null, cb)
+      } catch (e) {
+        e.info === errinfo || err('expected returned info to equal errinfo')
+        return [ hector.arg(0).slice(-3).join(','), errinfo.ecode, errinfo.state.toString() ]
+      }
     }
   )
 })
@@ -147,7 +149,7 @@ test('callback stop', function (t) {
       [ '{ "a": 7, "b": 4 }', 1,       false, [ 'B@0,{@0',                    'TRUNC_SRC',  '0.1/{/bfk/-' ] ],
       [ '{ "a": 7, "b": 4 }', 2,       false, [ 'B@0,{@0,K3@2:N1@7',          'TRUNC_SRC',  '1.8/{/a_v/-' ] ],
       [ '{ "a": 7, "b": 4 }', 3,       false, [ '{@0,K3@2:N1@7,K3@10:N1@15',  'TRUNC_SRC',  '2.16/{/a_v/-' ] ],
-      // note that if callback returns false when parsing is done the info still has a DONE code.
+      // note that if callback returns false when parsing is done the info still has a DONE code (but no END callback).
       [ '{ "a": 7, "b": 4 }', 4,       false, [ 'K3@2:N1@7,K3@10:N1@15,}@17', 'DONE',       '3.18/-/a_v/-' ] ],
     ],
     function (src, at_cb, ret) {
