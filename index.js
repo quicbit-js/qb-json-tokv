@@ -402,32 +402,9 @@ function _tokenize (src, opt, cb) {
   }
 
   // check and clarify end state (before handling end state)
-  if (ecode === null) {
-    voff = idx    // no value
-    if (state0 === RPOS.bfv || state0 === RPOS.a_v) {
-      ecode = idx === lim ? END.DONE : END.CLEAN_STOP
-    } else {
-      ecode = END.TRUNC_SRC
-    }
-  } else if (ecode === END.UNEXP_VAL) {
-    // non-delimiting bytes that follow a number are more clearly reported as unexpected byte instead of unexpected value
-    // we backtrack here to check rather than check in the main_loop.
-    var delim = ascii_to_code('{[]},:"', 1)
-    if (
-      voff > off
-      && all_num_chars[src[voff-1]]
-      && !delim[src[voff]]
-      && !whitespace[src[voff]]
-    ){
-      ecode = END.UNEXP_BYTE
-    }
-  } else if (ecode === END.TRUNC_VAL) {
-    if (idx === lim && tok === TOK.NUM && (state0 === RPOS.bfv || state0 === RPOS.b_v)) {
-      // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
-      cb(src, koff, klim, tok, voff, idx, null)
-      ecode = END.DONE
-      voff = idx    // no value
-    }
+  ecode = clean_up_ecode(src, off, lim, koff, klim, tok, voff, idx, state0, ecode, cb)
+  if (ecode === null || ecode === END.DONE || ecode === END.CLEAN_STOP || ecode === END.TRUNC_SRC) {
+    voff = idx    // wipe out phantom value
   }
 
   var info = {
@@ -439,7 +416,7 @@ function _tokenize (src, opt, cb) {
       RPOS_BY_INT[state0 & RPOS_MASK],
       stack.map(function (b) { return String.fromCharCode(b) }).join('') || '-',
       TCODE_BY_TOK[tok],
-      ecode === END.TRUNC_VAL ? idx - voff : 0
+      (ecode === END.TRUNC_VAL) ? idx - voff : 0
     ),
     src: src,
     koff: koff,
@@ -463,6 +440,36 @@ function _tokenize (src, opt, cb) {
   } else {
     return info
   }
+}
+
+function clean_up_ecode (src, off, lim, koff, klim, tok, voff, idx, state0, ecode, cb) {
+  if (ecode === null) {
+    if (state0 === RPOS.bfv || state0 === RPOS.a_v) {
+      ecode = idx === lim ? END.DONE : END.CLEAN_STOP
+    } else {
+      ecode = END.TRUNC_SRC
+    }
+  } else if (ecode === END.UNEXP_VAL) {
+    // non-delimiting bytes that follow a number are more clearly reported as unexpected byte instead of unexpected
+    // token or value.  we backtrack here to check rather than check in the main_loop.
+    var DELIM = ascii_to_code('{[]},:"', 1)
+    if (
+      voff > off
+      && ALL_NUM_CHARS[src[voff-1]]
+      && !DELIM[src[voff]]
+      && !WHITESPACE[src[voff]]
+    ){
+      ecode = END.UNEXP_BYTE
+    }
+  } else if (ecode === END.TRUNC_VAL) {
+    if (idx === lim && tok === TOK.NUM && (state0 === RPOS.bfv || state0 === RPOS.b_v)) {
+      // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
+      // note - this means we won't be able to split no-context numbers outside of an array or object container.
+      cb(src, koff, klim, tok, voff, idx, null)
+      ecode = END.DONE
+    }
+  }
+  return ecode
 }
 
 // figure out end/error message and callback token

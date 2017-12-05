@@ -39,6 +39,8 @@ test('tokenize', function (t) {
   t.tableAssert(
     [
       [ 'src',                                      'off', 'lim', 'exp'                                             ],
+      [ '1',                                        0,     null,  [ 'B@0,N1@0,E@1', 'DONE', '0.1/-/bfv/-' ] ],
+      [ '1,2,3',                                    0,     null,  [ 'N1@2,N1@4,E@5', 'DONE', '2.5/-/b_v/-' ] ],
       [ '[1, 2], 3',                                0,     null,  [ ']@5,N1@8,E@9', 'DONE', '3.9/-/b_v/-' ]         ],
       [ '"x"',                                      0,     null,  [ 'B@0,S3@0,E@3', 'DONE', '1.3/-/a_v/-' ]         ],
       [ '-3.05',                                    0,     null,  [ 'B@0,N5@0,E@5', 'DONE', '0.5/-/bfv/-' ]         ],
