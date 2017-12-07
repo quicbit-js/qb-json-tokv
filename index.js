@@ -580,6 +580,9 @@ function args2str (koff, klim, tok, voff, vlim, info) {
     case TOK.NUM:
       ret = 'N' + vlen + '@' + voff
       break
+    case TOK.END:
+      ret = 'E' + (vlen || '') + '@' + voff
+      break
     case TOK.ERR:
       ret = '!' + vlen + '@' + voff + ': ' + info.msg
       break
