@@ -549,14 +549,14 @@ Position.prototype = {
   in_arr: function () { return this.stack[this.stack.length - 1] === '[' },
   in_obj: function () { return this.stack[this.stack.length - 1] === '{' },
   toString: function () {
-    var tstr = '-'
+    var trunc_Str = '-'
     if (this.vlen) {
-      tstr = this.tcode + this.vlen
+      trunc_Str = this.tcode + this.vlen
       if (this.klen) {
-        tstr += '.' + this.clen + '.' + this.klen
+        trunc_Str += '.' + this.clen + '.' + this.klen
       }
     }
-    return this.vcount + '.' + this.bytes + '/' + this.stack + '/' + this.rpos + '/' + tstr
+    return this.vcount + '.' + this.bytes + '/' + this.stack + '/' + this.rpos + '/' + trunc_Str
   }
 }
 
