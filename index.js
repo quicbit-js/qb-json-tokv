@@ -174,16 +174,15 @@ function skip_str (src, off, lim) {
         // count number of escapes going backwards (n = escape count +1)
         for (var n = 2; src[i - n] === 92 && i - n >= off; n++) {}          // \ BACKSLASH escape
         if (n % 2 === 1) {
-          return i
+          return i+1  // skip quote
         }
       } else {
-        return i
+        return i+1  // skip quote
       }
     }
   }
   return -1
 }
-
 
 function concat (src1, off1, lim1, src2, off2, lim2) {
   var len1 = lim1 - off1
@@ -196,77 +195,95 @@ function concat (src1, off1, lim1, src2, off2, lim2) {
 
 function err (msg) { throw Error(msg) }
 
-// opt should hold previous values: src, koff, klim, tok...
-function restore_truncated (prev, next, cb, ret) {
-  ['trunc_val','pos','src','koff','klim','tok','voff','vlim'].forEach(function (p) {
-    prev[p] != null || err ('missing property ' + p + '. cannot restore truncated value')
-  })
-  var pos = prev.pos
+// finish truncated key/value
+// return array of result info for the one or two call(s) made (may have halted)
+//
+// prev has previous completion (src, koff, klim, position...) - use, don't modify.
+// init has new src and defaults (koff = -1, klim = -1...) (to be modified)
+function init_truncated (src, off, lim, prev, cb) {
+  // find the value limit in src
+  var vlim
   switch (prev.tok) {
     case TOK.STR:
-      var i = skip_str(next, off, lim)
-      i !== -1 || err('could not complete truncated value')   // todo: handle incomplete truncated value
-      i++     // skip quote
-      // var off =
-      if (prev.koff >= 0) {
-
-      }
-      var nsrc = concat(prev.trunc_val, 0, pos.trunc_len, next, off, i)
-      if (prev.koff !== -1) {
-
-      }
-      cb(nsrc, prev.koff, prev.klim, prev.tok, 0, nsrc.length, null)
-
-      // ret.off = i
-      // ret.state0 =
-      // ret.state = ((init.state & !POS_MASK) | AFTER)      // INSIDE -> AFTER
+      vlim = skip_str(src, off, lim)
+      vlim >= 0 || err('could not complete truncated value')   // todo: handle incomplete truncated value
+      break
+    default:
+      err('truncation not implemented')
   }
+
+  var from_key = prev.koff !== -1
+  var adj = from_key ? prev.koff : prev.voff
+  var psrc = concat(prev.src, adj, prev.lim, src, off, vlim)
+  var p = {
+    src: psrc,
+    off: 0,
+    len: psrc.length,
+    koff: from_key ? 0 : -1,
+    klim: from_key ? prev.klim - adj : -1,
+    tok: prev.tok,
+    voff: prev.voff - adj,
+    vlim: prev.vlim - adj,
+    state: prev.position.state_code(),
+    stack: prev.position.stack_codes(),
+    vcount: 0
+  }
+
+  var info = _tokenize(p, cb)
+  if (info.halted) {
+    return [info]
+  }
+  var init = init_defaults(src.slice(vlim), 0, lim - vlim)
+  init.state = STATE_MAP[p.state | prev.tok]        // state was checked
+  init.stack = p.stack
+  return init
 }
 
 
-// returned info is of the form
+// use values from opt (and opt.restore) to recover from truncated values, making
+// use of _tokenize as needed to restore recover and return updated {src, opt} that
+// will be used to continue processing.
 //
-// var info = {
-//   msg: null,
-//   ecode: ecode,
-//   pos: new Position(...)
-//   src: src,
-//   koff: koff,
-//   klim: klim,
-//   tok: tok,
-//   voff: voff,
-//   vlim: vlim,
-// }
-function restore (src, opt, cb) {
-  var ret = {}
-  var init = opt.init || {}
-  if (init.err) {
-    switch (init.err) {
-      case END.TRUNC_VAL:
-        restore_truncated(src, init, ret, cb)
-        break
-    }
+// attempt to convert previous tokenize result into initial state.
+function init_from_prev(src, off, lim, prev, cb) {
+  // get vcount, stack, and state from position and ecode
+  switch (prev.ecode) {
+    case END.TRUNC_VAL:
+      return init_truncated(src, off, lim, prev, cb)
+      break
+    default: err('restore for ' + p.ecode + ' not implemented')
   }
-  // if (init.state) {
-  //   if ((init.state & POS_MASK) === INSIDE) {
-  //     restore_truncated(src, init, ret, cb)
-  //   } else {
-  //     ret.state = init.state
-  //   }
-  // } else {
-  //   init.state = BEFORE|FIRST|VAL
-  // }
-  return ret
 }
 
+function init_defaults (src, off, lim) {
+  return {
+    src:      src,
+    off:      off,
+    lim:      lim,
+
+    koff:     -1,
+    klim:     -1,
+    tok:      0,
+    voff:     off,
+    vlim:     off,
+
+    stack:    [],
+    state:    RPOS.bfv,
+    vcount:   0,
+  }
+}
 function tokenize (src, opt, cb) {
-  // if (opt.restore) {
-  //   var args = restore(src, opt, cb)
-  // }
-  return _tokenize(src, opt, cb)
+  // set init to
+  opt = opt || {}
+  var off = opt.off || 0
+  var lim = opt.lim == null ? src.length : opt.lim
+  var init = (opt && opt.prev)
+    ? init_from_prev(src, off, lim, opt.prev, cb)
+    : init_defaults(src, off, lim)
+  return _tokenize(init, opt, cb)
 }
 
-function _tokenize (src, opt, cb) {
+function _tokenize (init, opt, cb) {
   // localized constants for faster access
   var states = STATE_MAP
   var rpos_mask = RPOS_MASK
@@ -277,25 +294,26 @@ function _tokenize (src, opt, cb) {
   var all_num_chars = ALL_NUM_CHARS
   var tok_bytes = TOK_BYTES
 
-  // init state
-  opt = opt || {}
-  var off = opt.off || 0                            // src initial offset
-  var lim = opt.lim == null ? src.length : opt.lim  // src limit (exclusive)
-  var koff = opt.koff || -1                         // key offset
-  var klim = opt.klim || -1                         // key limit (exclusive)
-  var tok = opt.tok || 0                            // current token/byte being handled
-  var voff = opt.voff || off                        // value start index
-  var vlim = opt.vlim || voff                       // current value limit - also the current index searching ahead
-  var ecode = opt.ecode || null                     // end code (not necessarily an error - depends on settings)
-  var stack = opt.stack || []                       // ascii codes 91 and 123 for array / object depth
-  var state0 = opt.state || RPOS.bfv                // container context and relative position encoded as an int
+  // localized init fo faster access
+  var src =     init.src        // source buffer
+  var off =     init.off        // source offset
+  var lim =     init.lim        // source limit (exclusive)
 
+  var koff =    init.koff       // key offset
+  var klim =    init.klim       // key limit (exclusive)
+  var tok =     init.tok        // current token/byte being handled
+  var voff =    init.voff       // value start index
+  var vlim =    init.vlim       // current value limit - also the current index searching ahead
+
+  var stack =   init.stack      // ascii codes 91 and 123 for array / object depth
+  var state0 =  init.state      // container context and relative position encoded as an int
+  var vcount =  init.vcount     // number of complete values parsed, such as STR, NUM or OBJ_END, but not counting OBJ_BEG or ARR_BEG.
+
+  var ecode =   null                      // end code (not necessarily an error - depends on settings)
   var state1 = state0   // state1 possibilities are:
                         //    1. state1 = 0;                        unsupported transition
                         //    2. state1 > 0, state1 == state0;      OK, no pending callback
                         //    3. state1 > 0, state1 != state0;      OK, callback pending
-
-  var vcount = 0        // number of complete values parsed, such as STR, NUM or OBJ_END, but not counting OBJ_BEG or ARR_BEG.
 
   // BEG and END signals are the only calls with zero length (where voff === vlim)
   var cb_continue = cb(src, -1, -1, TOK.BEG, vlim, vlim)                      // 'B' - BEGIN parse
@@ -333,9 +351,8 @@ function _tokenize (src, opt, cb) {
 
         case 34:                                  // "    QUOTE
           state1 = states[state0 | tok]
-          vlim = skip_str(src, vlim + 1, lim, 34, 92)
+          vlim = skip_str(src, vlim + 1, lim)
           if (vlim === -1) { vlim = lim; ecode = state1 === 0 ? END.UNEXP_VAL : END.TRUNC_VAL; break main_loop }
-          vlim++    // skip quote
           if (state1 === 0) { ecode = END.UNEXP_VAL; break main_loop }
 
           // key
@@ -405,7 +422,16 @@ function _tokenize (src, opt, cb) {
 
   var info = {
     msg: null,
+    halted: !cb_continue,
     ecode: ecode,
+
+    src: src,           // src, koff, klim... hold the key and value bytes that can be used to recover from truncation.
+    koff: koff,
+    klim: klim,
+    tok: tok,
+    voff: voff,
+    vlim: vlim,
+
     position: new Position(
       vcount,
       vlim - off,
@@ -414,22 +440,16 @@ function _tokenize (src, opt, cb) {
       TCODE_BY_TOK[tok],
       (ecode === END.TRUNC_VAL) ? vlim - voff : 0
     ),
-    src: src,
-    koff: koff,
-    klim: klim,
-    tok: tok,
-    voff: voff,
-    vlim: vlim,
   }
 
-  var more_info = figure_msg_tok(info, opt.incremental)
-  info.msg = more_info.msg
+  var msg_tok = figure_msg_etok(info, opt.incremental)
+  info.msg = msg_tok.msg
 
   if (cb_continue) {
-    cb(src, koff, klim, more_info.etok, voff, vlim, info)
+    cb(src, koff, klim, msg_tok.etok, voff, vlim, info)
   } // else callback was stopped - don't call
 
-  if (more_info.etok === TOK.ERR) {
+  if (msg_tok.etok === TOK.ERR) {
     var err = new Error(info.msg + ' (error.info has details)')
     err.info = info
     throw err
@@ -469,7 +489,7 @@ function clean_up_ecode (src, off, lim, koff, klim, tok, voff, vlim, state0, eco
 }
 
 // figure out end/error message and callback token
-function figure_msg_tok (info, incremental) {
+function figure_msg_etok (info, incremental) {
   var tok_str = info.tok === TOK.NUM ? 'number' : (info.tok === TOK.STR ? 'string' : 'token')
   var val_str = esc_str(info.src, info.voff, info.vlim)
   var msg
