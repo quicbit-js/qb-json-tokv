@@ -114,7 +114,7 @@ test('tokenize - errors', function (t) {
       [ '"\\\\\\"',         [ 'B@0,!5@0: truncated string, first value at 0..4', 'TRUNC_VAL', '0.5/-/bfv/s5' ]                           ],
       [ '[3.05E-2',         [ 'B@0,[@0,!7@1: truncated number, in array first value at 1..7', 'TRUNC_VAL', '0.8/[/bfv/n7' ]              ],
       [ '[3.05E-2,4.',      [ '[@0,N7@1,!2@9: truncated number, in array value at 9..10', 'TRUNC_VAL', '1.11/[/b_v/n2' ]                 ],
-      [ '{"a": t,',         [ 'B@0,{@0,K3@1:!1@6: truncated token, in object value at 6', 'TRUNC_VAL', '0.7/{/b_v/b1' ]                  ],
+      [ '{"a": t,',         [ 'B@0,{@0,K3@1:!1@6: truncated token, in object value at 6', 'TRUNC_VAL', '0.7/{/b_v/b1.2.3' ]                  ],
       [ '{"a',              [ 'B@0,{@0,!2@1: truncated string, in object first key at 1..2', 'TRUNC_VAL', '0.3/{/bfk/s2' ]               ],
 
       // truncated src (not an error in incremental mode)
@@ -216,7 +216,7 @@ test('incremental', function (t) {
       [ '{'                  ,  [ 'B@0,{@0,E@1',               'TRUNC_SRC', '0.1/{/bfk/-' ] ],
       [ '{ "a"'              ,  [ 'B@0,{@0,K3@2:E@5',          'TRUNC_SRC', '0.5/{/a_k/-' ] ],
       [ '{ "a":'             ,  [ 'B@0,{@0,K3@2:E@6',          'TRUNC_SRC', '0.6/{/b_v/-' ] ],
-      [ '{ "a": 9'           ,  [ 'B@0,{@0,K3@2:E@7',          'TRUNC_VAL', '0.8/{/b_v/n1' ] ],
+      [ '{ "a": 9'           ,  [ 'B@0,{@0,K3@2:E@7',          'TRUNC_VAL', '0.8/{/b_v/n1.2.3' ] ],
       [ '{ "a": 93, '        ,  [ '{@0,K3@2:N2@7,E@11',        'TRUNC_SRC', '1.11/{/b_k/-' ] ],
       [ '{ "a": 93, "b'      ,  [ '{@0,K3@2:N2@7,E@11',        'TRUNC_VAL', '1.13/{/b_k/s2' ] ],
       [ '{ "a": 93, "b"'     ,  [ '{@0,K3@2:N2@7,K3@11:E@14',  'TRUNC_SRC', '1.14/{/a_k/-' ] ],

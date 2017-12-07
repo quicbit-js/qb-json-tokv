@@ -309,7 +309,7 @@ function _tokenize (init, opt, cb) {
   var state0 =  init.state      // container context and relative position encoded as an int
   var vcount =  init.vcount     // number of complete values parsed, such as STR, NUM or OBJ_END, but not counting OBJ_BEG or ARR_BEG.
 
-  var ecode =   null                      // end code (not necessarily an error - depends on settings)
+  var ecode =   null            // end code (not necessarily an error - depends on settings)
   var state1 = state0   // state1 possibilities are:
                         //    1. state1 = 0;                        unsupported transition
                         //    2. state1 > 0, state1 == state0;      OK, no pending callback
@@ -424,25 +424,22 @@ function _tokenize (init, opt, cb) {
     msg: null,
     halted: !cb_continue,
     ecode: ecode,
-
     src: src,           // src, koff, klim... hold the key and value bytes that can be used to recover from truncation.
-    koff: koff,
-    klim: klim,
-    tok: tok,
-    voff: voff,
-    vlim: vlim,
-
     position: new Position(
       vcount,
       vlim - off,
       RPOS_BY_INT[state0 & RPOS_MASK],
       stack.map(function (b) { return String.fromCharCode(b) }).join('') || '-',
       TCODE_BY_TOK[tok],
-      (ecode === END.TRUNC_VAL) ? vlim - voff : 0
+      (ecode === END.TRUNC_VAL) ? vlim - voff : 0,
+      (ecode === END.TRUNC_VAL && koff >= 0) ? voff - klim : 0,
+      (ecode === END.TRUNC_VAL && koff >= 0) ? klim - koff : 0
     ),
   }
 
-  var msg_tok = figure_msg_etok(info, opt.incremental)
+  var val_str = esc_str(info.src, voff, vlim)
+  var range = (voff >= vlim - 1) ? voff : voff + '..' + (vlim - 1)
+  var msg_tok = figure_msg_etok(info, tok, val_str, range, opt.incremental)
   info.msg = msg_tok.msg
 
   if (cb_continue) {
@@ -466,14 +463,13 @@ function clean_up_ecode (src, off, lim, koff, klim, tok, voff, vlim, state0, eco
       ecode = END.TRUNC_SRC
     }
   } else if (ecode === END.UNEXP_VAL) {
-    // non-delimiting bytes that follow a number are more clearly reported as unexpected byte instead of unexpected
+    // tokens 'n', 't' and 'f' following a number are more clearly reported as unexpected byte instead of
     // token or value.  we backtrack here to check rather than check in the main_loop.
-    var DELIM = ascii_to_code('{[]},:"', 1)
+    var NON_DELIM = ascii_to_code('ntf', 1)
     if (
       voff > off
       && ALL_NUM_CHARS[src[voff-1]]
-      && !DELIM[src[voff]]
-      && !WHITESPACE[src[voff]]
+      && NON_DELIM[src[voff]]
     ){
       ecode = END.UNEXP_BYTE
     }
@@ -489,9 +485,8 @@ function clean_up_ecode (src, off, lim, koff, klim, tok, voff, vlim, state0, eco
 }
 
 // figure out end/error message and callback token
-function figure_msg_etok (info, incremental) {
-  var tok_str = info.tok === TOK.NUM ? 'number' : (info.tok === TOK.STR ? 'string' : 'token')
-  var val_str = esc_str(info.src, info.voff, info.vlim)
+function figure_msg_etok (info, tok, val_str, range, incremental) {
+  var tok_str = tok === TOK.NUM ? 'number' : (tok === TOK.STR ? 'string' : 'token')
   var msg
   var etok
 
@@ -527,7 +522,6 @@ function figure_msg_etok (info, incremental) {
 
   // enrich msg
   var pos = info.position.description(info.ecode)
-  var range = (info.voff >= info.vlim - 1) ? info.voff : info.voff + '..' + (info.vlim - 1)
   msg += ', ' + pos + ' at ' + range
 
   return { msg: msg, etok: etok }
@@ -535,13 +529,15 @@ function figure_msg_etok (info, incremental) {
 
 // Position represents parse position information - both logical and absolute (bytes).  Format (line and column) is
 // not tracked by Position.
-function Position (vcount, bytes, rpos, stack, tcode, trunc_len) {
+function Position (vcount, bytes, rpos, stack, tcode, vlen, clen, klen) {
   this.vcount = vcount          // number of values parsed.  key-value pairs are considered one value.  ']' and '}' are counted while '[' and '{' are not (still open)
   this.bytes = bytes            // number of bytes parsed
   this.stack = stack            // string of '{' and '[', representing depth and container types
   this.rpos = rpos              // relative position 'bfv' (before first value), 'a_k' (after key) ...
   this.tcode = tcode            // quicbit type-code: 's' = string, 'n' = number, 'N' = null, 'b' = boolean, 'o' = object, 'a' = array
-  this.trunc_len = trunc_len    // length of truncated value, if value was incomplete
+  this.vlen = vlen              // length of truncated value, if value was incomplete
+  this.clen = clen              // length between end of key and start of value (or zero if no key)
+  this.klen = klen              // length of key
 }
 
 Position.prototype = {
@@ -553,8 +549,14 @@ Position.prototype = {
   in_arr: function () { return this.stack[this.stack.length - 1] === '[' },
   in_obj: function () { return this.stack[this.stack.length - 1] === '{' },
   toString: function () {
-    var truncstr = this.trunc_len ? this.tcode + this.trunc_len : '-'
-    return this.vcount + '.' + this.bytes + '/' + this.stack + '/' + this.rpos + '/' + truncstr
+    var tstr = '-'
+    if (this.vlen) {
+      tstr = this.tcode + this.vlen
+      if (this.klen) {
+        tstr += '.' + this.clen + '.' + this.klen
+      }
+    }
+    return this.vcount + '.' + this.bytes + '/' + this.stack + '/' + this.rpos + '/' + tstr
   }
 }
 

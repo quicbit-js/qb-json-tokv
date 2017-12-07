@@ -432,17 +432,26 @@ Begin and end state is encoded in a concise path-like format.  For JSON packets,
 Those dashes at the end are truncated value information.  If parsing stopped inside an object key, 6 bytes into the string in
 the first packet and then continued in the next packet, the begin state might look like this:
     
-    begin:   2/3.530/0.00/{[{/bfk/s6    
+    begin:   2/3.530/0.00/{[{/bfk/k6    
              
         = packet 2, ..., before-first-key, within the key string of 6 bytes (including start quote)
         
 If that same packet ended 2 bytes into a number in an array (which may or may not have continuing bytes), the end state might
 look like this:
         
-    end:     2/3.530/0.00/{[/b_v/n2            
+    end:     2/3.530/0.00/{[/b_v/n2           
      
         = packet 2, ..., before-value, ended unfinished on a number of 2 bytes (so far)
-    
+        
+A truncated value in an object will also record the key offsets using reverse-offset length notation:
+
+    begin:    4/15.184/0.0/{[{/b_v/n3.2.5
+  
+        = packet 4, ..., before-value, unfinished number of 3 bytes *preceded* by separator of 2 bytes (e.g. ': ')
+            *preceded* by a key of length 5
+            
+        We use reverse offset lengths (from the end of the buffer) for truncations because they can be easier to
+        read and more concise.
     
 The parts of the packet can be divided into 2 - the multi-packet totals (left side), and the single-packet state
 (right side).  qb-json-tokv generates the right-hand side.  Incremental parsers that leverage this handy feature,
@@ -472,15 +481,16 @@ may prepend the left side totals as well to create the complete packet state (in
                      |      | |             | |     |   |     |truncated length (if truncated)
                      |      | |             | |     |   |     ||
     begin 1          1 /    0.0      /      0.0 /   - / bfv / -          before-first-value (no context)
-    end   1          1 /   3.53      /     3.53 / {[{ / bfk / s6         before-first-key, inside a truncated key (string) of 6 bytes
+    end   1          1 /   3.53      /     3.53 / {[{ / bfk / k6         before-first-key, inside a truncated key of 6 bytes
                                                                         
-    begin 2          2 /   3.53      /      0.0 / {[{ / bfk / s6         key (string) continued (6 bytes are in the previous packet)
+    begin 2          2 /   3.53      /      0.0 / {[{ / bfk / k6         key continued (6 bytes are in the previous packet)
     end   2          2 /  8.103      /     5.50 /  {[ / b_v / n2         before-value, a number in an array is truncated at length 2
                                                                         
     begin 3          3 /  8.103      /     0.00 /  {[ / b_v / n2         before-value, the number continues from previous packet (at byte 3)
-    end   3          3 / 15.184      /     7.81 /  {[ / bfv / -          before-value (parsing ends expecting the first value in an array)
+    end   3          3 / 15.184      /     7.81 / {[{ / b_v / n3.2.5     before-value, in an object.  n3.2.5 shows the 
+                                                                            number and key offset for the pending key
                                                                         
-    begin 4          4 / 15.184      /      0.0 /  {[ / bfv / -          packet 4 begins expecting the first value of an array
+    begin 4          4 / 15.184      /      0.0 / {[{ / b_v / n3.2.5     packet 4 begins expecting to continue the number in the prior packet
     end   4          4 / 18.193      /      3.9 /   - / a_v / -          clean end state
     
     State holds "single packet state", plus any unfinished "truncated" value that may be needed
