@@ -415,88 +415,71 @@ end state which indicates the precise parse starting and ending point of a packe
 able to start and end parsing at any point, even across split values (allowing split values
 in packages is configurable).
 
-### Begin and End State
+### Packet State (single packet)
 
-Begin and end state is encoded in a concise path-like format.  For JSON packets, a state string might look like this:
+Begin and end state is encoded in a concise path-like format.  For a series of JSON packets, a packet may
+begin and end with the states
+
+
+    begin:     0/0/{[{/bfv/-
+    end:      5/50/{[/a_k/n2
     
-    begin: "2/3.53/0.0/{[/bfv/-"
-      
-        = packet 2, 3rd value,  53rd byte, 0th packet value,  0th byte, 
-            inside object then array, before-first-value
+meaning begin with:
+                        
+    0           0 values processed, 
+    0           0 bytes processed,
+    {[{         inside object, then array, then object, 
+    bfv         located before-first-value,
+    -           no truncated value preceded this point
+        
+and ending with:
     
-    end:   "2/8.103/5.50/{[{/ak/-"
-      
-        = packet 2, 8th value, 103rd byte, 5th packet value, 50th byte, 
-            inside object then array then object, after-key
+    5           5 values processed,
+    50          50 bytes processed, 
+    {[          inside object then array, 
+    b_v         located before-value,
+    n2          a number value of 2 bytes ends the packet (truncated value)
+
+        
+Those are state representations with no prescient knowledge of updoming counts.   
+If total counts are known, colon-values may be used to show 'out-of' total packet counts as in
     
-Those dashes at the end are truncated value information.  If parsing stopped inside an object key, 6 bytes into the string in
-the first packet and then continued in the next packet, the begin state might look like this:
+    0:5         0 out of 5 total values
+    0:50        0 out of 50 total bytes
     
-    begin:   2/3.530/0.00/{[{/bfk/k6    
+Which in the state string looks like this:
+    
+    0:5/0:50/{[/bfv/-
+                
+### Packet State (series)
+
+A series of packets prepends two comma-delimited sections to the packet single information described
+above.  These sections track totals and context in the packet series.
+        
+    2, 3/53, 0:5/0:50/{[{/bfv/k6             (whitespace is for clarity, no whitespace is normally used)
+
+    packet series:          
              
-        = packet 2, ..., before-first-key, within the key string of 6 bytes (including start quote)
-        
-If that same packet ended 2 bytes into a number in an array (which may or may not have continuing bytes), the end state might
-look like this:
-        
-    end:     2/3.530/0.00/{[/b_v/n2           
-     
-        = packet 2, ..., before-value, ended unfinished on a number of 2 bytes (so far)
-        
-A truncated value in an object will also record the key offsets using reverse-offset length notation:
+    2           2nd packet 
+    3           3rd total value (in packet series)
+    53          53rd total byte (in packet series)
 
-    begin:    4/15.184/0.0/{[{/b_v/n3.2.5
-  
-        = packet 4, ..., before-value, unfinished number of 3 bytes *preceded* by separator of 2 bytes (e.g. ': ')
-            *preceded* by a key of length 5
-            
-        We use reverse offset lengths (from the end of the buffer) for truncations because they can be easier to
-        read and more concise.
     
-The parts of the packet can be divided into 2 - the multi-packet totals (left side), and the single-packet state
-(right side).  qb-json-tokv generates the right-hand side.  Incremental parsers that leverage this handy feature,
-may prepend the left side totals as well to create the complete packet state (in context of a packet stream).
+    packet:
     
+    0:5         0 out of 5 values processed 
+    ...
+    k6          truncated key (6 bytes) preceded this packet
+
     
-            multi-packet state      |         single packet state
-            
-            
-    
-                     packet-number (starts at 1)
-                     |
-                     |      total-value-count
-                     |      |
-                     |      | total-byte-count
-                     |      | |
-                     |      | |             value-count ( within the packet )
-                     |      | |             |
-                     |      | |             | byte-count ( within packet )
-                     |      | |             | |
-                     |      | |             | |     stack (array and object depth)
-                     |      | |             | |     |
-                     |      | |             | |     |   position (before-value, after-key, etc)
-                     |      | |             | |     |   |
-                     |      | |             | |     |   |     truncated type (- = no truncation, s = string, n = number...)
-                     |      | |             | |     |   |     |
-                     |      | |             | |     |   |     |truncated length (if truncated)
-                     |      | |             | |     |   |     ||
-    begin 1          1 /    0.0      /      0.0 /   - / bfv / -          before-first-value (no context)
-    end   1          1 /   3.53      /     3.53 / {[{ / bfk / k6         before-first-key, inside a truncated key of 6 bytes
-                                                                        
-    begin 2          2 /   3.53      /      0.0 / {[{ / bfk / k6         key continued (6 bytes are in the previous packet)
-    end   2          2 /  8.103      /     5.50 /  {[ / b_v / n2         before-value, a number in an array is truncated at length 2
-                                                                        
-    begin 3          3 /  8.103      /     0.00 /  {[ / b_v / n2         before-value, the number continues from previous packet (at byte 3)
-    end   3          3 / 15.184      /     7.81 / {[{ / b_v / n3.2.5     before-value, in an object.  n3.2.5 shows the 
-                                                                            number and key offset for the pending key
-                                                                        
-    begin 4          4 / 15.184      /      0.0 / {[{ / b_v / n3.2.5     packet 4 begins expecting to continue the number in the prior packet
-    end   4          4 / 18.193      /      3.9 /   - / a_v / -          clean end state
-    
-    State holds "single packet state", plus any unfinished "truncated" value that may be needed
-    to process the next packet.
-    The "multi packet state" is managed outside of this module (by the caller that is calling this function
-    across multiple buffers).
-    Note that the toString() returns the canonical State string, which shows exact parse state, but does not
-    include the state value.
+As with local packet counts, colons may be used to indicate 'out-of' totals:
+        
+    2:4, 3:18/53:193, 0:5/0:50/{[/bfv/k6    (whitespace is for clarity, no whitespace is normally used)
+                   
+    packet series:          
+             
+    2:4         2nd packet out of 4 total
+    3:18        3rd value out of 18 in packet series
+    53:193      53rd byte out of 193 in packet series
+    ...
     

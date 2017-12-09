@@ -428,6 +428,7 @@ function _tokenize (init, opt, cb) {
     position: new Position(
       vcount,
       vlim - off,
+      lim - off,
       RPOS_BY_INT[state0 & RPOS_MASK],
       stack.map(function (b) { return String.fromCharCode(b) }).join('') || '-',
       TCODE_BY_TOK[tok],
@@ -529,9 +530,10 @@ function figure_msg_etok (info, tok, val_str, range, incremental) {
 
 // Position represents parse position information - both logical and absolute (bytes).  Format (line and column) is
 // not tracked by Position.
-function Position (vcount, bytes, rpos, stack, tcode, vlen, clen, klen) {
+function Position (vcount, bytes, bytes_t, rpos, stack, tcode, vlen, clen, klen) {
   this.vcount = vcount          // number of values parsed.  key-value pairs are considered one value.  ']' and '}' are counted while '[' and '{' are not (still open)
   this.bytes = bytes            // number of bytes parsed
+  this.tbytes = bytes_t                // total number of bytes to parse
   this.stack = stack            // string of '{' and '[', representing depth and container types
   this.rpos = rpos              // relative position 'bfv' (before first value), 'a_k' (after key) ...
   this.tcode = tcode            // quicbit type-code: 's' = string, 'n' = number, 'N' = null, 'b' = boolean, 'o' = object, 'a' = array
@@ -553,10 +555,11 @@ Position.prototype = {
     if (this.vlen) {
       trunc_Str = this.tcode + this.vlen
       if (this.klen) {
-        trunc_Str += '.' + this.clen + '.' + this.klen
+        trunc_Str += ':' + this.clen + ':' + this.klen
       }
     }
-    return this.vcount + '.' + this.bytes + '/' + this.stack + '/' + this.rpos + '/' + trunc_Str
+    var bytes = this.tbytes === -1 ? this.bytes : this.bytes + ':' + this.tbytes
+    return this.vcount + '/' + bytes + '/' + this.stack + '/' + this.rpos + '/' + trunc_Str
   }
 }
 
