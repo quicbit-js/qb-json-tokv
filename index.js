@@ -258,14 +258,13 @@ function init_from_prev(src, off, lim, prev, cb) {
 function init_defaults (src, off, lim) {
   return {
     src:      src,
-    off:      off,
+    off:      off,    // current parse offset
     lim:      lim,
 
     koff:     -1,
     klim:     -1,
     tok:      0,
     voff:     off,
-    vlim:     off,
 
     stack:    [],
     state:    RPOS.bfv,
@@ -296,19 +295,19 @@ function _tokenize (init, opt, cb) {
 
   // localized init fo faster access
   var src =     init.src        // source buffer
-  var off =     init.off        // source offset
+  var off =     init.off        // starting offset
   var lim =     init.lim        // source limit (exclusive)
 
   var koff =    init.koff       // key offset
   var klim =    init.klim       // key limit (exclusive)
   var tok =     init.tok        // current token/byte being handled
   var voff =    init.voff       // value start index
-  var vlim =    init.vlim       // current value limit - also the current index searching ahead
 
   var stack =   init.stack      // ascii codes 91 and 123 for array / object depth
   var state0 =  init.state      // container context and relative position encoded as an int
   var vcount =  init.vcount     // number of complete values parsed, such as STR, NUM or OBJ_END, but not counting OBJ_BEG or ARR_BEG.
 
+  var idx =    off              // current source offset
   var ecode =   null            // end code (not necessarily an error - depends on settings)
   var state1 = state0   // state1 possibilities are:
                         //    1. state1 = 0;                        unsupported transition
@@ -316,16 +315,16 @@ function _tokenize (init, opt, cb) {
                         //    3. state1 > 0, state1 != state0;      OK, callback pending
 
   // BEG and END signals are the only calls with zero length (where voff === vlim)
-  var cb_continue = cb(src, -1, -1, TOK.BEG, vlim, vlim)                      // 'B' - BEGIN parse
+  var cb_continue = cb(src, -1, -1, TOK.BEG, idx, idx)                      // 'B' - BEGIN parse
   if (cb_continue) {
     // breaking main_loop before vlim == lim means callback returned falsey or we have an error
-    main_loop: while (vlim < lim) {
-      voff = vlim
+    main_loop: while (idx < lim) {
+      voff = idx
       tok = src[voff]
       switch (tok) {
         case 8: case 9: case 10: case 12: case 13: case 32:
-          if (whitespace[src[++vlim]] && vlim < lim) {
-            while (whitespace[src[++vlim]] === 1 && vlim < lim) {}
+          if (whitespace[src[++idx]] && idx < lim) {
+            while (whitespace[src[++idx]] === 1 && idx < lim) {}
           }
           continue
 
@@ -334,7 +333,7 @@ function _tokenize (init, opt, cb) {
         case 44:                                  // ,    COMMA
         case 58:                                  // :    COLON
           state1 = states[state0 | tok]
-          vlim++
+          idx++
           if (state1 === 0) { ecode = END.UNEXP_VAL; break main_loop }
           state0 = state1
           continue
@@ -342,23 +341,23 @@ function _tokenize (init, opt, cb) {
         case 102:                                 // f    false
         case 110:                                 // n    null
         case 116:                                 // t    true
-          vlim = skip_bytes(src, vlim, lim, tok_bytes[tok])
+          idx = skip_bytes(src, idx, lim, tok_bytes[tok])
           state1 = states[state0 | tok]
-          if (vlim <= 0) { vlim = -vlim; ecode = state1 === 0 ? END.UNEXP_VAL : END.TRUNC_VAL; break main_loop }
+          if (idx <= 0) { idx = -idx; ecode = state1 === 0 ? END.UNEXP_VAL : END.TRUNC_VAL; break main_loop }
           if (state1 === 0) { ecode = END.UNEXP_VAL; break main_loop }
           vcount++
           break
 
         case 34:                                  // "    QUOTE
           state1 = states[state0 | tok]
-          vlim = skip_str(src, vlim + 1, lim)
-          if (vlim === -1) { vlim = lim; ecode = state1 === 0 ? END.UNEXP_VAL : END.TRUNC_VAL; break main_loop }
+          idx = skip_str(src, idx + 1, lim)
+          if (idx === -1) { idx = lim; ecode = state1 === 0 ? END.UNEXP_VAL : END.TRUNC_VAL; break main_loop }
           if (state1 === 0) { ecode = END.UNEXP_VAL; break main_loop }
 
           // key
           if ((state1 & rpos_mask) === after_key) {
             koff = voff
-            klim = vlim
+            klim = idx
             state0 = state1
             continue
           }
@@ -370,16 +369,16 @@ function _tokenize (init, opt, cb) {
         case 45:                                   // '-'   ('+' is not legal here)
           state1 = states[state0 | tok]
           tok = 78                                // N  Number
-          while (all_num_chars[src[++vlim]] === 1 && vlim < lim) {}
+          while (all_num_chars[src[++idx]] === 1 && idx < lim) {}
           if (state1 === 0) { ecode = END.UNEXP_VAL; break main_loop }
-          if (vlim === lim) { ecode = END.TRUNC_VAL; break main_loop }  // *might* be truncated - flag it here and handle below
+          if (idx === lim) { ecode = END.TRUNC_VAL; break main_loop }  // *might* be truncated - flag it here and handle below
           vcount++
           break
 
         case 91:                                  // [    ARRAY START
         case 123:                                 // {    OBJECT START
           state1 = states[state0 | tok]
-          vlim++
+          idx++
           if (state1 === 0) { ecode = END.UNEXP_VAL; break main_loop }
           stack.push(tok)
           break
@@ -387,7 +386,7 @@ function _tokenize (init, opt, cb) {
         case 93:                                  // ]    ARRAY END
         case 125:                                 // }    OBJECT END
           state1 = states[state0 | tok]
-          vlim++
+          idx++
           if (state1 === 0) { ecode = END.UNEXP_VAL; break main_loop }
           stack.pop()
           // state1 context is unset after closing brace (see state map).  we set it here.
@@ -396,12 +395,12 @@ function _tokenize (init, opt, cb) {
           break
 
         default:
-          vlim++
+          idx++
           ecode = END.UNEXP_BYTE          // no legal transition for this token
           break main_loop
       }
       // clean transition was made from state0 to state1
-      cb_continue = cb(src, koff, klim, tok, voff, vlim, null)
+      cb_continue = cb(src, koff, klim, tok, voff, idx, null)
       if (state0 & in_obj) {
         koff = -1
         klim = -1
@@ -415,9 +414,9 @@ function _tokenize (init, opt, cb) {
   }
 
   // check and clarify end state (before handling end state)
-  ecode = clean_up_ecode(src, off, lim, koff, klim, tok, voff, vlim, state0, ecode, cb)
+  ecode = clean_up_ecode(src, off, lim, koff, klim, tok, voff, idx, state0, ecode, cb)
   if (ecode === null || ecode === END.DONE || ecode === END.CLEAN_STOP || ecode === END.TRUNC_SRC) {
-    voff = vlim    // wipe out phantom value
+    voff = idx    // wipe out phantom value
   }
 
   var info = {
@@ -427,24 +426,24 @@ function _tokenize (init, opt, cb) {
     src: src,           // src, koff, klim... hold the key and value bytes that can be used to recover from truncation.
     position: new Position(
       vcount,
-      vlim - off,
+      idx - off,
       lim - off,
       RPOS_BY_INT[state0 & RPOS_MASK],
       stack.map(function (b) { return String.fromCharCode(b) }).join('') || '-',
       TCODE_BY_TOK[tok],
-      (ecode === END.TRUNC_VAL) ? vlim - voff : 0,
+      (ecode === END.TRUNC_VAL) ? idx - voff : 0,
       (ecode === END.TRUNC_VAL && koff >= 0) ? voff - klim : 0,
       (ecode === END.TRUNC_VAL && koff >= 0) ? klim - koff : 0
     ),
   }
 
-  var val_str = esc_str(info.src, voff, vlim)
-  var range = (voff >= vlim - 1) ? voff : voff + '..' + (vlim - 1)
+  var val_str = esc_str(info.src, voff, idx)
+  var range = (voff >= idx - 1) ? voff : voff + '..' + (idx - 1)
   var msg_tok = figure_msg_etok(info, tok, val_str, range, opt.incremental)
   info.msg = msg_tok.msg
 
   if (cb_continue) {
-    cb(src, koff, klim, msg_tok.etok, voff, vlim, info)
+    cb(src, koff, klim, msg_tok.etok, voff, idx, info)
   } // else callback was stopped - don't call
 
   if (msg_tok.etok === TOK.ERR) {
