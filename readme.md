@@ -421,65 +421,99 @@ Begin and end state is encoded in a concise path-like format.  For a series of J
 begin and end with the states
 
 
-    begin:     0/0/{[{/bfv/-
-    end:      5/50/{[/a_k/n2
+    begin:     0/0/{[{-
+    end:       50/5/{[2
     
-meaning begin with:
+meaning packet begins with:
                         
-    0           0 values processed, 
-    0           0 bytes processed,
-    {[{         inside object, then array, then object, 
-    bfv         located before-first-value,
-    -           no truncated value preceded this point
+    0           0 bytes processed
+    0           0 values processed 
+    {[{-        inside object, then array, then object, before the first key
         
 and ending with:
     
-    5           5 values processed,
-    50          50 bytes processed, 
-    {[          inside object then array, 
-    b_v         located before-value,
-    n2          a number value of 2 bytes ends the packet (truncated value)
+    50          50 bytes processed 
+    5           5 values processed
+    {[2         inside object then array within a truncated value 2 bytes long
+    
+The brackets, -, and number string is known as the **parse state** and is explained in detail below
 
-        
+#### Parse State ####
+
+Open brackets, digits, + and minus are used to describe the precise **parse state**.  The format is designed to
+look similar to the object and value formats themselves which allows them to be both concise and familiar, and
+somewhat intuitive.
+
+clean array states (2 values)
+
+    -                           start parsing.
+    [-                          array start. expecting value or array-end
+    [.                          value done.  expecting comma or array-end
+    [+                          got comma, expecting value
+    [.                          value done.  expecting comma or array-end
+    .                           array done, expecting comma or end-of-input
+
+clean object states (2 key-value pairs)
+
+    -                           start parsing.
+    {-                          object start. expecting key-value or object-end
+    {.                          key-value done.  expecting comma or object-end
+    {+                          got comma, expecting key-value
+    {.                          key-value done.  expecting comma or object-end
+    .                           object done, expecting comma or end-of-input
+   
+truncated array states:
+
+    [v                          truncated value (v bytes long, v > 0)
+    
+truncated and split key-value states (no whitespace):
+    
+    {k                          key truncated at k bytes, k > 0)
+    {k:                         key k bytes, colon, (no value)
+    {k:v                        key k bytes, colon, value (truncated at v bytes, v > 0)
+
+truncated and split key-value states (with whitespace):
+    
+    {k.w                        key (k bytes) followed by w bytes of whitespace, k > 0, w > 0
+    {k.w:                       key (k bytes), w bytes of whitespace, colon *
+    {k.w:v                      key (k bytes), w bytes of whitespace, colon *, and value (truncated at v bytes)
+    
+    * whitespace may be before and/or after colon
+
+
+Examples   
+
+    -               just starting.  nothing parsed.
+    .               parsed one or more values, expecting end-of-input (or comma for csv values) 
+
+    [{-             inside array then object, expecting first key or object end
+    [{+             inside array then object, before a key-value pair, expecting a key
+    [{.             inside array then object, after a value, expecting a comma or object end
+    [{4.3:          inside array then object, 4 byte key followed by 3 whitespace and colon           
+    [{4.3:          inside array then object, 4 byte key followed by 3 whitespace and colon
+    [{4.3:7         inside array then object, 4 byte key followed by 3 whitespace and colon, truncated 7 byte value
+    
+    {[+             inside object then array, expecting a value
+    {[3             inside object then array, truncated 3 byte value
+    
+   
+
+### Packet Series ###
+    
+A series of packets prepends two comma-delimited sections to the packet single information described
+above.  These sections track context counts and parsing state for split buffers.  Parse state handling
+is designed to handle any-length key or value such as very large strings, that span packets without 
+requiring data to be accumulated in memory.
+
+            
 Those are state representations with no prescient knowledge of updoming counts.   
-If total counts are known, colon-values may be used to show 'out-of' total packet counts as in
+If total counts are known, colon-values may be used to show 'out-of' totals as in
     
     0:5         0 out of 5 total values
     0:50        0 out of 50 total bytes
     
 Which in the state string looks like this:
     
-    0:5/0:50/{[/bfv/-
-                
-### Packet State (series)
+    0:5/0:50/{[/-
 
-A series of packets prepends two comma-delimited sections to the packet single information described
-above.  These sections track totals and context in the packet series.
-        
-    2, 3/53, 0:5/0:50/{[{/bfv/k6             (whitespace is for clarity, no whitespace is normally used)
-
-    packet series:          
-             
-    2           2nd packet 
-    3           3rd total value (in packet series)
-    53          53rd total byte (in packet series)
-
-    
-    packet:
-    
-    0:5         0 out of 5 values processed 
-    ...
-    k6          truncated key (6 bytes) preceded this packet
-
-    
-As with local packet counts, colons may be used to indicate 'out-of' totals:
-        
-    2:4, 3:18/53:193, 0:5/0:50/{[/bfv/k6    (whitespace is for clarity, no whitespace is normally used)
-                   
-    packet series:          
-             
-    2:4         2nd packet out of 4 total
-    3:18        3rd value out of 18 in packet series
-    53:193      53rd byte out of 193 in packet series
-    ...
     
