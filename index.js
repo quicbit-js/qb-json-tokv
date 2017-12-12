@@ -561,10 +561,12 @@ Position.prototype = {
     var ret = this.stack.map(function (b) { return String.fromCharCode(b) }).join('')
     var in_obj = this.in_obj
     var kstr = ''
+    var ws = ''
     if (this.koff !== -1) {
       var klen = this.klim - this.koff
-      var ws = this.voff - this.klim - 1
-      kstr = klen + (ws > 0 ? '.' + ws : '')
+      var wslen = this.voff - this.klim - 1
+      if (wslen > 0) { ws = '.' + wslen }
+      kstr = klen + ws
     }
 
     if (this.truncated ) {
@@ -596,7 +598,7 @@ Position.prototype = {
           ret += '.'
           break
         case RPOS.a_k:
-          ret += kstr
+          ret += kstr + '.' + ws
           break
         case RPOS.b_v:
           ret += in_obj ? (kstr + ':') : '+'
@@ -608,12 +610,9 @@ Position.prototype = {
     return ret
   },
   toString: function () {
+    var bytes = this.vlim - this.off
     var tbytes = this.lim - this.off
-    var bytestr = String(this.vlim - this.off)
-    if (tbytes > 0) {
-      bytestr += ':' + tbytes
-    }
-    return this.vcount + '/' + bytestr + '/' + this.parse_state
+    return this.vcount + '/' + bytes + ':' + tbytes + '/' + this.parse_state
   }
 }
 

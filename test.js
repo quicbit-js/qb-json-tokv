@@ -81,47 +81,47 @@ test('tokenize', function (t) {
   )
 })
 
-test.only('tokenize - errors', function (t) {
+test('tokenize - errors', function (t) {
   t.tableAssert(
     [
       [ 'input',            'exp' ],
 
       // truncated values / keys (not an error in incremental mode)
-      // [ 'fal',              [ 'B@0,!3@0: truncated token, first value at 0..2', 'TRUNC_VAL', '0/3:3/3' ]                            ],
-      // [ '"ab',              [ 'B@0,!3@0: truncated string, first value at 0..2', 'TRUNC_VAL', '0/3:3/3' ]                           ],
-      // [ '"ab:',             [ 'B@0,!4@0: truncated string, first value at 0..3', 'TRUNC_VAL', '0/4:4/4' ]                           ],
-      // [ '"\\\\\\"',         [ 'B@0,!5@0: truncated string, first value at 0..4', 'TRUNC_VAL', '0/5:5/5' ]                           ],
-      // [ '[3.05E-2',         [ 'B@0,[@0,!7@1: truncated number, in array first value at 1..7', 'TRUNC_VAL', '0/8:8/[7' ]              ],
-      // [ '[3.05E-2,4.',      [ '[@0,N7@1,!2@9: truncated number, in array value at 9..10', 'TRUNC_VAL', '1/11:11/[2' ]                 ],
+      [ 'fal',              [ 'B@0,!3@0: truncated token, first value at 0..2', 'TRUNC_VAL', '0/3:3/3' ]                            ],
+      [ '"ab',              [ 'B@0,!3@0: truncated string, first value at 0..2', 'TRUNC_VAL', '0/3:3/3' ]                           ],
+      [ '"ab:',             [ 'B@0,!4@0: truncated string, first value at 0..3', 'TRUNC_VAL', '0/4:4/4' ]                           ],
+      [ '"\\\\\\"',         [ 'B@0,!5@0: truncated string, first value at 0..4', 'TRUNC_VAL', '0/5:5/5' ]                           ],
+      [ '[3.05E-2',         [ 'B@0,[@0,!7@1: truncated number, in array first value at 1..7', 'TRUNC_VAL', '0/8:8/[7' ]              ],
+      [ '[3.05E-2,4.',      [ '[@0,N7@1,!2@9: truncated number, in array value at 9..10', 'TRUNC_VAL', '1/11:11/[2' ]                 ],
       [ '{"a": t,',         [ 'B@0,{@0,K3@1:!1@6: truncated token, in object value at 6', 'TRUNC_VAL', '0/7:8/{3.1:1' ]                  ],
       [ '{"a',              [ 'B@0,{@0,!2@1: truncated string, in object first key at 1..2', 'TRUNC_VAL', '0/3:3/{2' ]               ],
 
-      // // unexpected bytes
-      // [ '0*',               [ 'B@0,N1@0,!1@1: unexpected byte "*", after value at 1', 'UNEXP_BYTE', '1/2:2/.' ]                      ],
-      // [ '{"a":3^6}',        [ '{@0,K3@1:N1@5,!1@6: unexpected byte "^", in object after value at 6', 'UNEXP_BYTE', '1/7:9/{.' ]       ],
-      // [ ' 1f',              [ 'B@0,N1@1,!1@2: unexpected byte "f", after value at 2', 'UNEXP_BYTE', '1/3:3/.' ]                      ],
-      // [ '1,2n',             [ 'N1@0,N1@2,!1@3: unexpected byte "n", after value at 3', 'UNEXP_BYTE', '2/4:4/.' ]                     ],
-      //
-      // // unexpected values
-      // [ '"a""b"',           [ 'B@0,S3@0,!3@3: unexpected string "b", after value at 3..5', 'UNEXP_VAL', '1/6:6/.' ]                  ],
-      // [ '{"a""b"}',         [ 'B@0,{@0,K3@1:!3@4: unexpected string "b", in object after key at 4..6', 'UNEXP_VAL', '0/7:8/{/a_k/-' ]      ],
-      // [ '{"a"::',           [ 'B@0,{@0,K3@1:!1@5: unexpected token ":", in object before value at 5', 'UNEXP_VAL', '0/6:6/{/b_v/-' ]       ],
-      // [ '0{',               [ 'B@0,N1@0,!1@1: unexpected token "{", after value at 1', 'UNEXP_VAL', '1/2:2/.' ]                      ],
-      // [ '{ false:',         [ 'B@0,{@0,!5@2: unexpected token "false", in object before first key at 2..6', 'UNEXP_VAL', '0/7:8/{/bfk/-' ] ],
-      // [ '{ fal',            [ 'B@0,{@0,!3@2: unexpected token "fal", in object before first key at 2..4', 'UNEXP_VAL', '0/5:5/{/bfk/-' ]   ],
-      // [ '{ fal:',           [ 'B@0,{@0,!3@2: unexpected token "fal", in object before first key at 2..4', 'UNEXP_VAL', '0/5:6/{/bfk/-' ]   ],
-      // [ '{"a": "b", 3: 4}', [ '{@0,K3@1:S3@6,!1@11: unexpected number 3, in object before key at 11', 'UNEXP_VAL', '1/12:16/{/b_k/-' ]      ],
-      // [ '{ 2.4 ]',          [ 'B@0,{@0,!3@2: unexpected number 2.4, in object before first key at 2..4', 'UNEXP_VAL', '0/5:7/{/bfk/-' ]    ],
-      // [ '{ "a" ]',          [ 'B@0,{@0,K3@2:!1@6: unexpected token "]", in object after key at 6', 'UNEXP_VAL', '0/7:7/{/a_k/-' ]          ],
-      // // unexpected token has precidence over truncation (be relatively optimistic about truncation)
-      // [ '[ 1, 2 ] "c',      [ 'N1@5,]@7,!2@9: unexpected string "c, after value at 9..10', 'UNEXP_VAL', '3/11:11/.' ]                 ],
-      // [ '[ 1, 2 ] "c"',     [ 'N1@5,]@7,!3@9: unexpected string "c", after value at 9..11', 'UNEXP_VAL', '3/12:12/.' ]                ],
-      //
-      // // truncated src (not an error in incremental mode)
-      // [ '{"a" : ',          [ 'B@0,{@0,K3@1:!0@7: truncated input, in object before value at 7', 'TRUNC_SRC', '0/7:7/{/b_v/-' ]            ],
-      // [ '{"a"',             [ 'B@0,{@0,K3@1:!0@4: truncated input, in object after key at 4', 'TRUNC_SRC', '0/4:4/{/a_k/-' ]               ],
-      // [ '{"a" ',            [ 'B@0,{@0,K3@1:!0@5: truncated input, in object after key at 5', 'TRUNC_SRC', '0/5:5/{/a_k/-' ]               ],
-      // [ '[1, 2, ',          [ 'N1@1,N1@4,!0@7: truncated input, in array before value at 7', 'TRUNC_SRC', '2/7:7/[/b_v/-' ]                ],
+      // unexpected bytes
+      [ '0*',               [ 'B@0,N1@0,!1@1: unexpected byte "*", after value at 1', 'UNEXP_BYTE', '1/2:2/.' ]                      ],
+      [ '{"a":3^6}',        [ '{@0,K3@1:N1@5,!1@6: unexpected byte "^", in object after value at 6', 'UNEXP_BYTE', '1/7:9/{.' ]       ],
+      [ ' 1f',              [ 'B@0,N1@1,!1@2: unexpected byte "f", after value at 2', 'UNEXP_BYTE', '1/3:3/.' ]                      ],
+      [ '1,2n',             [ 'N1@0,N1@2,!1@3: unexpected byte "n", after value at 3', 'UNEXP_BYTE', '2/4:4/.' ]                     ],
+
+      // unexpected values
+      [ '"a""b"',           [ 'B@0,S3@0,!3@3: unexpected string "b", after value at 3..5', 'UNEXP_VAL', '1/6:6/.' ]                  ],
+      [ '{"a""b"}',         [ 'B@0,{@0,K3@1:!3@4: unexpected string "b", in object after key at 4..6', 'UNEXP_VAL', '0/7:8/{3.' ]      ],
+      [ '{"a"::',           [ 'B@0,{@0,K3@1:!1@5: unexpected token ":", in object before value at 5', 'UNEXP_VAL', '0/6:6/{3:' ]       ],
+      [ '0{',               [ 'B@0,N1@0,!1@1: unexpected token "{", after value at 1', 'UNEXP_VAL', '1/2:2/.' ]                      ],
+      [ '{ false:',         [ 'B@0,{@0,!5@2: unexpected token "false", in object before first key at 2..6', 'UNEXP_VAL', '0/7:8/{-' ] ],
+      [ '{ fal',            [ 'B@0,{@0,!3@2: unexpected token "fal", in object before first key at 2..4', 'UNEXP_VAL', '0/5:5/{-' ]   ],
+      [ '{ fal:',           [ 'B@0,{@0,!3@2: unexpected token "fal", in object before first key at 2..4', 'UNEXP_VAL', '0/5:6/{-' ]   ],
+      [ '{"a": "b", 3: 4}', [ '{@0,K3@1:S3@6,!1@11: unexpected number 3, in object before key at 11', 'UNEXP_VAL', '1/12:16/{+' ]      ],
+      [ '{ 2.4 ]',          [ 'B@0,{@0,!3@2: unexpected number 2.4, in object before first key at 2..4', 'UNEXP_VAL', '0/5:7/{-' ]    ],
+      [ '{ "a" ]',          [ 'B@0,{@0,K3@2:!1@6: unexpected token "]", in object after key at 6', 'UNEXP_VAL', '0/7:7/{3' ]          ],
+      // unexpected token has precidence over truncation (be relatively optimistic about truncation)
+      [ '[ 1, 2 ] "c',      [ 'N1@5,]@7,!2@9: unexpected string "c, after value at 9..10', 'UNEXP_VAL', '3/11:11/.' ]                 ],
+      [ '[ 1, 2 ] "c"',     [ 'N1@5,]@7,!3@9: unexpected string "c", after value at 9..11', 'UNEXP_VAL', '3/12:12/.' ]                ],
+
+      // truncated src (not an error in incremental mode)
+      [ '{"a" : ',          [ 'B@0,{@0,K3@1:!0@7: truncated input, in object before value at 7', 'TRUNC_SRC', '0/7:7/{3.2:' ]            ],
+      [ '{"a"',             [ 'B@0,{@0,K3@1:!0@4: truncated input, in object after key at 4', 'TRUNC_SRC', '0/4:4/{3.' ]               ],
+      [ '{"a" ',            [ 'B@0,{@0,K3@1:!0@5: truncated input, in object after key at 5', 'TRUNC_SRC', '0/5:5/{3.1' ]             ],
+      [ '[1, 2, ',          [ 'N1@1,N1@4,!0@7: truncated input, in array before value at 7', 'TRUNC_SRC', '2/7:7/[+' ]                ],
     ],
     function (src) {
       var hector = t.hector()
@@ -148,7 +148,7 @@ test('callback stop', function (t) {
     [
       [ 'src',                'at_cb', 'ret', 'exp' ],
       [ '{ "a": 7, "b": 4 }', 0,       false, [ 'B@0',                        'CLEAN_STOP', '0/0:18/-' ] ],
-      [ '{ "a": 7, "b": 4 }', 1,       false, [ 'B@0,{@0',                    'TRUNC_SRC',  '0/1:18/{/bfk/-' ] ],
+      [ '{ "a": 7, "b": 4 }', 1,       false, [ 'B@0,{@0',                    'TRUNC_SRC',  '0/1:18/{-' ] ],
       [ '{ "a": 7, "b": 4 }', 2,       false, [ 'B@0,{@0,K3@2:N1@7',          'TRUNC_SRC',  '1/8:18/{.' ] ],
       [ '{ "a": 7, "b": 4 }', 3,       false, [ '{@0,K3@2:N1@7,K3@10:N1@15',  'TRUNC_SRC',  '2/16:18/{.' ] ],
       // note that if callback returns false when parsing is done the info still has a DONE code (but no END callback).
@@ -207,21 +207,21 @@ test('incremental', function (t) {
       [ 'input'              ,  'exp' ],
       [ ''                   ,  [ 'B@0,E@0',                   'DONE', '0/0:0/-' ] ],
       [ '"abc", '            ,  [ 'B@0,S5@0,E@7',              'TRUNC_SRC', '1/7:7/+' ] ],
-      [ '['                  ,  [ 'B@0,[@0,E@1',               'TRUNC_SRC', '0/1:1/[/bfv/-' ] ],
+      [ '['                  ,  [ 'B@0,[@0,E@1',               'TRUNC_SRC', '0/1:1/[-' ] ],
       [ '[ 83 '              ,  [ '[@0,N2@2,E@5',              'TRUNC_SRC', '1/5:5/[.' ] ],
-      [ '[ 83 ,'             ,  [ '[@0,N2@2,E@6',              'TRUNC_SRC', '1/6:6/[/b_v/-' ] ],
+      [ '[ 83 ,'             ,  [ '[@0,N2@2,E@6',              'TRUNC_SRC', '1/6:6/[+' ] ],
       [ '[ 83 , "a"'         ,  [ 'N2@2,S3@7,E@10',            'TRUNC_SRC', '2/10:10/[.' ] ],
-      [ '[ 83 , "a",'        ,  [ 'N2@2,S3@7,E@11',            'TRUNC_SRC', '2/11:11/[/b_v/-' ] ],
-      [ '[ 83 , "a", 2'      ,  [ 'N2@2,S3@7,E1@12',           'TRUNC_VAL', '2/13:13/[/b_v/n1' ] ],
-      [ '{'                  ,  [ 'B@0,{@0,E@1',               'TRUNC_SRC', '0/1:1/{/bfk/-' ] ],
-      [ '{ "a"'              ,  [ 'B@0,{@0,K3@2:E@5',          'TRUNC_SRC', '0/5:5/{/a_k/-' ] ],
-      [ '{ "a":'             ,  [ 'B@0,{@0,K3@2:E@6',          'TRUNC_SRC', '0/6:6/{/b_v/-' ] ],
-      [ '{ "a": 9'           ,  [ 'B@0,{@0,K3@2:E1@7',         'TRUNC_VAL', '0/8:8/{/b_v/n1:2:3' ] ],
-      [ '{ "a": 93, '        ,  [ '{@0,K3@2:N2@7,E@11',        'TRUNC_SRC', '1/11:11/{/b_k/-' ] ],
-      [ '{ "a": 93, "b'      ,  [ '{@0,K3@2:N2@7,E2@11',       'TRUNC_VAL', '1/13:13/{/b_k/s2' ] ],
-      [ '{ "a": 93, "b"'     ,  [ '{@0,K3@2:N2@7,K3@11:E@14',  'TRUNC_SRC', '1/14:14/{/a_k/-' ] ],
-      [ '{ "a": 93, "b":'    ,  [ '{@0,K3@2:N2@7,K3@11:E@15',  'TRUNC_SRC', '1/15:15/{/b_v/-' ] ],
-      [ '{ "a": 93, "b": ['  ,  [ 'K3@2:N2@7,K3@11:[@16,E@17', 'TRUNC_SRC', '1/17:17/{[/bfv/-' ] ],
+      [ '[ 83 , "a",'        ,  [ 'N2@2,S3@7,E@11',            'TRUNC_SRC', '2/11:11/[+' ] ],
+      [ '[ 83 , "a", 2'      ,  [ 'N2@2,S3@7,E1@12',           'TRUNC_VAL', '2/13:13/[1' ] ],
+      [ '{'                  ,  [ 'B@0,{@0,E@1',               'TRUNC_SRC', '0/1:1/{-' ] ],
+      [ '{ "a"'              ,  [ 'B@0,{@0,K3@2:E@5',          'TRUNC_SRC', '0/5:5/{3.' ] ],
+      [ '{ "a":'             ,  [ 'B@0,{@0,K3@2:E@6',          'TRUNC_SRC', '0/6:6/{3:' ] ],
+      [ '{ "a": 9'           ,  [ 'B@0,{@0,K3@2:E1@7',         'TRUNC_VAL', '0/8:8/{3.1:1' ] ],
+      [ '{ "a": 93, '        ,  [ '{@0,K3@2:N2@7,E@11',        'TRUNC_SRC', '1/11:11/{+' ] ],
+      [ '{ "a": 93, "b'      ,  [ '{@0,K3@2:N2@7,E2@11',       'TRUNC_VAL', '1/13:13/{2' ] ],
+      [ '{ "a": 93, "b"'     ,  [ '{@0,K3@2:N2@7,K3@11:E@14',  'TRUNC_SRC', '1/14:14/{3.' ] ],
+      [ '{ "a": 93, "b":'    ,  [ '{@0,K3@2:N2@7,K3@11:E@15',  'TRUNC_SRC', '1/15:15/{3:' ] ],
+      [ '{ "a": 93, "b": ['  ,  [ 'K3@2:N2@7,K3@11:[@16,E@17', 'TRUNC_SRC', '1/17:17/{[-' ] ],
       [ '{ "a": 93, "b": []' ,  [ 'K3@11:[@16,]@17,E@18',      'TRUNC_SRC', '2/18:18/{.' ] ],
       [ '{ "a": 93, "b": [] ',  [ 'K3@11:[@16,]@17,E@19',      'TRUNC_SRC', '2/19:19/{.' ] ],
       [ '{ "a": 93, "b": [] }', [ ']@17,}@19,E@20',            'DONE', '3/20:20/.' ] ],
