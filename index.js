@@ -35,11 +35,13 @@ var RPOS = {
 
 // relative positions 'bfk', b_k'...
 var RPOS_BY_INT = Object.keys(RPOS).reduce(function (a,n) { a[RPOS[n]] = n; return a }, [])
-function pos_str (pos, end_code) {
+
+function pos_str (state, end_code) {
+  var pstr = RPOS_BY_INT[state & RPOS_MASK]
   var ret = []
-  if (end_code !== END.TRUNC_VAL) { ret.push(pos[0] === 'b' ? 'before' : (pos[0] === 'a' ? 'after' : '?' )) }
-  if (pos[1] === 'f') { ret.push('first') }
-  ret.push(pos[2] === 'k' ? 'key' : (pos[2] === 'v' ? 'value' : '?'))
+  if (end_code !== END.TRUNC_VAL) { ret.push(pstr[0] === 'b' ? 'before' : (pstr[0] === 'a' ? 'after' : '?' )) }
+  if (pstr[1] === 'f') { ret.push('first') }
+  ret.push(pstr[2] === 'k' ? 'key' : (pstr[2] === 'v' ? 'value' : '?'))
   return ret.join(' ')
 }
 
@@ -125,12 +127,13 @@ function state_map () {
 
   map([arr], [bfv, b_v], val, arr | a_v)
   map([arr], [a_v], ',', arr | b_v)
-  map([arr], [bfv, a_v], ']', a_v)          // s1 context not set here. it is set by checking the stack
 
   map([obj], [a_v], ',', obj | b_k)
   map([obj], [bfk, b_k], '"', obj | a_k)
   map([obj], [a_k], ':', obj | b_v)
   map([obj], [b_v], val, obj | a_v)
+
+  map([arr], [bfv, a_v], ']', a_v)          // s1 context not set here. it is set by checking the stack
   map([obj], [bfk, a_v], '}', a_v)          // s1 context not set here. it is set by checking the stack
 
   return ret
@@ -425,15 +428,17 @@ function _tokenize (init, opt, cb) {
     ecode: ecode,
     src: src,           // src, koff, klim... hold the key and value bytes that can be used to recover from truncation.
     position: new Position(
+      off,
+      lim,
       vcount,
-      idx - off,
-      lim - off,
-      RPOS_BY_INT[state0 & RPOS_MASK],
-      stack.map(function (b) { return String.fromCharCode(b) }).join('') || '-',
+      koff,
+      klim,
       TCODE_BY_TOK[tok],
-      (ecode === END.TRUNC_VAL) ? idx - voff : 0,
-      (ecode === END.TRUNC_VAL && koff >= 0) ? voff - klim : 0,
-      (ecode === END.TRUNC_VAL && koff >= 0) ? klim - koff : 0
+      voff,
+      idx,
+      stack,
+      state0,
+      ecode === END.TRUNC_VAL
     ),
   }
 
@@ -529,36 +534,86 @@ function figure_msg_etok (info, tok, val_str, range, incremental) {
 
 // Position represents parse position information - both logical and absolute (bytes).  Format (line and column) is
 // not tracked by Position.
-function Position (vcount, bytes, bytes_t, rpos, stack, tcode, vlen, clen, klen) {
-  this.vcount = vcount          // number of values parsed.  key-value pairs are considered one value.  ']' and '}' are counted while '[' and '{' are not (still open)
-  this.bytes = bytes            // number of bytes parsed
-  this.tbytes = bytes_t                // total number of bytes to parse
-  this.stack = stack            // string of '{' and '[', representing depth and container types
-  this.rpos = rpos              // relative position 'bfv' (before first value), 'a_k' (after key) ...
-  this.tcode = tcode            // quicbit type-code: 's' = string, 'n' = number, 'N' = null, 'b' = boolean, 'o' = object, 'a' = array
-  this.vlen = vlen              // length of truncated value, if value was incomplete
-  this.clen = clen              // length between end of key and start of value (or zero if no key)
-  this.klen = klen              // length of key
+function Position (off, lim, vcount, koff, klim, tok, voff, vlim, stack, state, truncated) {
+  this.off = off
+  this.lim = lim
+  this.vcount = vcount
+  this.koff = koff
+  this.klim = klim
+  this.tok = tok
+  this.voff = voff
+  this.vlim = vlim
+  this.stack = stack
+  this.state = state
+  this.truncated = truncated
 }
 
 Position.prototype = {
   constructor: Position,
   description: function (ecode) {
-    var ctx = this.in_arr() ? 'in array ' : (this.in_obj() ? 'in object ' : '')
-    return ctx + pos_str(this.rpos, ecode)
+    var ctx = this.in_arr ? 'in array ' : (this.in_obj ? 'in object ' : '')
+    return ctx + pos_str(this.state, ecode)
   },
-  in_arr: function () { return this.stack[this.stack.length - 1] === '[' },
-  in_obj: function () { return this.stack[this.stack.length - 1] === '{' },
-  toString: function () {
-    var trunc_Str = '-'
-    if (this.vlen) {
-      trunc_Str = this.tcode + this.vlen
-      if (this.klen) {
-        trunc_Str += ':' + this.clen + ':' + this.klen
+  get in_arr () { return this.stack[this.stack.length - 1] === 91 },
+  get in_obj () { return this.stack[this.stack.length - 1] === 123 },
+  get parse_state () {
+    var rpos = this.state & RPOS_MASK
+    var ret = this.stack.map(function (b) { return String.fromCharCode(b) }).join('')
+    var in_obj = this.in_obj
+    var kstr = ''
+    if (this.koff !== -1) {
+      var klen = this.klim - this.koff
+      var ws = this.voff - this.klim - 1
+      kstr = klen + (ws > 0 ? '.' + ws : '')
+    }
+
+    if (this.truncated ) {
+      var vstr = String(this.vlim - this.voff)
+      if (in_obj) {
+        switch (rpos) {
+          case RPOS.bfk: case RPOS.b_k:
+            ret += kstr
+            break
+          case RPOS.b_v:
+            ret += kstr + ':' + vstr
+            break
+          default:
+            err('unexpected state for truncated value: ' + rpos)
+        }
+      } else {
+        ret += vstr
+      }
+    } else {
+      switch (rpos) {
+        case RPOS.bfv:
+        case RPOS.bfk:
+          ret += '-'
+          break
+        case RPOS.b_k:
+          ret += '+'
+          break
+        case RPOS.a_v:
+          ret += '.'
+          break
+        case RPOS.a_k:
+          ret += kstr
+          break
+        case RPOS.b_v:
+          ret += in_obj ? (kstr + ':') : '+'
+          break
+        default:
+          err('')
       }
     }
-    var bytes = this.tbytes === -1 ? this.bytes : this.bytes + ':' + this.tbytes
-    return this.vcount + '/' + bytes + '/' + this.stack + '/' + this.rpos + '/' + trunc_Str
+    return ret
+  },
+  toString: function () {
+    var tbytes = this.lim - this.off
+    var bytestr = String(this.vlim - this.off)
+    if (tbytes > 0) {
+      bytestr += ':' + tbytes
+    }
+    return this.vcount + '/' + bytestr + '/' + this.parse_state
   }
 }
 

@@ -462,8 +462,9 @@ clean object states (2 key-value pairs)
     {.                          key-value done.  expecting comma or object-end
     .                           object done, expecting comma or end-of-input
    
-truncated array states:
+truncated array and csv states:
 
+    v                           truncated value at root (CSV format)
     [v                          truncated value (v bytes long, v > 0)
     
 truncated and split key-value states (no whitespace):
