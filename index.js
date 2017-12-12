@@ -39,7 +39,7 @@ var RPOS_BY_INT = Object.keys(RPOS).reduce(function (a,n) { a[RPOS[n]] = n; retu
 function pos_str (state, end_code) {
   var pstr = RPOS_BY_INT[state & RPOS_MASK]
   var ret = []
-  if (end_code !== END.TRUNC_VAL) { ret.push(pstr[0] === 'b' ? 'before' : (pstr[0] === 'a' ? 'after' : '?' )) }
+  if (end_code !== END.TRUNC_VAL && end_code !== END.TRUNC_KEY) { ret.push(pstr[0] === 'b' ? 'before' : (pstr[0] === 'a' ? 'after' : '?' )) }
   if (pstr[1] === 'f') { ret.push('first') }
   ret.push(pstr[2] === 'k' ? 'key' : (pstr[2] === 'v' ? 'value' : '?'))
   return ret.join(' ')
@@ -48,6 +48,7 @@ function pos_str (state, end_code) {
 var END = {
   UNEXP_VAL: 'UNEXP_VAL',       // token or value was recognized, but was not expected
   UNEXP_BYTE: 'UNEXP_BYTE',     // byte was not a recognized token or legal part of a value
+  TRUNC_KEY: 'TRUNC_KEY',       // stopped before an object key was finished
   TRUNC_VAL: 'TRUNC_VAL',       // stopped before a value was finished (number, false, true, null, string)
   TRUNC_SRC: 'TRUNC_SRC',       // stopped before stack was zero or with a pending value
   CLEAN_STOP: 'CLEAN_STOP',     // did not reach src lim, but stopped at a clean point (zero stack, no pending value)
@@ -438,7 +439,7 @@ function _tokenize (init, opt, cb) {
       idx,
       stack,
       state0,
-      ecode === END.TRUNC_VAL
+      ecode
     ),
   }
 
@@ -461,6 +462,7 @@ function _tokenize (init, opt, cb) {
 }
 
 function clean_up_ecode (src, off, lim, koff, klim, tok, voff, vlim, state0, ecode, cb) {
+  // var rpos = state0 & RPOS_MASK
   if (ecode === null) {
     if (state0 === RPOS.bfv || state0 === RPOS.a_v) {
       ecode = vlim === lim ? END.DONE : END.CLEAN_STOP
@@ -479,7 +481,10 @@ function clean_up_ecode (src, off, lim, koff, klim, tok, voff, vlim, state0, eco
       ecode = END.UNEXP_BYTE
     }
   } else if (ecode === END.TRUNC_VAL) {
-    if (vlim === lim && tok === TOK.NUM && (state0 === RPOS.bfv || state0 === RPOS.b_v)) {
+    var rpos = state0 & RPOS_MASK
+    if (rpos === RPOS.bfk || rpos === RPOS.b_k) {
+      ecode = END.TRUNC_KEY
+    } else if (vlim === lim && tok === TOK.NUM && (state0 === RPOS.bfv || state0 === RPOS.b_v)) {
       // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
       // note - this means we won't be able to split no-context numbers outside of an array or object container.
       cb(src, koff, klim, tok, voff, vlim, null)
@@ -504,6 +509,10 @@ function figure_msg_etok (info, tok, val_str, range, incremental) {
     case END.UNEXP_BYTE:
       msg = 'unexpected byte ' + '"' + val_str + '"'
       etok = TOK.ERR
+      break
+    case END.TRUNC_KEY:
+      msg = 'truncated key'
+      etok = incremental ? TOK.END : TOK.ERR
       break
     case END.TRUNC_VAL:
       msg = 'truncated ' + tok_str
@@ -534,7 +543,7 @@ function figure_msg_etok (info, tok, val_str, range, incremental) {
 
 // Position represents parse position information - both logical and absolute (bytes).  Format (line and column) is
 // not tracked by Position.
-function Position (off, lim, vcount, koff, klim, tok, voff, vlim, stack, state, truncated) {
+function Position (off, lim, vcount, koff, klim, tok, voff, vlim, stack, state, ecode) {
   this.off = off
   this.lim = lim
   this.vcount = vcount
@@ -545,7 +554,7 @@ function Position (off, lim, vcount, koff, klim, tok, voff, vlim, stack, state, 
   this.vlim = vlim
   this.stack = stack
   this.state = state
-  this.truncated = truncated
+  this.ecode = ecode
 }
 
 Position.prototype = {
@@ -560,30 +569,34 @@ Position.prototype = {
     var rpos = this.state & RPOS_MASK
     var ret = this.stack.map(function (b) { return String.fromCharCode(b) }).join('')
     var in_obj = this.in_obj
-    var kstr = ''
+    var vlen = this.vlim - this.voff
+
+    var klen = 0
     var ws = ''
     if (this.koff !== -1) {
-      var klen = this.klim - this.koff
-      var wslen = this.voff - this.klim - 1
-      if (wslen > 0) { ws = '.' + wslen }
-      kstr = klen + ws
+      var wslen = this.voff - this.klim - 1  // count ws, not ':' byte
+      if (wslen > 0) {
+        ws = '.' + wslen
+      }
+      klen = this.klim - this.koff
     }
 
-    if (this.truncated ) {
-      var vstr = String(this.vlim - this.voff)
+    if (this.ecode === END.TRUNC_KEY) {
+      ret += vlen   // only complete keys are represented by koff/klim.  truncations and other errors are all at voff/vlim
+    } else if (this.ecode === END.TRUNC_VAL ) {
       if (in_obj) {
         switch (rpos) {
           case RPOS.bfk: case RPOS.b_k:
-            ret += kstr
+            ret += klen + ws
             break
           case RPOS.b_v:
-            ret += kstr + ':' + vstr
+            ret += klen + ws + ':' + vlen
             break
           default:
             err('unexpected state for truncated value: ' + rpos)
         }
       } else {
-        ret += vstr
+        ret += vlen
       }
     } else {
       switch (rpos) {
@@ -598,13 +611,13 @@ Position.prototype = {
           ret += '.'
           break
         case RPOS.a_k:
-          ret += kstr + '.' + ws
+          ret += klen + ws + '.'
           break
         case RPOS.b_v:
-          ret += in_obj ? (kstr + ':') : '+'
+          ret += in_obj ? (klen + ws + ':') : '+'
           break
         default:
-          err('')
+          err('state not handled')
       }
     }
     return ret
