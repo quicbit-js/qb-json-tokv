@@ -14,30 +14,28 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-var parse_state = require('./parse_state')
+var pstate = require('./qb-json-state')
 
-// STATES   - LSB (0x7F) are reserved for token ascii value.
+// PARSE POSITIONS   - LSB (0x7F) are reserved for token ascii value.
 // BFK = before first key, B_K = before key, A_V = after value, ...
-var STATES = {
-  ARR_BFV: 0x080,
-  ARR_B_V: 0x100,
-  ARR_A_V: 0x180,
-  OBJ_BFK: 0x200,
-  OBJ_B_K: 0x280,
-  OBJ_A_K: 0x300,
-  OBJ_BFV: 0x380,
-  OBJ_B_V: 0x400,
-  OBJ_A_V: 0x480,
-}
+var ARR_BFV = 0x080
+var ARR_B_V = 0x100
+var ARR_A_V = 0x180
+var OBJ_BFK = 0x200
+var OBJ_B_K = 0x280
+var OBJ_A_K = 0x300
+var OBJ_BFV = 0x380
+var OBJ_B_V = 0x400
+var OBJ_A_V = 0x480
 
 var END = {
   UNEXP_VAL: 'UNEXP_VAL',       // token or value was recognized, but was not expected
   UNEXP_BYTE: 'UNEXP_BYTE',     // byte was not a recognized token or legal part of a value
   TRUNC_KEY: 'TRUNC_KEY',       // stopped before an object key was finished
   TRUNC_VAL: 'TRUNC_VAL',       // stopped before a value was finished (number, false, true, null, string)
-  TRUNC_SRC: 'TRUNC_SRC',       // stopped before stack was zero or with a pending value
+  TRUNC_SRC: 'TRUNC_SRC',       // stopped before done (stack.length > 0 or after comma)
   CLEAN_STOP: 'CLEAN_STOP',     // did not reach src lim, but stopped at a clean point (zero stack, no pending value)
-  DONE: 'DONE',                 // parsed to src lim and state is clean (no stack, no pending value)
+  DONE: 'DONE',                 // parsed to src lim and state is clean (stack.lenght = 0, no pending value)
 }
 
 // ascii tokens as well as special codes for number, error, begin and end.
@@ -62,7 +60,7 @@ var TOK = {
 // create an int-int map from (state + tok) -- to --> (new state)
 function state_map () {
   var ret = []
-  var max = 0x4FF      // accommodate all possible byte values
+  var max = 0x480 + 0x7F            // max state + max ascii
   for (var i = 0; i <= max; i++) {
     ret[i] = 0
   }
@@ -76,15 +74,15 @@ function state_map () {
     })
   }
 
-  var a_bfv = STATES.ARR_BFV
-  var a_b_v = STATES.ARR_B_V
-  var a_a_v = STATES.ARR_A_V
-  var o_bfk = STATES.OBJ_BFK
-  var o_b_k = STATES.OBJ_B_K
-  var o_a_k = STATES.OBJ_A_K
-  var o_bfv = STATES.OBJ_BFV
-  var o_b_v = STATES.OBJ_B_V
-  var o_a_v = STATES.OBJ_A_V
+  var a_bfv = ARR_BFV
+  var a_b_v = ARR_B_V
+  var a_a_v = ARR_A_V
+  var o_bfk = OBJ_BFK
+  var o_b_k = OBJ_B_K
+  var o_a_k = OBJ_A_K
+  var o_bfv = OBJ_BFV
+  var o_b_v = OBJ_B_V
+  var o_a_v = OBJ_A_V
 
   var val = '"ntf-0123456789' // all legal value starts (ascii)
 
@@ -237,7 +235,7 @@ function init_defaults (src, off, lim) {
     voff:     off,
 
     stack:    [],
-    state:    STATES.ARR_BFV,
+    state:    ARR_BFV,
     vcount:   0,
   }
 }
@@ -255,11 +253,11 @@ function tokenize (src, opt, cb) {
 function _tokenize (init, opt, cb) {
   // localized constants for faster access
   var states = STATE_MAP
-  var obj_bfk = STATES.OBJ_BFK
-  var obj_a_k = STATES.OBJ_A_K
-  var obj_a_v = STATES.OBJ_A_V
-  var arr_bfv = STATES.ARR_BFV
-  var arr_a_v = STATES.ARR_A_V
+  var obj_bfk = OBJ_BFK
+  var obj_a_k = OBJ_A_K
+  var obj_a_v = OBJ_A_V
+  var arr_bfv = ARR_BFV
+  var arr_a_v = ARR_A_V
   var whitespace = WHITESPACE
   var all_num_chars = ALL_NUM_CHARS
   var tok_bytes = TOK_BYTES
@@ -402,7 +400,7 @@ function _tokenize (init, opt, cb) {
     halted: !cb_continue,
     ecode: ecode,
     src: src,           // src, koff, klim... hold the key and value bytes that can be used to recover from truncation.
-    position: parse_state.create({
+    position: {
       off: off,
       lim: lim,
       vcount: vcount,
@@ -414,7 +412,7 @@ function _tokenize (init, opt, cb) {
       stack: stack,
       state: state0,
       ecode: ecode,
-    }),
+    },
   }
 
   var val_str = esc_str(info.src, voff, idx)
@@ -437,7 +435,7 @@ function _tokenize (init, opt, cb) {
 
 function clean_up_ecode (src, off, lim, koff, klim, tok, voff, vlim, depth, state, ecode, cb) {
   if (ecode === null) {
-    if (depth === 0 && (state === STATES.ARR_BFV || state === STATES.ARR_A_V)) {
+    if (depth === 0 && (state === ARR_BFV || state === ARR_A_V)) {
       ecode = vlim === lim ? END.DONE : END.CLEAN_STOP
     } else {
       ecode = END.TRUNC_SRC
@@ -454,9 +452,9 @@ function clean_up_ecode (src, off, lim, koff, klim, tok, voff, vlim, depth, stat
       ecode = END.UNEXP_BYTE
     }
   } else if (ecode === END.TRUNC_VAL) {
-    if (state === STATES.OBJ_BFK || state === STATES.OBJ_B_K) {
+    if (state === OBJ_BFK || state === OBJ_B_K) {
       ecode = END.TRUNC_KEY
-    } else if (vlim === lim && tok === TOK.NUM && depth === 0 && (state === STATES.ARR_BFV || state === STATES.ARR_B_V)) {
+    } else if (vlim === lim && tok === TOK.NUM && depth === 0 && (state === ARR_BFV || state === ARR_B_V)) {
       // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
       // note - this means we won't be able to split no-context numbers outside of an array or object container.
       cb(src, koff, klim, tok, voff, vlim, null)
@@ -507,8 +505,7 @@ function figure_msg_etok (info, tok, val_str, range, incremental) {
   }
 
   // enrich msg
-  var pos = info.position.description(info.ecode)
-  msg += ', ' + pos + ' at ' + range
+  msg += ', ' + pstate.desc(info.position, info.ecode) + ' at ' + range
 
   return { msg: msg, etok: etok }
 }
@@ -553,5 +550,4 @@ module.exports = {
   tokenize: tokenize,
   args2str: args2str,
   TOK: TOK,
-  STAATES: STATES,
 }
