@@ -69,7 +69,7 @@ test('tokenize', function (t) {
       var cb = function (src, koff, klim, tok, voff, vlim, info) {
         hector(jtok.args2str(koff, klim, tok, voff, vlim, info))
         if (tok === TOK.ERR) {
-          err('error should not create an END callback') }
+          err('working state should not create an ERR callback: ' + info.msg) }
         if (tok === TOK.END) { endinfo = info }
         return true
       }

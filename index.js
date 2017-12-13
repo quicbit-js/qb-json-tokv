@@ -17,30 +17,27 @@
 // STATES   - LSB is reserved for token ascii value.  see readme
 // contexts (in array, in object, or none)
 
-var IN_OBJ = 0x0100
-
 // relative positions.  before first key, after value, ...
-var RPOS_MASK = 0x1C00
 var RPOS = {
+  arr_bfv: 0x0100,
+  arr_b_v: 0x0200,
+  arr_a_v: 0x0300,
   obj_bfk: 0x0400,
-  obj_b_k: 0x0800,
-  obj_a_k: 0x0C00,
-  arr_bfv: 0x1000,
-  arr_b_v: 0x1400,
-  arr_a_v: 0x1800,
+  obj_b_k: 0x0500,
+  obj_a_k: 0x0600,
+  obj_bfv: 0x0700,
+  obj_b_v: 0x0800,
+  obj_a_v: 0x0900,
 }
 
-// relative positions 'bfk', b_k'...
-var RPOS_BY_INT = Object.keys(RPOS).reduce(function (a,n) { a[RPOS[n]] = n; return a }, [])
-
 function pos_str (state, relative) {
-  switch (state & RPOS_MASK) {
+  switch (state) {
     case RPOS.obj_bfk: return relative ? 'before first key' : 'first key'
     case RPOS.obj_b_k: return relative ? 'before key' : 'key'
     case RPOS.obj_a_k: return relative ? 'after key' : 'key'
-    case RPOS.arr_bfv: return relative ? 'before first value' : 'first value'
-    case RPOS.arr_b_v: return relative ? 'before value' : 'value'
-    case RPOS.arr_a_v: return relative ? 'after value' : 'value'
+    case RPOS.arr_bfv: case RPOS.obj_bfv: return relative ? 'before first value' : 'first value'
+    case RPOS.arr_b_v: case RPOS.obj_b_v: return relative ? 'before value' : 'value'
+    case RPOS.arr_a_v: case RPOS.obj_a_v: return relative ? 'after value' : 'value'
   }
 }
 
@@ -76,48 +73,47 @@ var TOK = {
 // create an int-int map from (state + tok) -- to --> (new state)
 function state_map () {
   var ret = []
-  var max = 0x1AFF      // accommodate all possible byte values
+  var max = 0x9FF      // accommodate all possible byte values
   for (var i = 0; i <= max; i++) {
     ret[i] = 0
   }
 
   // map ( [ctx], [state0], [ascii] ) => state1
-  var map = function (ctx_arr, s0_arr, chars, s1) {
-    ctx_arr.forEach(function (ctx) {
-      s0_arr.forEach(function (s0) {
-        for (var i = 0; i < chars.length; i++) {
-          ret[ctx | s0 | chars.charCodeAt(i)] = s1
-        }
-      })
+  var map = function (s0_arr, chars, s1) {
+    s0_arr.forEach(function (s0) {
+      for (var i = 0; i < chars.length; i++) {
+        ret[s0 | chars.charCodeAt(i)] = s1
+      }
     })
   }
 
-  var bfv = RPOS.arr_bfv
-  var b_v = RPOS.arr_b_v
-  var a_v = RPOS.arr_a_v
-  var bfk = RPOS.obj_bfk
-  var b_k = RPOS.obj_b_k
-  var a_k = RPOS.obj_a_k
-  var obj = IN_OBJ
-  var arr = 0
+  var arr_bfv = RPOS.arr_bfv
+  var arr_b_v = RPOS.arr_b_v
+  var arr_a_v = RPOS.arr_a_v
+  var obj_bfk = RPOS.obj_bfk
+  var obj_b_k = RPOS.obj_b_k
+  var obj_a_k = RPOS.obj_a_k
+  var obj_bfv = RPOS.obj_bfv
+  var obj_b_v = RPOS.obj_b_v
+  var obj_a_v = RPOS.obj_a_v
+
 
   var val = '"ntf-0123456789' // all legal value starts (ascii)
 
   // 0 = no context (comma separated values)
   // (s0 ctxs +       s0 positions + tokens) -> s1
-  map([arr], [bfv, b_v], val, arr | a_v)
-  map([arr], [a_v], ',', b_v)
+  map([arr_bfv, arr_b_v], val, arr_a_v)
+  map([arr_a_v], ',', arr_b_v)
 
-  map([arr, obj], [bfv, b_v], '[', arr | bfv)
-  map([arr, obj], [bfv, b_v], '{', obj | bfk)
+  map([arr_bfv, arr_b_v, obj_bfv, obj_b_v], '[',  arr_bfv)
+  map([arr_bfv, arr_b_v, obj_bfv, obj_b_v], '{',  obj_bfk)
 
-  map([obj], [a_v],       ',', obj | b_k)
-  map([obj], [bfk, b_k],  '"', obj | a_k)
-  map([obj], [a_k],       ':', obj | b_v)
-  map([obj], [b_v],       val, obj | a_v)
+  map([obj_a_v],            ',',  obj_b_k)
+  map([obj_bfk, obj_b_k],   '"',  obj_a_k)
+  map([obj_a_k],            ':',  obj_b_v)
+  map([obj_b_v],            val,  obj_a_v)
 
-  map([arr], [bfv, a_v], ']', a_v)          // s1 context not set here. it is set by checking the stack
-  map([obj], [bfk, a_v], '}', a_v)          // s1 context not set here. it is set by checking the stack
+  // ending of object and array '}' and ']' is handled in the code by checking the stack
 
   return ret
 }
@@ -271,10 +267,11 @@ function tokenize (src, opt, cb) {
 function _tokenize (init, opt, cb) {
   // localized constants for faster access
   var states = STATE_MAP
-  var rpos_mask = RPOS_MASK
-  var after_key = RPOS.obj_a_k
+  var obj_bfk = RPOS.obj_bfk
+  var obj_a_k = RPOS.obj_a_k
+  var obj_a_v = RPOS.obj_a_v
+  var arr_bfv = RPOS.arr_bfv
   var arr_a_v = RPOS.arr_a_v
-  var obj_a_v = IN_OBJ | RPOS.arr_a_v
   var whitespace = WHITESPACE
   var all_num_chars = ALL_NUM_CHARS
   var tok_bytes = TOK_BYTES
@@ -342,7 +339,7 @@ function _tokenize (init, opt, cb) {
           if (state1 === 0) { ecode = END.UNEXP_VAL; break main_loop }
 
           // key
-          if ((state1 & rpos_mask) === after_key) {
+          if (state1 === obj_a_k) {
             koff = voff
             klim = idx
             state0 = state1
@@ -373,18 +370,16 @@ function _tokenize (init, opt, cb) {
 
         case 93:                                  // ]    ARRAY END
           in_obj = stack[stack.length - 2] === 123        // set before breaking loop
-          state1 = states[state0 | tok]
           idx++
-          if (state1 === 0 || stack.pop() !== 91) { ecode = END.UNEXP_VAL; break main_loop }
+          if ((state0 !== arr_bfv && state0 !== arr_a_v) || stack.pop() !== 91) { ecode = END.UNEXP_VAL; break main_loop }
           state1 = in_obj ? obj_a_v : arr_a_v
           vcount++
           break
 
         case 125:                                 // }    OBJECT END
           in_obj = stack[stack.length - 2] === 123        // set before breaking loop
-          state1 = states[state0 | tok]
           idx++
-          if (state1 === 0 || stack.pop() !== 123) { ecode = END.UNEXP_VAL; break main_loop }
+          if ((state0 !== obj_bfk && state0 !== obj_a_v) || stack.pop() !== 123) { ecode = END.UNEXP_VAL; break main_loop }
           state1 = in_obj ? obj_a_v : arr_a_v
           vcount++
           break
@@ -409,7 +404,7 @@ function _tokenize (init, opt, cb) {
   }
 
   // check and clarify end state (before handling end state)
-  ecode = clean_up_ecode(src, off, lim, koff, klim, tok, voff, idx, stack.length, state0 & RPOS_MASK, ecode, cb)
+  ecode = clean_up_ecode(src, off, lim, koff, klim, tok, voff, idx, stack.length, state0, ecode, cb)
   if (ecode === null || ecode === END.DONE || ecode === END.CLEAN_STOP || ecode === END.TRUNC_SRC) {
     voff = idx    // wipe out phantom value
   }
@@ -452,10 +447,9 @@ function _tokenize (init, opt, cb) {
   }
 }
 
-function clean_up_ecode (src, off, lim, koff, klim, tok, voff, vlim, depth, rpos, ecode, cb) {
-  // var rpos = state0 & RPOS_MASK
+function clean_up_ecode (src, off, lim, koff, klim, tok, voff, vlim, depth, state, ecode, cb) {
   if (ecode === null) {
-    if (depth === 0 && (rpos === RPOS.arr_bfv || rpos === RPOS.arr_a_v)) {
+    if (depth === 0 && (state === RPOS.arr_bfv || state === RPOS.arr_a_v)) {
       ecode = vlim === lim ? END.DONE : END.CLEAN_STOP
     } else {
       ecode = END.TRUNC_SRC
@@ -472,9 +466,9 @@ function clean_up_ecode (src, off, lim, koff, klim, tok, voff, vlim, depth, rpos
       ecode = END.UNEXP_BYTE
     }
   } else if (ecode === END.TRUNC_VAL) {
-    if (rpos === RPOS.obj_bfk || rpos === RPOS.obj_b_k) {
+    if (state === RPOS.obj_bfk || state === RPOS.obj_b_k) {
       ecode = END.TRUNC_KEY
-    } else if (vlim === lim && tok === TOK.NUM && depth === 0 && (rpos === RPOS.arr_bfv || rpos === RPOS.arr_b_v)) {
+    } else if (vlim === lim && tok === TOK.NUM && depth === 0 && (state === RPOS.arr_bfv || state === RPOS.arr_b_v)) {
       // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
       // note - this means we won't be able to split no-context numbers outside of an array or object container.
       cb(src, koff, klim, tok, voff, vlim, null)
@@ -556,7 +550,6 @@ Position.prototype = {
   get in_arr () { return this.stack[this.stack.length - 1] === 91 },
   get in_obj () { return this.stack[this.stack.length - 1] === 123 },
   get parse_state () {
-    var rpos = this.state & RPOS_MASK
     var ret = this.stack.map(function (b) { return String.fromCharCode(b) }).join('')
     var in_obj = this.in_obj
     var vlen = this.vlim - this.voff
@@ -572,40 +565,41 @@ Position.prototype = {
       ret += vlen   // only complete keys are represented by koff/klim.  truncations and other errors are all at voff/vlim
     } else if (this.ecode === END.TRUNC_VAL ) {
       if (in_obj) {
-        switch (rpos) {
-          case RPOS.obj_bfk: case RPOS.obj_b_k:
-            err('should be TRUNK_KEY, not TRUNC_VAL')
-            // ret += klen + (gap - 1)
-            break
+        switch (this.state) {
           case RPOS.arr_b_v:
+            ret += vlen
+            break
+          case RPOS.obj_b_v:
             ret += klen + '.' + (gap - 1) + ':' + vlen
             break
           default:
-            err('unexpected state for truncated value: ' + rpos)
+            err('unexpected state for truncated value: ' + this.state)
         }
       } else {
         ret += vlen
       }
     } else {
-      switch (rpos) {
+      switch (this.state) {
         case RPOS.arr_bfv:
         case RPOS.obj_bfk:
           ret += '-'
           break
+        case RPOS.arr_b_v:
         case RPOS.obj_b_k:
           ret += '+'
           break
         case RPOS.arr_a_v:
+        case RPOS.obj_a_v:
           ret += '.'
           break
         case RPOS.obj_a_k:
           ret += klen + (gap > 0 ? '.' + gap : '') + '.'
           break
-        case RPOS.arr_b_v:
-          ret += in_obj ? (klen + (gap > 1 ? '.' + (gap - 1) : '') + ':') : '+'
+        case RPOS.obj_b_v:
+          ret += klen + (gap > 1 ? '.' + (gap - 1) : '') + ':'
           break
         default:
-          err('state not handled')
+          err('state not handled: ' + this.state)
       }
     }
     return ret
