@@ -97,24 +97,24 @@ function state_map () {
   var b_k = RPOS.b_k
   var a_k = RPOS.a_k
   var obj = IN_OBJ
-  var non = 0
+  var arr = 0
 
   var val = '"ntf-0123456789' // all legal value starts (ascii)
 
   // 0 = no context (comma separated values)
   // (s0 ctxs +       s0 positions + tokens) -> s1
-  map([non], [bfv, b_v], val, non | a_v)
-  map([non], [a_v], ',', b_v)
+  map([arr], [bfv, b_v], val, arr | a_v)
+  map([arr], [a_v], ',', b_v)
 
-  map([non, obj], [bfv, b_v], '[', non | bfv)
-  map([non, obj], [bfv, b_v], '{', obj | bfk)
+  map([arr, obj], [bfv, b_v], '[', arr | bfv)
+  map([arr, obj], [bfv, b_v], '{', obj | bfk)
 
   map([obj], [a_v],       ',', obj | b_k)
   map([obj], [bfk, b_k],  '"', obj | a_k)
   map([obj], [a_k],       ':', obj | b_v)
   map([obj], [b_v],       val, obj | a_v)
 
-  map([non], [bfv, a_v], ']', a_v)          // s1 context not set here. it is set by checking the stack
+  map([arr], [bfv, a_v], ']', a_v)          // s1 context not set here. it is set by checking the stack
   map([obj], [bfk, a_v], '}', a_v)          // s1 context not set here. it is set by checking the stack
 
   return ret
