@@ -74,19 +74,6 @@ var TOK = {
   ERR: 0,         //  0   - error.  unexpected state.  check info for details.
 }
 
-var TCODE_BY_TOK = (function (){
-  var ret = []
-  ret[TOK.NUM] = 'n'
-  ret[TOK.STR] = 's'
-  ret[TOK.TRU] = 'b'
-  ret[TOK.FAL] = 'b'
-  ret[TOK.NUL] = 'N'
-  ret[TOK.obj] = 'o'
-  ret[TOK.arr] = 'a'
-  return ret
-})()
-
-
 // create an int-int map from (state + tok) -- to --> (new state)
 function state_map () {
   var ret = []
