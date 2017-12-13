@@ -18,26 +18,25 @@
 // contexts (in array, in object, or none)
 
 // relative positions.  before first key, after value, ...
-var RPOS = {
-  arr_bfv: 0x080,
-  arr_b_v: 0x100,
-  arr_a_v: 0x180,
-  obj_bfk: 0x200,
-  obj_b_k: 0x280,
-  obj_a_k: 0x300,
-  obj_bfv: 0x380,
-  obj_b_v: 0x400,
-  obj_a_v: 0x480,
-}
+var ARR_BFV = 0x080
+var ARR_B_V = 0x100
+var ARR_A_V = 0x180
+var OBJ_BFK = 0x200
+var OBJ_B_K = 0x280
+var OBJ_A_K = 0x300
+var OBJ_BFV = 0x380
+var OBJ_B_V = 0x400
+var OBJ_A_V = 0x480
+
 
 function pos_str (state, relative) {
   switch (state) {
-    case RPOS.obj_bfk: return relative ? 'before first key' : 'first key'
-    case RPOS.obj_b_k: return relative ? 'before key' : 'key'
-    case RPOS.obj_a_k: return relative ? 'after key' : 'key'
-    case RPOS.arr_bfv: case RPOS.obj_bfv: return relative ? 'before first value' : 'first value'
-    case RPOS.arr_b_v: case RPOS.obj_b_v: return relative ? 'before value' : 'value'
-    case RPOS.arr_a_v: case RPOS.obj_a_v: return relative ? 'after value' : 'value'
+    case OBJ_BFK: return relative ? 'before first key' : 'first key'
+    case OBJ_B_K: return relative ? 'before key' : 'key'
+    case OBJ_A_K: return relative ? 'after key' : 'key'
+    case ARR_BFV: case OBJ_BFV: return relative ? 'before first value' : 'first value'
+    case ARR_B_V: case OBJ_B_V: return relative ? 'before value' : 'value'
+    case ARR_A_V: case OBJ_A_V: return relative ? 'after value' : 'value'
   }
 }
 
@@ -65,7 +64,7 @@ var TOK = {
   NUM: 78,        // 'N'  - a number value starting with: -, 0, 1, ..., 9
 
   // special codes
-  BEG: 66,        // 'B'  - begin - about to process
+  BEG: 66,        // 'B'  - begin - about to process a buffer
   END: 69,        // 'E'  - end -   buffer limit reached and state is clean (stack is empty and no pending values)
   ERR: 0,         //  0   - error.  unexpected state.  check info for details.
 }
@@ -87,31 +86,20 @@ function state_map () {
     })
   }
 
-  var arr_bfv = RPOS.arr_bfv
-  var arr_b_v = RPOS.arr_b_v
-  var arr_a_v = RPOS.arr_a_v
-  var obj_bfk = RPOS.obj_bfk
-  var obj_b_k = RPOS.obj_b_k
-  var obj_a_k = RPOS.obj_a_k
-  var obj_bfv = RPOS.obj_bfv
-  var obj_b_v = RPOS.obj_b_v
-  var obj_a_v = RPOS.obj_a_v
-
-
   var val = '"ntf-0123456789' // all legal value starts (ascii)
 
   // 0 = no context (comma separated values)
   // (s0 ctxs +       s0 positions + tokens) -> s1
-  map([arr_bfv, arr_b_v], val, arr_a_v)
-  map([arr_a_v], ',', arr_b_v)
+  map([ARR_BFV, ARR_B_V], val, ARR_A_V)
+  map([ARR_A_V], ',', ARR_B_V)
 
-  map([arr_bfv, arr_b_v, obj_bfv, obj_b_v], '[',  arr_bfv)
-  map([arr_bfv, arr_b_v, obj_bfv, obj_b_v], '{',  obj_bfk)
+  map([ARR_BFV, ARR_B_V, OBJ_BFV, OBJ_B_V], '[',  ARR_BFV)
+  map([ARR_BFV, ARR_B_V, OBJ_BFV, OBJ_B_V], '{',  OBJ_BFK)
 
-  map([obj_a_v],            ',',  obj_b_k)
-  map([obj_bfk, obj_b_k],   '"',  obj_a_k)
-  map([obj_a_k],            ':',  obj_b_v)
-  map([obj_b_v],            val,  obj_a_v)
+  map([OBJ_A_V],            ',',  OBJ_B_K)
+  map([OBJ_BFK, OBJ_B_K],   '"',  OBJ_A_K)
+  map([OBJ_A_K],            ':',  OBJ_B_V)
+  map([OBJ_B_V],            val,  OBJ_A_V)
 
   // ending of object and array '}' and ']' is handled in the code by checking the stack
 
@@ -249,7 +237,7 @@ function init_defaults (src, off, lim) {
     voff:     off,
 
     stack:    [],
-    state:    RPOS.arr_bfv,
+    state:    ARR_BFV,
     vcount:   0,
   }
 }
@@ -267,11 +255,11 @@ function tokenize (src, opt, cb) {
 function _tokenize (init, opt, cb) {
   // localized constants for faster access
   var states = STATE_MAP
-  var obj_bfk = RPOS.obj_bfk
-  var obj_a_k = RPOS.obj_a_k
-  var obj_a_v = RPOS.obj_a_v
-  var arr_bfv = RPOS.arr_bfv
-  var arr_a_v = RPOS.arr_a_v
+  var obj_bfk = OBJ_BFK
+  var obj_a_k = OBJ_A_K
+  var obj_a_v = OBJ_A_V
+  var arr_bfv = ARR_BFV
+  var arr_a_v = ARR_A_V
   var whitespace = WHITESPACE
   var all_num_chars = ALL_NUM_CHARS
   var tok_bytes = TOK_BYTES
@@ -449,7 +437,7 @@ function _tokenize (init, opt, cb) {
 
 function clean_up_ecode (src, off, lim, koff, klim, tok, voff, vlim, depth, state, ecode, cb) {
   if (ecode === null) {
-    if (depth === 0 && (state === RPOS.arr_bfv || state === RPOS.arr_a_v)) {
+    if (depth === 0 && (state === ARR_BFV || state === ARR_A_V)) {
       ecode = vlim === lim ? END.DONE : END.CLEAN_STOP
     } else {
       ecode = END.TRUNC_SRC
@@ -466,9 +454,9 @@ function clean_up_ecode (src, off, lim, koff, klim, tok, voff, vlim, depth, stat
       ecode = END.UNEXP_BYTE
     }
   } else if (ecode === END.TRUNC_VAL) {
-    if (state === RPOS.obj_bfk || state === RPOS.obj_b_k) {
+    if (state === OBJ_BFK || state === OBJ_B_K) {
       ecode = END.TRUNC_KEY
-    } else if (vlim === lim && tok === TOK.NUM && depth === 0 && (state === RPOS.arr_bfv || state === RPOS.arr_b_v)) {
+    } else if (vlim === lim && tok === TOK.NUM && depth === 0 && (state === ARR_BFV || state === ARR_B_V)) {
       // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
       // note - this means we won't be able to split no-context numbers outside of an array or object container.
       cb(src, koff, klim, tok, voff, vlim, null)
@@ -566,10 +554,10 @@ Position.prototype = {
     } else if (this.ecode === END.TRUNC_VAL ) {
       if (in_obj) {
         switch (this.state) {
-          case RPOS.arr_b_v:
+          case ARR_B_V:
             ret += vlen
             break
-          case RPOS.obj_b_v:
+          case OBJ_B_V:
             ret += klen + '.' + (gap - 1) + ':' + vlen
             break
           default:
@@ -580,22 +568,22 @@ Position.prototype = {
       }
     } else {
       switch (this.state) {
-        case RPOS.arr_bfv:
-        case RPOS.obj_bfk:
+        case ARR_BFV:
+        case OBJ_BFK:
           ret += '-'
           break
-        case RPOS.arr_b_v:
-        case RPOS.obj_b_k:
+        case ARR_B_V:
+        case OBJ_B_K:
           ret += '+'
           break
-        case RPOS.arr_a_v:
-        case RPOS.obj_a_v:
+        case ARR_A_V:
+        case OBJ_A_V:
           ret += '.'
           break
-        case RPOS.obj_a_k:
+        case OBJ_A_K:
           ret += klen + (gap > 0 ? '.' + gap : '') + '.'
           break
-        case RPOS.obj_b_v:
+        case OBJ_B_V:
           ret += klen + (gap > 1 ? '.' + (gap - 1) : '') + ':'
           break
         default:
