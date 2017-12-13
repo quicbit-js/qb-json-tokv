@@ -27,10 +27,10 @@ var RPOS_MASK = 0x1C00
 var RPOS = {
   bfk: 0x0400,
   b_k: 0x0800,
-  bfv: 0x0C00,
-  b_v: 0x1000,
-  a_v: 0x1400,
-  a_k: 0x1800,
+  a_k: 0x0C00,
+  bfv: 0x1000,
+  b_v: 0x1400,
+  a_v: 0x1800,
 }
 
 // relative positions 'bfk', b_k'...
