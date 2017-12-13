@@ -399,7 +399,7 @@ function _tokenize (init, opt, cb) {
       tok,
       voff,
       idx,
-      stack.map(function (b) { return String.fromCharCode(b) }).join(''),
+      stack,
       state0,
       ecode
     ),
@@ -534,10 +534,10 @@ Position.prototype = {
     var ctx = this.in_arr ? 'in array ' : (this.in_obj ? 'in object ' : '')
     return ctx + pos_str(this.state, ecode !== END.TRUNC_KEY && ecode !== END.TRUNC_VAL)
   },
-  get in_arr () { return this.stack[this.stack.length - 1] === '[' },
-  get in_obj () { return this.stack[this.stack.length - 1] === '{' },
+  get in_arr () { return this.stack[this.stack.length - 1] === 91 },
+  get in_obj () { return this.stack[this.stack.length - 1] === 123 },
   get parse_state () {
-    var ret = this.stack
+    var ret = this.stack.map(function (b) { return String.fromCharCode(b) }).join('')
     var in_obj = this.in_obj
     var vlen = this.vlim - this.voff
 
