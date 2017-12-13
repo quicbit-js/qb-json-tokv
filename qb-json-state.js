@@ -114,7 +114,8 @@ function parse_state (pi) {
   return ret
 }
 
-function str (pi) {
+function str (info) {
+  var pi = info.position
   var bytes = pi.vlim - pi.off
   var tbytes = pi.lim - pi.off
   return pi.vcount + '/' + bytes + ':' + tbytes + '/' + parse_state(pi)
