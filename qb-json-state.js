@@ -121,7 +121,12 @@ function str (pi) {
 }
 
 // a convenience function for summarizing/logging/debugging callback arguments as compact strings
-function args2str (src, koff, klim, tok, voff, vlim, info) {
+// converts the 'arguments' array from cb into a terse string code.
+function args2str () {
+  var a = arguments[0]
+  var i=0
+// src, koff, klim, tok, voff, vlim, info
+  var src = a[i++], koff = a[i++], klim = a[i++], tok = a[i++], voff = a[i++], vlim = a[i++], info = a[i++]
   var ret
   var vlen = vlim - voff
   switch (tok) {
