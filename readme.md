@@ -470,6 +470,7 @@ truncated array and csv states:
 truncated and split key-value states (no whitespace):
     
     {k                          key truncated at k bytes, k > 0)
+    {k.                         key (complete) k bytes, no colon
     {k:                         key k bytes, colon, (no value)
     {k:v                        key k bytes, colon, value (truncated at v bytes, v > 0)
 
@@ -490,9 +491,11 @@ Examples
     [{-             inside array then object, expecting first key or object end
     [{+             inside array then object, before a key-value pair, expecting a key
     [{.             inside array then object, after a value, expecting a comma or object end
-    [{4.3:          inside array then object, 4 byte key followed by 3 whitespace and colon           
-    [{4.3:          inside array then object, 4 byte key followed by 3 whitespace and colon
-    [{4.3:7         inside array then object, 4 byte key followed by 3 whitespace and colon, truncated 7 byte value
+    [{4.            inside array then object, 4 byte key complete, no whitespace           
+    [{4.1.          inside array then object, 4 byte key complete, 1 byte whitespace           
+    [{4.3:          inside array then object, 4 byte key followed by 3 bytes whitespace + colon           
+    [{4.3:          inside array then object, 4 byte key followed by 3 bytes whitespace + colon
+    [{4.3:7         inside array then object, 4 byte key followed by 3 bytes whitespace + colon, truncated 7 byte value
     
     {[+             inside object then array, expecting a value
     {[3             inside object then array, truncated 3 byte value

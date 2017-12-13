@@ -112,7 +112,7 @@ test('tokenize - errors', function (t) {
       [ '{ fal:',           [ 'B@0,{@0,!3@2: unexpected token "fal", in object before first key at 2..4', 'UNEXP_VAL', '0/5:6/{-' ]   ],
       [ '{"a": "b", 3: 4}', [ '{@0,K3@1:S3@6,!1@11: unexpected number 3, in object before key at 11', 'UNEXP_VAL', '1/12:16/{+' ]      ],
       [ '{ 2.4 ]',          [ 'B@0,{@0,!3@2: unexpected number 2.4, in object before first key at 2..4', 'UNEXP_VAL', '0/5:7/{-' ]    ],
-      [ '{ "a" ]',          [ 'B@0,{@0,K3@2:!1@6: unexpected token "]", in object after key at 6', 'UNEXP_VAL', '0/7:7/{3.' ]          ],
+      [ '{ "a" ]',          [ 'B@0,{@0,K3@2:!1@6: unexpected token "]", in object after key at 6', 'UNEXP_VAL', '0/7:7/{3.1.' ]          ],
       // unexpected token has precidence over truncation (be relatively optimistic about truncation)
       [ '[ 1, 2 ] "c',      [ 'N1@5,]@7,!2@9: unexpected string "c, after value at 9..10', 'UNEXP_VAL', '3/11:11/.' ]                 ],
       [ '[ 1, 2 ] "c"',     [ 'N1@5,]@7,!3@9: unexpected string "c", after value at 9..11', 'UNEXP_VAL', '3/12:12/.' ]                ],
@@ -120,7 +120,7 @@ test('tokenize - errors', function (t) {
       // truncated src (not an error in incremental mode)
       [ '{"a" : ',          [ 'B@0,{@0,K3@1:!0@7: truncated input, in object before value at 7', 'TRUNC_SRC', '0/7:7/{3.2:' ]            ],
       [ '{"a"',             [ 'B@0,{@0,K3@1:!0@4: truncated input, in object after key at 4', 'TRUNC_SRC', '0/4:4/{3.' ]               ],
-      [ '{"a" ',            [ 'B@0,{@0,K3@1:!0@5: truncated input, in object after key at 5', 'TRUNC_SRC', '0/5:5/{3.1' ]             ],
+      [ '{"a" ',            [ 'B@0,{@0,K3@1:!0@5: truncated input, in object after key at 5', 'TRUNC_SRC', '0/5:5/{3.1.' ]             ],
       [ '[1, 2, ',          [ 'N1@1,N1@4,!0@7: truncated input, in array before value at 7', 'TRUNC_SRC', '2/7:7/[+' ]                ],
     ],
     function (src) {

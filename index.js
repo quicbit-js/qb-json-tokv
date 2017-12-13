@@ -572,12 +572,9 @@ Position.prototype = {
     var vlen = this.vlim - this.voff
 
     var klen = 0
-    var ws = ''
+    var gap = 0
     if (this.koff !== -1) {
-      var wslen = this.voff - this.klim - 1  // count ws, not ':' byte
-      if (wslen > 0) {
-        ws = '.' + wslen
-      }
+      gap = this.voff - this.klim
       klen = this.klim - this.koff
     }
 
@@ -587,10 +584,11 @@ Position.prototype = {
       if (in_obj) {
         switch (rpos) {
           case RPOS.bfk: case RPOS.b_k:
-            ret += klen + ws
+            err('this should not happen')
+            // ret += klen + (gap - 1)
             break
           case RPOS.b_v:
-            ret += klen + ws + ':' + vlen
+            ret += klen + '.' + (gap - 1) + ':' + vlen
             break
           default:
             err('unexpected state for truncated value: ' + rpos)
@@ -611,10 +609,10 @@ Position.prototype = {
           ret += '.'
           break
         case RPOS.a_k:
-          ret += klen + ws + '.'
+          ret += klen + (gap > 0 ? '.' + gap : '') + '.'
           break
         case RPOS.b_v:
-          ret += in_obj ? (klen + ws + ':') : '+'
+          ret += in_obj ? (klen + (gap > 1 ? '.' + (gap - 1) : '') + ':') : '+'
           break
         default:
           err('state not handled')
