@@ -14,19 +14,21 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-// STATES   - LSB is reserved for token ascii value.  see readme
+// STATES   - LSB (0x7F) are reserved for token ascii value.  see readme
 // contexts (in array, in object, or none)
 
-// relative positions.  before first key, after value, ...
-var ARR_BFV = 0x080
-var ARR_B_V = 0x100
-var ARR_A_V = 0x180
-var OBJ_BFK = 0x200
-var OBJ_B_K = 0x280
-var OBJ_A_K = 0x300
-var OBJ_BFV = 0x380
-var OBJ_B_V = 0x400
-var OBJ_A_V = 0x480
+// parse state: before first key, after value, ...
+var STATES = {
+  ARR_BFV: 0x080,
+  ARR_B_V: 0x100,
+  ARR_A_V: 0x180,
+  OBJ_BFK: 0x200,
+  OBJ_B_K: 0x280,
+  OBJ_A_K: 0x300,
+  OBJ_BFV: 0x380,
+  OBJ_B_V: 0x400,
+  OBJ_A_V: 0x480,
+}
 
 var END = {
   UNEXP_VAL: 'UNEXP_VAL',       // token or value was recognized, but was not expected
@@ -74,20 +76,30 @@ function state_map () {
     })
   }
 
+  var a_bfv = STATES.ARR_BFV
+  var a_b_v = STATES.ARR_B_V
+  var a_a_v = STATES.ARR_A_V
+  var o_bfk = STATES.OBJ_BFK
+  var o_b_k = STATES.OBJ_B_K
+  var o_a_k = STATES.OBJ_A_K
+  var o_bfv = STATES.OBJ_BFV
+  var o_b_v = STATES.OBJ_B_V
+  var o_a_v = STATES.OBJ_A_V
+
   var val = '"ntf-0123456789' // all legal value starts (ascii)
 
   // 0 = no context (comma separated values)
   // (s0 ctxs +       s0 positions + tokens) -> s1
-  map([ARR_BFV, ARR_B_V], val, ARR_A_V)
-  map([ARR_A_V], ',', ARR_B_V)
+  map([a_bfv, a_b_v], val, a_a_v)
+  map([a_a_v], ',', a_b_v)
 
-  map([ARR_BFV, ARR_B_V, OBJ_BFV, OBJ_B_V], '[',  ARR_BFV)
-  map([ARR_BFV, ARR_B_V, OBJ_BFV, OBJ_B_V], '{',  OBJ_BFK)
+  map([a_bfv, a_b_v, o_bfv, o_b_v], '[',  a_bfv)
+  map([a_bfv, a_b_v, o_bfv, o_b_v], '{',  o_bfk)
 
-  map([OBJ_A_V],            ',',  OBJ_B_K)
-  map([OBJ_BFK, OBJ_B_K],   '"',  OBJ_A_K)
-  map([OBJ_A_K],            ':',  OBJ_B_V)
-  map([OBJ_B_V],            val,  OBJ_A_V)
+  map([o_a_v],            ',',  o_b_k)
+  map([o_bfk, o_b_k],     '"',  o_a_k)
+  map([o_a_k],            ':',  o_b_v)
+  map([o_b_v],            val,  o_a_v)
 
   // ending of object and array '}' and ']' is handled in the code by checking the stack
 
@@ -225,7 +237,7 @@ function init_defaults (src, off, lim) {
     voff:     off,
 
     stack:    [],
-    state:    ARR_BFV,
+    state:    STATES.ARR_BFV,
     vcount:   0,
   }
 }
@@ -243,11 +255,11 @@ function tokenize (src, opt, cb) {
 function _tokenize (init, opt, cb) {
   // localized constants for faster access
   var states = STATE_MAP
-  var obj_bfk = OBJ_BFK
-  var obj_a_k = OBJ_A_K
-  var obj_a_v = OBJ_A_V
-  var arr_bfv = ARR_BFV
-  var arr_a_v = ARR_A_V
+  var obj_bfk = STATES.OBJ_BFK
+  var obj_a_k = STATES.OBJ_A_K
+  var obj_a_v = STATES.OBJ_A_V
+  var arr_bfv = STATES.ARR_BFV
+  var arr_a_v = STATES.ARR_A_V
   var whitespace = WHITESPACE
   var all_num_chars = ALL_NUM_CHARS
   var tok_bytes = TOK_BYTES
@@ -425,7 +437,7 @@ function _tokenize (init, opt, cb) {
 
 function clean_up_ecode (src, off, lim, koff, klim, tok, voff, vlim, depth, state, ecode, cb) {
   if (ecode === null) {
-    if (depth === 0 && (state === ARR_BFV || state === ARR_A_V)) {
+    if (depth === 0 && (state === STATES.ARR_BFV || state === STATES.ARR_A_V)) {
       ecode = vlim === lim ? END.DONE : END.CLEAN_STOP
     } else {
       ecode = END.TRUNC_SRC
@@ -442,9 +454,9 @@ function clean_up_ecode (src, off, lim, koff, klim, tok, voff, vlim, depth, stat
       ecode = END.UNEXP_BYTE
     }
   } else if (ecode === END.TRUNC_VAL) {
-    if (state === OBJ_BFK || state === OBJ_B_K) {
+    if (state === STATES.OBJ_BFK || state === STATES.OBJ_B_K) {
       ecode = END.TRUNC_KEY
-    } else if (vlim === lim && tok === TOK.NUM && depth === 0 && (state === ARR_BFV || state === ARR_B_V)) {
+    } else if (vlim === lim && tok === TOK.NUM && depth === 0 && (state === STATES.ARR_BFV || state === STATES.ARR_B_V)) {
       // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
       // note - this means we won't be able to split no-context numbers outside of an array or object container.
       cb(src, koff, klim, tok, voff, vlim, null)
@@ -503,12 +515,12 @@ function figure_msg_etok (info, tok, val_str, range, incremental) {
 
 function pos_str (state, relative) {
   switch (state) {
-    case OBJ_BFK: return relative ? 'before first key' : 'first key'
-    case OBJ_B_K: return relative ? 'before key' : 'key'
-    case OBJ_A_K: return relative ? 'after key' : 'key'
-    case ARR_BFV: case OBJ_BFV: return relative ? 'before first value' : 'first value'
-    case ARR_B_V: case OBJ_B_V: return relative ? 'before value' : 'value'
-    case ARR_A_V: case OBJ_A_V: return relative ? 'after value' : 'value'
+    case STATES.OBJ_BFK: return relative ? 'before first key' : 'first key'
+    case STATES.OBJ_B_K: return relative ? 'before key' : 'key'
+    case STATES.OBJ_A_K: return relative ? 'after key' : 'key'
+    case STATES.ARR_BFV: case STATES.OBJ_BFV: return relative ? 'before first value' : 'first value'
+    case STATES.ARR_B_V: case STATES.OBJ_B_V: return relative ? 'before value' : 'value'
+    case STATES.ARR_A_V: case STATES.OBJ_A_V: return relative ? 'after value' : 'value'
   }
 }
 
@@ -552,9 +564,9 @@ Position.prototype = {
       ret += vlen   // only complete keys are represented by koff..klim.  truncations and other errors are all at voff/vlim
     } else if (this.ecode === END.TRUNC_VAL ) {
       if (in_obj) {
-        if (this.state === ARR_B_V) {
+        if (this.state === STATES.ARR_B_V) {
           ret += vlen
-        } else if (this.state === OBJ_B_V) {
+        } else if (this.state === STATES.OBJ_B_V) {
           ret += klen + '.' + (gap - 1) + ':' + vlen
         } else {
           err('unexpected state for truncated value: ' + this.state)
@@ -564,22 +576,22 @@ Position.prototype = {
       }
     } else {
       switch (this.state) {
-        case ARR_BFV:
-        case OBJ_BFK:
+        case STATES.ARR_BFV:
+        case STATES.OBJ_BFK:
           ret += '-'
           break
-        case ARR_B_V:
-        case OBJ_B_K:
+        case STATES.ARR_B_V:
+        case STATES.OBJ_B_K:
           ret += '+'
           break
-        case ARR_A_V:
-        case OBJ_A_V:
+        case STATES.ARR_A_V:
+        case STATES.OBJ_A_V:
           ret += '.'
           break
-        case OBJ_A_K:
+        case STATES.OBJ_A_K:
           ret += klen + (gap > 0 ? '.' + gap : '') + '.'
           break
-        case OBJ_B_V:
+        case STATES.OBJ_B_V:
           ret += klen + (gap > 1 ? '.' + (gap - 1) : '') + ':'
           break
         default:

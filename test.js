@@ -63,17 +63,17 @@ test('tokenize', function (t) {
       [ '"x", 4\n, null, 3.2e5 , true, false',      null,  null,  [ 't@23,f@29,E@34', 'DONE', '6/34:34/.' ]      ],
       [ '["a",1.3,\n\t{ "b" : ["v", "w"]\n}\t\n ]', null,  null,  [ '}@30,]@34,E@35', 'DONE', '7/35:35/.' ]      ],
     ],
-    function (src, off, lim) {
+    function (input, off, lim) {
       var hector = t.hector()
       var endinfo = null
       var cb = function (src, koff, klim, tok, voff, vlim, info) {
         hector(jtok.args2str(koff, klim, tok, voff, vlim, info))
         if (tok === TOK.ERR) {
-          err('working state should not create an ERR callback: ' + info.msg) }
+          err('callback got error: ' + info.msg + ' input: ' + input + (off > 0 ? 'off: ' + off : '')) }
         if (tok === TOK.END) { endinfo = info }
         return true
       }
-      var info = jtok.tokenize(utf8.buffer(src), {off: off, lim: lim}, cb)
+      var info = jtok.tokenize(utf8.buffer(input), {off: off, lim: lim}, cb)
       info === endinfo || err('expected returned info to equal endinfo')
 
       return [ hector.arg(0).slice(-3).join(','), endinfo.ecode, endinfo.position.toString() ]
