@@ -16,10 +16,8 @@
 
 // STATES   - LSB is reserved for token ascii value.  see readme
 // contexts (in array, in object, or none)
-var CTX = {
-  // 0x0 means no context
-  obj: 0x0100,
-}
+
+var IN_OBJ = 0x0100
 
 // relative positions.  before first key, after value, ...
 var RPOS_MASK = 0x1C00
@@ -98,7 +96,7 @@ function state_map () {
   var bfk = RPOS.bfk
   var b_k = RPOS.b_k
   var a_k = RPOS.a_k
-  var obj = CTX.obj
+  var obj = IN_OBJ
   var non = 0
 
   var val = '"ntf-0123456789' // all legal value starts (ascii)
@@ -273,7 +271,7 @@ function _tokenize (init, opt, cb) {
   var states = STATE_MAP
   var rpos_mask = RPOS_MASK
   var after_key = RPOS.a_k
-  var in_obj = CTX.obj
+  var in_obj = IN_OBJ
   var whitespace = WHITESPACE
   var all_num_chars = ALL_NUM_CHARS
   var tok_bytes = TOK_BYTES
