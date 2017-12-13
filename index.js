@@ -28,18 +28,6 @@ var OBJ_BFV = 0x380
 var OBJ_B_V = 0x400
 var OBJ_A_V = 0x480
 
-
-function pos_str (state, relative) {
-  switch (state) {
-    case OBJ_BFK: return relative ? 'before first key' : 'first key'
-    case OBJ_B_K: return relative ? 'before key' : 'key'
-    case OBJ_A_K: return relative ? 'after key' : 'key'
-    case ARR_BFV: case OBJ_BFV: return relative ? 'before first value' : 'first value'
-    case ARR_B_V: case OBJ_B_V: return relative ? 'before value' : 'value'
-    case ARR_A_V: case OBJ_A_V: return relative ? 'after value' : 'value'
-  }
-}
-
 var END = {
   UNEXP_VAL: 'UNEXP_VAL',       // token or value was recognized, but was not expected
   UNEXP_BYTE: 'UNEXP_BYTE',     // byte was not a recognized token or legal part of a value
@@ -411,7 +399,7 @@ function _tokenize (init, opt, cb) {
       tok,
       voff,
       idx,
-      stack,
+      stack.map(function (b) { return String.fromCharCode(b) }).join(''),
       state0,
       ecode
     ),
@@ -513,6 +501,17 @@ function figure_msg_etok (info, tok, val_str, range, incremental) {
   return { msg: msg, etok: etok }
 }
 
+function pos_str (state, relative) {
+  switch (state) {
+    case OBJ_BFK: return relative ? 'before first key' : 'first key'
+    case OBJ_B_K: return relative ? 'before key' : 'key'
+    case OBJ_A_K: return relative ? 'after key' : 'key'
+    case ARR_BFV: case OBJ_BFV: return relative ? 'before first value' : 'first value'
+    case ARR_B_V: case OBJ_B_V: return relative ? 'before value' : 'value'
+    case ARR_A_V: case OBJ_A_V: return relative ? 'after value' : 'value'
+  }
+}
+
 // Position represents parse position information - both logical and absolute (bytes).  Format (line and column) is
 // not tracked by Position.
 function Position (off, lim, vcount, koff, klim, tok, voff, vlim, stack, state, ecode) {
@@ -535,10 +534,10 @@ Position.prototype = {
     var ctx = this.in_arr ? 'in array ' : (this.in_obj ? 'in object ' : '')
     return ctx + pos_str(this.state, ecode !== END.TRUNC_KEY && ecode !== END.TRUNC_VAL)
   },
-  get in_arr () { return this.stack[this.stack.length - 1] === 91 },
-  get in_obj () { return this.stack[this.stack.length - 1] === 123 },
+  get in_arr () { return this.stack[this.stack.length - 1] === '[' },
+  get in_obj () { return this.stack[this.stack.length - 1] === '{' },
   get parse_state () {
-    var ret = this.stack.map(function (b) { return String.fromCharCode(b) }).join('')
+    var ret = this.stack
     var in_obj = this.in_obj
     var vlen = this.vlim - this.voff
 
@@ -550,18 +549,15 @@ Position.prototype = {
     }
 
     if (this.ecode === END.TRUNC_KEY) {
-      ret += vlen   // only complete keys are represented by koff/klim.  truncations and other errors are all at voff/vlim
+      ret += vlen   // only complete keys are represented by koff..klim.  truncations and other errors are all at voff/vlim
     } else if (this.ecode === END.TRUNC_VAL ) {
       if (in_obj) {
-        switch (this.state) {
-          case ARR_B_V:
-            ret += vlen
-            break
-          case OBJ_B_V:
-            ret += klen + '.' + (gap - 1) + ':' + vlen
-            break
-          default:
-            err('unexpected state for truncated value: ' + this.state)
+        if (this.state === ARR_B_V) {
+          ret += vlen
+        } else if (this.state === OBJ_B_V) {
+          ret += klen + '.' + (gap - 1) + ':' + vlen
+        } else {
+          err('unexpected state for truncated value: ' + this.state)
         }
       } else {
         ret += vlen
