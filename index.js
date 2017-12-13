@@ -22,9 +22,9 @@ var IN_OBJ = 0x0100
 // relative positions.  before first key, after value, ...
 var RPOS_MASK = 0x1C00
 var RPOS = {
-  bfk: 0x0400,
-  b_k: 0x0800,
-  a_k: 0x0C00,
+  obj_bfk: 0x0400,
+  obj_b_k: 0x0800,
+  obj_a_k: 0x0C00,
   bfv: 0x1000,
   b_v: 0x1400,
   a_v: 0x1800,
@@ -33,13 +33,15 @@ var RPOS = {
 // relative positions 'bfk', b_k'...
 var RPOS_BY_INT = Object.keys(RPOS).reduce(function (a,n) { a[RPOS[n]] = n; return a }, [])
 
-function pos_str (state, end_code) {
-  var pstr = RPOS_BY_INT[state & RPOS_MASK]
-  var ret = []
-  if (end_code !== END.TRUNC_VAL && end_code !== END.TRUNC_KEY) { ret.push(pstr[0] === 'b' ? 'before' : (pstr[0] === 'a' ? 'after' : '?' )) }
-  if (pstr[1] === 'f') { ret.push('first') }
-  ret.push(pstr[2] === 'k' ? 'key' : (pstr[2] === 'v' ? 'value' : '?'))
-  return ret.join(' ')
+function pos_str (state, relative) {
+  switch (state & RPOS_MASK) {
+    case RPOS.obj_bfk: return relative ? 'before first key' : 'first key'
+    case RPOS.obj_b_k: return relative ? 'before key' : 'key'
+    case RPOS.obj_a_k: return relative ? 'after key' : 'key'
+    case RPOS.bfv: return relative ? 'before first value' : 'first value'
+    case RPOS.b_v: return relative ? 'before value' : 'value'
+    case RPOS.a_v: return relative ? 'after value' : 'value'
+  }
 }
 
 var END = {
@@ -93,9 +95,9 @@ function state_map () {
   var bfv = RPOS.bfv
   var b_v = RPOS.b_v
   var a_v = RPOS.a_v
-  var bfk = RPOS.bfk
-  var b_k = RPOS.b_k
-  var a_k = RPOS.a_k
+  var bfk = RPOS.obj_bfk
+  var b_k = RPOS.obj_b_k
+  var a_k = RPOS.obj_a_k
   var obj = IN_OBJ
   var arr = 0
 
@@ -270,7 +272,7 @@ function _tokenize (init, opt, cb) {
   // localized constants for faster access
   var states = STATE_MAP
   var rpos_mask = RPOS_MASK
-  var after_key = RPOS.a_k
+  var after_key = RPOS.obj_a_k
   var arr_a_v = RPOS.a_v
   var obj_a_v = IN_OBJ | RPOS.a_v
   var whitespace = WHITESPACE
@@ -470,7 +472,7 @@ function clean_up_ecode (src, off, lim, koff, klim, tok, voff, vlim, depth, rpos
       ecode = END.UNEXP_BYTE
     }
   } else if (ecode === END.TRUNC_VAL) {
-    if (rpos === RPOS.bfk || rpos === RPOS.b_k) {
+    if (rpos === RPOS.obj_bfk || rpos === RPOS.obj_b_k) {
       ecode = END.TRUNC_KEY
     } else if (vlim === lim && tok === TOK.NUM && depth === 0 && (rpos === RPOS.bfv || rpos === RPOS.b_v)) {
       // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
@@ -549,7 +551,7 @@ Position.prototype = {
   constructor: Position,
   description: function (ecode) {
     var ctx = this.in_arr ? 'in array ' : (this.in_obj ? 'in object ' : '')
-    return ctx + pos_str(this.state, ecode)
+    return ctx + pos_str(this.state, ecode !== END.TRUNC_KEY && ecode !== END.TRUNC_VAL)
   },
   get in_arr () { return this.stack[this.stack.length - 1] === 91 },
   get in_obj () { return this.stack[this.stack.length - 1] === 123 },
@@ -571,7 +573,7 @@ Position.prototype = {
     } else if (this.ecode === END.TRUNC_VAL ) {
       if (in_obj) {
         switch (rpos) {
-          case RPOS.bfk: case RPOS.b_k:
+          case RPOS.obj_bfk: case RPOS.obj_b_k:
             err('should be TRUNK_KEY, not TRUNC_VAL')
             // ret += klen + (gap - 1)
             break
@@ -587,16 +589,16 @@ Position.prototype = {
     } else {
       switch (rpos) {
         case RPOS.bfv:
-        case RPOS.bfk:
+        case RPOS.obj_bfk:
           ret += '-'
           break
-        case RPOS.b_k:
+        case RPOS.obj_b_k:
           ret += '+'
           break
         case RPOS.a_v:
           ret += '.'
           break
-        case RPOS.a_k:
+        case RPOS.obj_a_k:
           ret += klen + (gap > 0 ? '.' + gap : '') + '.'
           break
         case RPOS.b_v:
