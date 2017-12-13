@@ -14,8 +14,6 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-var pstate = require('./qb-json-state')
-
 // PARSE POSITIONS   - LSB (0x7F) are reserved for token ascii value.
 // BFK = before first key, B_K = before key, A_V = after value, ...
 var ARR_BFV = 0x080
@@ -415,21 +413,36 @@ function _tokenize (init, opt, cb) {
     },
   }
 
-  var val_str = esc_str(info.src, voff, idx)
-  var range = (voff >= idx - 1) ? voff : voff + '..' + (idx - 1)
-  var msg_tok = figure_msg_etok(info, tok, val_str, range, opt.incremental)
-  info.msg = msg_tok.msg
+  info.etok = figure_etok(info.ecode, opt.incremental)
 
   if (cb_continue) {
-    cb(src, koff, klim, msg_tok.etok, voff, idx, info)
+    cb(src, koff, klim, info.etok, voff, idx, info)
   } // else callback was stopped - don't call
 
-  if (msg_tok.etok === TOK.ERR) {
-    var err = new Error(info.msg + ' (error.info has details)')
+  if (info.etok === TOK.ERR) {
+    // 'error parsing src. Use require("qb-json-state").str(error.info) for details'
+    var err = new Error(info)
     err.info = info
     throw err
   } else {
     return info
+  }
+}
+
+function figure_etok (ecode, incremental) {
+  switch (ecode) {
+    case END.UNEXP_VAL:
+    case END.UNEXP_BYTE:
+      return TOK.ERR
+    case END.TRUNC_KEY:
+    case END.TRUNC_VAL:
+    case END.TRUNC_SRC:
+      return incremental ? TOK.END : TOK.ERR
+    case END.CLEAN_STOP:
+    case END.DONE:
+      return TOK.END
+    default:
+      err('internal error, end state not handled: ' + ecode)
   }
 }
 
@@ -464,90 +477,8 @@ function clean_up_ecode (src, off, lim, koff, klim, tok, voff, vlim, depth, stat
   return ecode
 }
 
-// figure out end/error message and callback token
-function figure_msg_etok (info, tok, val_str, range, incremental) {
-  var tok_str = tok === TOK.NUM ? 'number' : (tok === TOK.STR ? 'string' : 'token')
-  var msg
-  var etok
-
-  switch (info.ecode) {
-    case END.UNEXP_VAL:       // failed transition (state0 + tok => state1) === 0
-      if (tok_str === 'token') { val_str = '"' + val_str + '"' }
-      msg = 'unexpected ' + tok_str + ' ' + val_str
-      etok = TOK.ERR
-      break
-    case END.UNEXP_BYTE:
-      msg = 'unexpected byte ' + '"' + val_str + '"'
-      etok = TOK.ERR
-      break
-    case END.TRUNC_KEY:
-      msg = 'truncated key'
-      etok = incremental ? TOK.END : TOK.ERR
-      break
-    case END.TRUNC_VAL:
-      msg = 'truncated ' + tok_str
-      etok = incremental ? TOK.END : TOK.ERR
-      break
-    case END.TRUNC_SRC:
-      msg = 'truncated input'
-      etok = incremental ? TOK.END : TOK.ERR
-      break
-    case END.CLEAN_STOP:
-      msg = 'stopped early with clean state'
-      etok = TOK.END
-      break
-    case END.DONE:
-      msg = 'done'
-      etok = TOK.END
-      break
-    default:
-      err('internal error, end state not handled: ' + info.ecode)
-  }
-
-  // enrich msg
-  msg += ', ' + pstate.desc(info.position, info.ecode) + ' at ' + range
-
-  return { msg: msg, etok: etok }
-}
-
-
-function esc_str (src, off, lim) {
-  var ret = ''
-  for (var i = off; i < lim; i++) {
-    var b = src[i]
-    ret += (b > 31 && b < 127) ? String.fromCharCode(b) : '\\u' + ("0000" + b.toString(16)).slice(-4)
-  }
-  return ret
-}
-
-// a convenience function for summarizing/logging/debugging callback arguments as compact strings
-function args2str (koff, klim, tok, voff, vlim, info) {
-  var ret
-  var vlen = vlim - voff
-  switch (tok) {
-    case TOK.STR:
-      ret = 'S' + vlen + '@' + voff
-      break
-    case TOK.NUM:
-      ret = 'N' + vlen + '@' + voff
-      break
-    case TOK.END:
-      ret = 'E' + (vlen || '') + '@' + voff
-      break
-    case TOK.ERR:
-      ret = '!' + vlen + '@' + voff + ': ' + info.msg
-      break
-    default:
-      ret = String.fromCharCode(tok) + '@' + voff
-  }
-  if (koff !== -1) {
-    ret = 'K' + (klim - koff) + '@' + koff + ':' + ret
-  }
-  return ret
-}
-
 module.exports = {
   tokenize: tokenize,
-  args2str: args2str,
   TOK: TOK,
+  END: END,
 }

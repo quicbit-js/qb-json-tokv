@@ -1,5 +1,10 @@
-// STATES   - LSB (0x7F) are reserved for token ascii value.
-// BFK = before first key, B_K = before key, A_V = after value, ...
+
+var jtok = require('.')
+
+var END = jtok.END
+var TOK = jtok.TOK
+
+// STATES from jtok - not public, so just copied here (must keep in sync)
 var ARR_BFV = 0x080
 var ARR_B_V = 0x100
 var ARR_A_V = 0x180
@@ -9,17 +14,6 @@ var OBJ_A_K = 0x300
 var OBJ_BFV = 0x380
 var OBJ_B_V = 0x400
 var OBJ_A_V = 0x480
-
-
-var END = {
-  UNEXP_VAL: 'UNEXP_VAL',       // token or value was recognized, but was not expected
-  UNEXP_BYTE: 'UNEXP_BYTE',     // byte was not a recognized token or legal part of a value
-  TRUNC_KEY: 'TRUNC_KEY',       // stopped before an object key was finished
-  TRUNC_VAL: 'TRUNC_VAL',       // stopped before a value was finished (number, false, true, null, string)
-  TRUNC_SRC: 'TRUNC_SRC',       // stopped before stack was zero or with a pending value
-  CLEAN_STOP: 'CLEAN_STOP',     // did not reach src lim, but stopped at a clean point (zero stack, no pending value)
-  DONE: 'DONE',                 // parsed to src lim and state is clean (no stack, no pending value)
-}
 
 function pos_str (state, relative) {
   switch (state) {
@@ -125,7 +119,85 @@ function str (pi) {
   var tbytes = pi.lim - pi.off
   return pi.vcount + '/' + bytes + ':' + tbytes + '/' + parse_state(pi)
 }
+
+// a convenience function for summarizing/logging/debugging callback arguments as compact strings
+function args2str (src, koff, klim, tok, voff, vlim, info) {
+  var ret
+  var vlen = vlim - voff
+  switch (tok) {
+    case TOK.STR:
+      ret = 'S' + vlen + '@' + voff
+      break
+    case TOK.NUM:
+      ret = 'N' + vlen + '@' + voff
+      break
+    case TOK.END:
+      ret = 'E' + (vlen || '') + '@' + voff
+      break
+    case TOK.ERR:
+      ret = '!' + vlen + '@' + voff + ': ' + message(src, info)
+      break
+    default:
+      ret = String.fromCharCode(tok) + '@' + voff
+  }
+  if (koff !== -1) {
+    ret = 'K' + (klim - koff) + '@' + koff + ':' + ret
+  }
+  return ret
+}
+
+function esc_str (src, off, lim) {
+  var ret = ''
+  for (var i = off; i < lim; i++) {
+    var b = src[i]
+    ret += (b > 31 && b < 127) ? String.fromCharCode(b) : '\\u' + ("0000" + b.toString(16)).slice(-4)
+  }
+  return ret
+}
+
+// figure out end/error message and callback token
+function message (src, info) {
+  var pi = info.position
+  var val_str = esc_str(src, pi.voff, pi.vlim)
+
+  var tok_str = pi.tok === TOK.NUM ? 'number' : (pi.tok === TOK.STR ? 'string' : 'token')
+  var ret
+
+  switch (pi.ecode) {
+    case END.UNEXP_VAL:       // failed transition (state0 + tok => state1) === 0
+      if (tok_str === 'token') { val_str = '"' + val_str + '"' }
+      ret = 'unexpected ' + tok_str + ' ' + val_str
+      break
+    case END.UNEXP_BYTE:
+      ret = 'unexpected byte ' + '"' + val_str + '"'
+      break
+    case END.TRUNC_KEY:
+      ret = 'truncated key'
+      break
+    case END.TRUNC_VAL:
+      ret = 'truncated ' + tok_str
+      break
+    case END.TRUNC_SRC:
+      ret = 'truncated input'
+      break
+    case END.CLEAN_STOP:
+      ret = 'stopped early with clean state'
+      break
+    case END.DONE:
+      ret = 'done'
+      break
+    default:
+      err('internal error, end state not handled: ' + pi.ecode)
+  }
+
+  var range = (pi.voff >= pi.vlim - 1) ? pi.voff : pi.voff + '..' + (pi.vlim - 1)
+  ret += ', ' + desc(pi, info.ecode) + ' at ' + range
+
+  return ret
+}
+
 module.exports = {
   str: str,
   desc: desc,
+  args2str: args2str,
 }

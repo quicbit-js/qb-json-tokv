@@ -68,7 +68,7 @@ test('tokenize', function (t) {
       var hector = t.hector()
       var endinfo = null
       var cb = function (src, koff, klim, tok, voff, vlim, info) {
-        hector(jtok.args2str(koff, klim, tok, voff, vlim, info))
+        hector(pstate.args2str(src, koff, klim, tok, voff, vlim, info))
         if (tok === TOK.ERR) {
           err('callback got error: ' + info.msg + ' input: ' + input + (off > 0 ? 'off: ' + off : '')) }
         if (tok === TOK.END) { endinfo = info }
@@ -128,7 +128,7 @@ test('tokenize - errors', function (t) {
       var hector = t.hector()
       var errinfo = null
       var cb = function (src, koff, klim, tok, voff, vlim, info) {
-        hector(jtok.args2str(koff, klim, tok, voff, vlim, info))
+        hector(pstate.args2str(src, koff, klim, tok, voff, vlim, info))
         if (tok === TOK.END) {
           err('error should not create an END callback') }
         if (tok === TOK.ERR) { errinfo = info }
@@ -160,7 +160,7 @@ test('callback stop', function (t) {
       var count = 0
       var hector = t.hector()
       var cb = function (src, koff, klim, tok, voff, vlim, info) {
-        hector(jtok.args2str(koff, klim, tok, voff, vlim, info))
+        hector(pstate.args2str(src, koff, klim, tok, voff, vlim, info))
         if (tok === TOK.END) { err('stopped callback should not call end') }
         return (count++ === at_cb) ? ret : true
       }
@@ -191,7 +191,7 @@ test('incremental clean',         function (t) {
       var hector = t.hector()
       var endinfo = null
       var cb = function (src, koff, klim, tok, voff, vlim, info) {
-        hector(jtok.args2str(koff, klim, tok, voff, vlim, info))
+        hector(pstate.args2str(src, koff, klim, tok, voff, vlim, info))
         if (tok === TOK.END) { endinfo = info }
         return true
       }
@@ -232,7 +232,7 @@ test('incremental', function (t) {
       var hector = t.hector()
       var endinfo = null
       var cb = function (src, koff, klim, tok, voff, vlim, info) {
-        hector(jtok.args2str(koff, klim, tok, voff, vlim, info))
+        hector(pstate.args2str(src, koff, klim, tok, voff, vlim, info))
         if (tok === TOK.END) { endinfo = info }
         return true
       }
@@ -261,7 +261,7 @@ test('initial state', function (t) {
   ], function (input, off, lim, state, err, stack) {
     var hector = t.hector()
     var cb = function (src, koff, klim, tok, voff, vlim, info) {
-      hector(jtok.args2str(koff, klim, tok, voff, vlim, info))
+      hector(pstate.args2str(koff, klim, tok, voff, vlim, info))
       return true
     }
     jtok.tokenize(utf8.buffer(input), { off: off, lim: lim, init: { state: state, stack: stack, err: err } }, cb)
@@ -278,7 +278,7 @@ test('incremental processing', function (t) {
     var opt = {incremental: 1, init: null}
     var hector = t.hector()
     var cb = function (src, koff, klim, tok, voff, vlim, info) {
-      hector(jtok.args2str(koff, klim, tok, voff, vlim, info))
+      hector(pstate.args2str(koff, klim, tok, voff, vlim, info))
       return true
     }
     inputs.forEach(function (input) {
