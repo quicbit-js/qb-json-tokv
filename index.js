@@ -19,15 +19,15 @@
 
 // relative positions.  before first key, after value, ...
 var RPOS = {
-  arr_bfv: 0x0100,
-  arr_b_v: 0x0200,
-  arr_a_v: 0x0300,
-  obj_bfk: 0x0400,
-  obj_b_k: 0x0500,
-  obj_a_k: 0x0600,
-  obj_bfv: 0x0700,
-  obj_b_v: 0x0800,
-  obj_a_v: 0x0900,
+  arr_bfv: 0x080,
+  arr_b_v: 0x100,
+  arr_a_v: 0x180,
+  obj_bfk: 0x200,
+  obj_b_k: 0x280,
+  obj_a_k: 0x300,
+  obj_bfv: 0x380,
+  obj_b_v: 0x400,
+  obj_a_v: 0x480,
 }
 
 function pos_str (state, relative) {
@@ -73,7 +73,7 @@ var TOK = {
 // create an int-int map from (state + tok) -- to --> (new state)
 function state_map () {
   var ret = []
-  var max = 0x9FF      // accommodate all possible byte values
+  var max = 0x4FF      // accommodate all possible byte values
   for (var i = 0; i <= max; i++) {
     ret[i] = 0
   }
