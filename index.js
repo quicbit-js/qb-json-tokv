@@ -25,9 +25,9 @@ var RPOS = {
   obj_bfk: 0x0400,
   obj_b_k: 0x0800,
   obj_a_k: 0x0C00,
-  bfv: 0x1000,
-  b_v: 0x1400,
-  a_v: 0x1800,
+  arr_bfv: 0x1000,
+  arr_b_v: 0x1400,
+  arr_a_v: 0x1800,
 }
 
 // relative positions 'bfk', b_k'...
@@ -38,9 +38,9 @@ function pos_str (state, relative) {
     case RPOS.obj_bfk: return relative ? 'before first key' : 'first key'
     case RPOS.obj_b_k: return relative ? 'before key' : 'key'
     case RPOS.obj_a_k: return relative ? 'after key' : 'key'
-    case RPOS.bfv: return relative ? 'before first value' : 'first value'
-    case RPOS.b_v: return relative ? 'before value' : 'value'
-    case RPOS.a_v: return relative ? 'after value' : 'value'
+    case RPOS.arr_bfv: return relative ? 'before first value' : 'first value'
+    case RPOS.arr_b_v: return relative ? 'before value' : 'value'
+    case RPOS.arr_a_v: return relative ? 'after value' : 'value'
   }
 }
 
@@ -92,9 +92,9 @@ function state_map () {
     })
   }
 
-  var bfv = RPOS.bfv
-  var b_v = RPOS.b_v
-  var a_v = RPOS.a_v
+  var bfv = RPOS.arr_bfv
+  var b_v = RPOS.arr_b_v
+  var a_v = RPOS.arr_a_v
   var bfk = RPOS.obj_bfk
   var b_k = RPOS.obj_b_k
   var a_k = RPOS.obj_a_k
@@ -253,7 +253,7 @@ function init_defaults (src, off, lim) {
     voff:     off,
 
     stack:    [],
-    state:    RPOS.bfv,
+    state:    RPOS.arr_bfv,
     vcount:   0,
   }
 }
@@ -273,8 +273,8 @@ function _tokenize (init, opt, cb) {
   var states = STATE_MAP
   var rpos_mask = RPOS_MASK
   var after_key = RPOS.obj_a_k
-  var arr_a_v = RPOS.a_v
-  var obj_a_v = IN_OBJ | RPOS.a_v
+  var arr_a_v = RPOS.arr_a_v
+  var obj_a_v = IN_OBJ | RPOS.arr_a_v
   var whitespace = WHITESPACE
   var all_num_chars = ALL_NUM_CHARS
   var tok_bytes = TOK_BYTES
@@ -455,7 +455,7 @@ function _tokenize (init, opt, cb) {
 function clean_up_ecode (src, off, lim, koff, klim, tok, voff, vlim, depth, rpos, ecode, cb) {
   // var rpos = state0 & RPOS_MASK
   if (ecode === null) {
-    if (depth === 0 && (rpos === RPOS.bfv || rpos === RPOS.a_v)) {
+    if (depth === 0 && (rpos === RPOS.arr_bfv || rpos === RPOS.arr_a_v)) {
       ecode = vlim === lim ? END.DONE : END.CLEAN_STOP
     } else {
       ecode = END.TRUNC_SRC
@@ -474,7 +474,7 @@ function clean_up_ecode (src, off, lim, koff, klim, tok, voff, vlim, depth, rpos
   } else if (ecode === END.TRUNC_VAL) {
     if (rpos === RPOS.obj_bfk || rpos === RPOS.obj_b_k) {
       ecode = END.TRUNC_KEY
-    } else if (vlim === lim && tok === TOK.NUM && depth === 0 && (rpos === RPOS.bfv || rpos === RPOS.b_v)) {
+    } else if (vlim === lim && tok === TOK.NUM && depth === 0 && (rpos === RPOS.arr_bfv || rpos === RPOS.arr_b_v)) {
       // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
       // note - this means we won't be able to split no-context numbers outside of an array or object container.
       cb(src, koff, klim, tok, voff, vlim, null)
@@ -577,7 +577,7 @@ Position.prototype = {
             err('should be TRUNK_KEY, not TRUNC_VAL')
             // ret += klen + (gap - 1)
             break
-          case RPOS.b_v:
+          case RPOS.arr_b_v:
             ret += klen + '.' + (gap - 1) + ':' + vlen
             break
           default:
@@ -588,20 +588,20 @@ Position.prototype = {
       }
     } else {
       switch (rpos) {
-        case RPOS.bfv:
+        case RPOS.arr_bfv:
         case RPOS.obj_bfk:
           ret += '-'
           break
         case RPOS.obj_b_k:
           ret += '+'
           break
-        case RPOS.a_v:
+        case RPOS.arr_a_v:
           ret += '.'
           break
         case RPOS.obj_a_k:
           ret += klen + (gap > 0 ? '.' + gap : '') + '.'
           break
-        case RPOS.b_v:
+        case RPOS.arr_b_v:
           ret += in_obj ? (klen + (gap > 1 ? '.' + (gap - 1) : '') + ':') : '+'
           break
         default:
