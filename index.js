@@ -18,8 +18,7 @@
 // contexts (in array, in object, or none)
 var CTX = {
   // 0x0 means no context
-  arr: 0x0100,
-  obj: 0x0200,
+  obj: 0x0100,
 }
 
 // relative positions.  before first key, after value, ...
@@ -99,7 +98,6 @@ function state_map () {
   var bfk = RPOS.bfk
   var b_k = RPOS.b_k
   var a_k = RPOS.a_k
-  var arr = CTX.arr
   var obj = CTX.obj
   var non = 0
 
@@ -108,20 +106,17 @@ function state_map () {
   // 0 = no context (comma separated values)
   // (s0 ctxs +       s0 positions + tokens) -> s1
   map([non], [bfv, b_v], val, non | a_v)
-  map([arr], [bfv, b_v], val, arr | a_v)
-
   map([non], [a_v], ',', b_v)
-  map([arr], [a_v], ',', arr | b_v)
 
-  map([non, arr, obj], [bfv, b_v], '[', arr | bfv)
-  map([non, arr, obj], [bfv, b_v], '{', obj | bfk)
+  map([non, obj], [bfv, b_v], '[', non | bfv)
+  map([non, obj], [bfv, b_v], '{', obj | bfk)
 
   map([obj], [a_v],       ',', obj | b_k)
   map([obj], [bfk, b_k],  '"', obj | a_k)
   map([obj], [a_k],       ':', obj | b_v)
   map([obj], [b_v],       val, obj | a_v)
 
-  map([arr], [bfv, a_v], ']', a_v)          // s1 context not set here. it is set by checking the stack
+  map([non], [bfv, a_v], ']', a_v)          // s1 context not set here. it is set by checking the stack
   map([obj], [bfk, a_v], '}', a_v)          // s1 context not set here. it is set by checking the stack
 
   return ret
@@ -278,7 +273,6 @@ function _tokenize (init, opt, cb) {
   var states = STATE_MAP
   var rpos_mask = RPOS_MASK
   var after_key = RPOS.a_k
-  var in_arr = CTX.arr
   var in_obj = CTX.obj
   var whitespace = WHITESPACE
   var all_num_chars = ALL_NUM_CHARS
@@ -375,13 +369,18 @@ function _tokenize (init, opt, cb) {
           break
 
         case 93:                                  // ]    ARRAY END
+          state1 = states[state0 | tok]
+          idx++
+          if (state1 === 0 || stack.pop() !== 91) { ecode = END.UNEXP_VAL; break main_loop }
+          if (stack[stack.length - 1] === 123) { state1 |= in_obj }
+          vcount++
+          break
+
         case 125:                                 // }    OBJECT END
           state1 = states[state0 | tok]
           idx++
-          if (state1 === 0) { ecode = END.UNEXP_VAL; break main_loop }
-          stack.pop()
-          // state1 context is unset after closing brace (see state map).  we set it here.
-          if (stack.length !== 0) { state1 |= (stack[stack.length - 1] === 91 ? in_arr : in_obj) }
+          if (state1 === 0 || stack.pop() !== 123) { ecode = END.UNEXP_VAL; break main_loop }
+          if (stack[stack.length - 1] === 123) { state1 |= in_obj }
           vcount++
           break
 
@@ -405,7 +404,7 @@ function _tokenize (init, opt, cb) {
   }
 
   // check and clarify end state (before handling end state)
-  ecode = clean_up_ecode(src, off, lim, koff, klim, tok, voff, idx, state0, ecode, cb)
+  ecode = clean_up_ecode(src, off, lim, koff, klim, tok, voff, idx, stack.length, state0 & RPOS_MASK, ecode, cb)
   if (ecode === null || ecode === END.DONE || ecode === END.CLEAN_STOP || ecode === END.TRUNC_SRC) {
     voff = idx    // wipe out phantom value
   }
@@ -448,10 +447,10 @@ function _tokenize (init, opt, cb) {
   }
 }
 
-function clean_up_ecode (src, off, lim, koff, klim, tok, voff, vlim, state0, ecode, cb) {
+function clean_up_ecode (src, off, lim, koff, klim, tok, voff, vlim, depth, rpos, ecode, cb) {
   // var rpos = state0 & RPOS_MASK
   if (ecode === null) {
-    if (state0 === RPOS.bfv || state0 === RPOS.a_v) {
+    if (depth === 0 && (rpos === RPOS.bfv || rpos === RPOS.a_v)) {
       ecode = vlim === lim ? END.DONE : END.CLEAN_STOP
     } else {
       ecode = END.TRUNC_SRC
@@ -468,10 +467,9 @@ function clean_up_ecode (src, off, lim, koff, klim, tok, voff, vlim, state0, eco
       ecode = END.UNEXP_BYTE
     }
   } else if (ecode === END.TRUNC_VAL) {
-    var rpos = state0 & RPOS_MASK
     if (rpos === RPOS.bfk || rpos === RPOS.b_k) {
       ecode = END.TRUNC_KEY
-    } else if (vlim === lim && tok === TOK.NUM && (state0 === RPOS.bfv || state0 === RPOS.b_v)) {
+    } else if (vlim === lim && tok === TOK.NUM && depth === 0 && (rpos === RPOS.bfv || rpos === RPOS.b_v)) {
       // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
       // note - this means we won't be able to split no-context numbers outside of an array or object container.
       cb(src, koff, klim, tok, voff, vlim, null)
@@ -571,7 +569,7 @@ Position.prototype = {
       if (in_obj) {
         switch (rpos) {
           case RPOS.bfk: case RPOS.b_k:
-            err('this should not happen')
+            err('should be TRUNK_KEY, not TRUNC_VAL')
             // ret += klen + (gap - 1)
             break
           case RPOS.b_v:
