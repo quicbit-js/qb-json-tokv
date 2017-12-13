@@ -434,7 +434,7 @@ function _tokenize (init, opt, cb) {
       vcount,
       koff,
       klim,
-      TCODE_BY_TOK[tok],
+      tok,
       voff,
       idx,
       stack,
