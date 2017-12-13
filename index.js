@@ -271,7 +271,8 @@ function _tokenize (init, opt, cb) {
   var states = STATE_MAP
   var rpos_mask = RPOS_MASK
   var after_key = RPOS.a_k
-  var in_obj = IN_OBJ
+  var arr_a_v = RPOS.a_v
+  var obj_a_v = IN_OBJ | RPOS.a_v
   var whitespace = WHITESPACE
   var all_num_chars = ALL_NUM_CHARS
   var tok_bytes = TOK_BYTES
@@ -290,6 +291,7 @@ function _tokenize (init, opt, cb) {
   var state0 =  init.state      // container context and relative position encoded as an int
   var vcount =  init.vcount     // number of complete values parsed, such as STR, NUM or OBJ_END, but not counting OBJ_BEG or ARR_BEG.
 
+  var in_obj =  stack[stack.length - 1] === 123
   var idx =    off              // current source offset
   var ecode =   null            // end code (not necessarily an error - depends on settings)
   var state1 = state0   // state1 possibilities are:
@@ -360,6 +362,7 @@ function _tokenize (init, opt, cb) {
 
         case 91:                                  // [    ARRAY START
         case 123:                                 // {    OBJECT START
+          in_obj = tok === 123
           state1 = states[state0 | tok]
           idx++
           if (state1 === 0) { ecode = END.UNEXP_VAL; break main_loop }
@@ -367,18 +370,20 @@ function _tokenize (init, opt, cb) {
           break
 
         case 93:                                  // ]    ARRAY END
+          in_obj = stack[stack.length - 2] === 123        // set before breaking loop
           state1 = states[state0 | tok]
           idx++
           if (state1 === 0 || stack.pop() !== 91) { ecode = END.UNEXP_VAL; break main_loop }
-          if (stack[stack.length - 1] === 123) { state1 |= in_obj }
+          state1 = in_obj ? obj_a_v : arr_a_v
           vcount++
           break
 
         case 125:                                 // }    OBJECT END
+          in_obj = stack[stack.length - 2] === 123        // set before breaking loop
           state1 = states[state0 | tok]
           idx++
           if (state1 === 0 || stack.pop() !== 123) { ecode = END.UNEXP_VAL; break main_loop }
-          if (stack[stack.length - 1] === 123) { state1 |= in_obj }
+          state1 = in_obj ? obj_a_v : arr_a_v
           vcount++
           break
 
@@ -389,7 +394,7 @@ function _tokenize (init, opt, cb) {
       }
       // clean transition was made from state0 to state1
       cb_continue = cb(src, koff, klim, tok, voff, idx, null)
-      if (state0 & in_obj) {
+      if (koff !== -1) {
         koff = -1
         klim = -1
       }
