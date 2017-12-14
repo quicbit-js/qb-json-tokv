@@ -40,7 +40,7 @@ test('tokenize', function (t) {
   t.tableAssert(
     [
       [ 'src',                                      'off', 'lim', 'exp'                                             ],
-      // [ '',                                         0,     null,  [ 'B@0,E@0', 'DONE', '0/0:0/-' ] ],
+      [ '',                                         0,     null,  [ 'B@0,E@0', 'DONE', '0/0:0/-' ] ],
       [ '1',                                        0,     null,  [ 'B@0,N1@0,E@1', 'DONE', '0/1:1/.' ] ],
       [ '1,2,3',                                    0,     null,  [ 'N1@2,N1@4,E@5', 'DONE', '2/5:5/.' ] ],
       [ '[1, 2], 3',                                0,     null,  [ ']@5,N1@8,E@9', 'DONE', '3/9:9/.' ]         ],
