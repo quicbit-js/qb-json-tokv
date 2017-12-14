@@ -40,18 +40,19 @@ test('tokenize', function (t) {
   t.tableAssert(
     [
       [ 'src',                                      'off', 'lim', 'exp'                                             ],
-      [ '1',                                        0,     null,  [ 'B@0,N1@0,E@1', 'DONE', '0/1:1/-' ] ],
-      [ '1,2,3',                                    0,     null,  [ 'N1@2,N1@4,E@5', 'DONE', '2/5:5/+' ] ],
-      [ '[1, 2], 3',                                0,     null,  [ ']@5,N1@8,E@9', 'DONE', '3/9:9/+' ]         ],
+      // [ '',                                         0,     null,  [ 'B@0,E@0', 'DONE', '0/0:0/-' ] ],
+      [ '1',                                        0,     null,  [ 'B@0,N1@0,E@1', 'DONE', '0/1:1/.' ] ],
+      [ '1,2,3',                                    0,     null,  [ 'N1@2,N1@4,E@5', 'DONE', '2/5:5/.' ] ],
+      [ '[1, 2], 3',                                0,     null,  [ ']@5,N1@8,E@9', 'DONE', '3/9:9/.' ]         ],
       [ '"x"',                                      0,     null,  [ 'B@0,S3@0,E@3', 'DONE', '1/3:3/.' ]         ],
-      [ '-3.05',                                    0,     null,  [ 'B@0,N5@0,E@5', 'DONE', '0/5:5/-' ]         ],
-      [ '-3.05',                                    1,     null,  [ 'B@1,N4@1,E@5', 'DONE', '0/4:4/-' ]         ],
+      [ '-3.05',                                    0,     null,  [ 'B@0,N5@0,E@5', 'DONE', '0/5:5/.' ]         ],
+      [ '-3.05',                                    1,     null,  [ 'B@1,N4@1,E@5', 'DONE', '0/4:4/.' ]         ],
       [ '  true',                                   0,     null,  [ 'B@0,t@2,E@6', 'DONE', '1/6:6/.' ]          ],
       [ ' false  ',                                 0,     null,  [ 'B@0,f@1,E@8', 'DONE', '1/8:8/.' ]          ],
       [ ' false   ',                                1,     null,  [ 'B@1,f@1,E@9', 'DONE', '1/8:8/.' ]          ],
       [ '[1, 2, 3]',                                0,     null,  [ 'N1@7,]@8,E@9', 'DONE', '4/9:9/.' ]         ],
       [ '[3.05E-2]',                                0,     null,  [ 'N7@1,]@8,E@9', 'DONE', '2/9:9/.' ]         ],
-      [ '[3.05E-2]',                                4,     5,     [ 'B@4,N1@4,E@5', 'DONE', '0/1:1/-' ]         ],
+      [ '[3.05E-2]',                                4,     5,     [ 'B@4,N1@4,E@5', 'DONE', '0/1:1/.' ]         ],
       [ '{"a":1}',                                  0,     null,  [ 'K3@1:N1@5,}@6,E@7', 'DONE', '2/7:7/.' ]    ],
       [ '{"a"  :1}',                                0,     null,  [ 'K3@1:N1@7,}@8,E@9', 'DONE', '2/9:9/.' ]    ],
       [ '{ "a" : 1 }',                              0,     null,  [ 'K3@2:N1@8,}@10,E@11', 'DONE', '2/11:11/.' ] ],
@@ -70,14 +71,14 @@ test('tokenize', function (t) {
       var cb = function (src, koff, klim, tok, voff, vlim, info) {
         hector(pstate.args2str(arguments))
         if (tok === TOK.ERR) {
-          err('callback got error: ' + info.msg + ' input: ' + input + (off > 0 ? 'off: ' + off : '')) }
+          err('callback got error: ' + pstate.str(info) + ' input: ' + input + (off > 0 ? 'off: ' + off : '')) }
         if (tok === TOK.END) { endinfo = info }
         return true
       }
       var info = jtok.tokenize(utf8.buffer(input), {off: off, lim: lim}, cb)
       info === endinfo || err('expected returned info to equal endinfo')
 
-      return [ hector.arg(0).slice(-3).join(','), endinfo.ecode, pstate.str(endinfo) ]
+      return [ hector.arg(0).slice(-3).join(','), endinfo.position.ecode, pstate.str(endinfo) ]
     }
   )
 })
@@ -139,7 +140,7 @@ test('tokenize - errors', function (t) {
         jtok.tokenize(utf8.buffer(src), null, cb)
       } catch (e) {
         e.info === errinfo || err('this is not the error you are looking for: ' + e)
-        return [ hector.arg(0).slice(-3).join(','), e.info.ecode, pstate.str(e.info) ]
+        return [ hector.arg(0).slice(-3).join(','), e.info.position.ecode, pstate.str(e.info) ]
       }
     }
   )
@@ -165,7 +166,7 @@ test('callback stop', function (t) {
         return (count++ === at_cb) ? ret : true
       }
       var info = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
-      return [ hector.arg(0).slice(-3).join(','), info.ecode, pstate.str(info) ]
+      return [ hector.arg(0).slice(-3).join(','), info.position.ecode, pstate.str(info) ]
     }
   )
 })
@@ -176,10 +177,10 @@ test('incremental clean',         function (t) {
     [
       [ 'input',                  'exp'                                        ],
       [ '',                       [ 'B@0,E@0',                'DONE', '0/0:0/-' ] ],
+      [ '3.23e12',                [ 'B@0,N7@0,E@7',           'DONE', '0/7:7/.' ] ],
       [ '"abc"',                  [ 'B@0,S5@0,E@5',           'DONE', '1/5:5/.' ] ],
       [ '[ 83 ]',                 [ 'N2@2,]@5,E@6',           'DONE', '2/6:6/.' ] ],
       [ '[ 83, "a" ]',            [ 'S3@6,]@10,E@11',         'DONE', '3/11:11/.' ] ],
-      [ '3.23e12',                [ 'B@0,N7@0,E@7',           'DONE', '0/7:7/-' ] ],
       [ '{ "a": 3 }',             [ 'K3@2:N1@7,}@9,E@10',     'DONE', '2/10:10/.' ] ],
       [ '{ "a": 3, "b": 8 }',     [ 'K3@10:N1@15,}@17,E@18',  'DONE', '3/18:18/.' ] ],
       [ '{ "a": 3, "b": [1,2] }', [ ']@19,}@21,E@22',         'DONE', '5/22:22/.' ] ],
@@ -198,7 +199,7 @@ test('incremental clean',         function (t) {
       var info = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
       info === endinfo || err('expected returned info to equal endinfo')
 
-      return [ hector.arg(0).slice(-3).join(','), info.ecode, pstate.str(info) ]
+      return [ hector.arg(0).slice(-3).join(','), info.position.ecode, pstate.str(info) ]
     }
   )
 })
@@ -207,7 +208,6 @@ test('incremental', function (t) {
   t.table_assert(
     [
       [ 'input'              ,  'exp' ],
-      [ ''                   ,  [ 'B@0,E@0',                   'DONE', '0/0:0/-' ] ],
       [ '"abc", '            ,  [ 'B@0,S5@0,E@7',              'TRUNC_SRC', '1/7:7/+' ] ],
       [ '['                  ,  [ 'B@0,[@0,E@1',               'TRUNC_SRC', '0/1:1/[-' ] ],
       [ '[ 83 '              ,  [ '[@0,N2@2,E@5',              'TRUNC_SRC', '1/5:5/[.' ] ],
@@ -239,7 +239,7 @@ test('incremental', function (t) {
       var info = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
       info === endinfo || err('expected returned info to equal endinfo')
 
-      return [ hector.arg(0).slice(-3).join(','), info.ecode, pstate.str(info) ]
+      return [ hector.arg(0).slice(-3).join(','), info.position.ecode, pstate.str(info) ]
     }
   )
 })

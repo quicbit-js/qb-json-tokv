@@ -54,11 +54,11 @@ Position.prototype = {
   }
 }
 
-function desc (pi, ecode) {
+function desc (pi) {
   var in_obj = pi.stack[pi.stack.length - 1] === 123
   var in_arr = pi.stack[pi.stack.length - 1] === 91
   var ctx = in_arr ? 'in array ' : (in_obj ? 'in object ' : '')
-  return ctx + pos_str(pi.state, pi.ecode !== END.TRUNC_KEY && ecode !== END.TRUNC_VAL)
+  return ctx + pos_str(pi.state, pi.ecode !== END.TRUNC_KEY && pi.ecode !== END.TRUNC_VAL)
 }
 
 function parse_state (pi) {
@@ -197,7 +197,7 @@ function message (src, info) {
   }
 
   var range = (pi.voff >= pi.vlim - 1) ? pi.voff : pi.voff + '..' + (pi.vlim - 1)
-  ret += ', ' + desc(pi, info.ecode) + ' at ' + range
+  ret += ', ' + desc(pi) + ' at ' + range
 
   return ret
 }
