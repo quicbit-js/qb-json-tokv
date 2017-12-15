@@ -52,9 +52,7 @@ var TOK = {
   // special codes
   BEG: 40,        // '('  - begin - about to process a buffer
   END: 41,        // ')'  - end -   buffer limit reached and state is clean (stack is empty and no pending values)
-  // BEG: 66,        // 'B'  - begin - about to process a buffer
-  // END: 69,        // 'E'  - end -   buffer limit reached and state is clean (stack is empty and no pending values)
-  ERR: 33,        //  0   - error.  unexpected state.  check info for details.
+  ERR: 33,        // '!'  - error.  unexpected state.  check info for details.
   ERR_BYTE: 89,   // 'Y'  bad bYte
   ERR_TOK:  84,   // 'T'  bad Token
 
