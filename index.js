@@ -50,9 +50,14 @@ var TOK = {
   OBJ_END:  125,  // '}'
 
   // special codes
+  // BEG: 40,        // '('  - begin - about to process a buffer
+  // END: 41,        // ')'  - end -   buffer limit reached and state is clean (stack is empty and no pending values)
   BEG: 66,        // 'B'  - begin - about to process a buffer
   END: 69,        // 'E'  - end -   buffer limit reached and state is clean (stack is empty and no pending values)
   ERR: 0,         //  0   - error.  unexpected state.  check info for details.
+  ERR_BYTE: 89,   // 'Y'  bad bYte
+  ERR_TOK:  84,   // 'T'  bad Token
+
 }
 
 // create an int-int map from (pos + tok) -- to --> (new pos)
@@ -261,7 +266,7 @@ function _tokenize (init, opt, cb) {
   var voff =    init.voff       // value start index
 
   var stack =   init.stack      // ascii codes 91 and 123 for array / object depth
-  var pos0 =  init.pos      // container context and relative position encoded as an int
+  var pos0 =    init.pos        // container context and relative position encoded as an int
   var vcount =  init.vcount     // number of complete values parsed, such as STR, NUM or OBJ_END, but not counting OBJ_BEG or ARR_BEG.
 
   var in_obj =  stack[stack.length - 1] === 123

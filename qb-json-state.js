@@ -119,7 +119,7 @@ function args2str () {
       ret = 'S' + vlen + '@' + voff
       break
     case TOK.DEC:
-      ret = 'N' + vlen + '@' + voff
+      ret = 'd' + vlen + '@' + voff
       break
     case TOK.END:
       ret = 'E' + (vlen || '') + '@' + voff
