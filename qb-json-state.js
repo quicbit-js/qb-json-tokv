@@ -125,7 +125,7 @@ function args2str () {
       ret = 'E' + (vlen || '') + '@' + voff
       break
     case TOK.ERR:
-      ret = '!' + vlen + '@' + voff + ': ' + message(src, info)
+      ret = '!' + vlen + '@' + voff + ': ' + message(info)
       break
     default:
       ret = String.fromCharCode(tok) + '@' + voff
@@ -146,8 +146,8 @@ function esc_str (src, off, lim) {
 }
 
 // figure out end/error message and callback token
-function message (src, ps) {
-  var val_str = esc_str(src, ps.voff, ps.vlim)
+function message (ps) {
+  var val_str = esc_str(ps.src, ps.voff, ps.vlim)
 
   var tok_str = ps.tok === TOK.NUM ? 'number' : (ps.tok === TOK.STR ? 'string' : 'token')
   var ret
