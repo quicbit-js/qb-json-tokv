@@ -360,7 +360,7 @@ function _tokenize (init, opt, cb) {
 
         default:
           idx++
-          ecode = END.UNEXP_BYTE                          // no legal transition for this token
+          ecode = END.UNEXP_BYTE                          // no legal transition for this byte
           break main_loop
       }
       // clean transition was made from pos0 to pos1
