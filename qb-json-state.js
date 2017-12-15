@@ -109,22 +109,22 @@ function args2str () {
   var koff = a[i++], klim = a[i++], tok = a[i++], voff = a[i++], vlim = a[i++], info = a[i++]
   var ret
   var vlen = (vlim === voff) ? '' : vlim - voff
-  var tstr = String.fromCharCode(tok)
+  var tchar = String.fromCharCode(tok)
   switch (tok) {
     case TOK.STR:
-      ret = tstr + vlen + '@' + voff
+      ret = tchar + vlen + '@' + voff
       break
     case TOK.DEC:
-      ret = tstr + vlen + '@' + voff
+      ret = tchar + vlen + '@' + voff
       break
     case TOK.END:
-      ret = tstr + vlen + '@' + voff
+      ret = tchar + vlen + '@' + voff
       break
     case TOK.ERR:
-      ret = tstr + vlen + '@' + voff + ': ' + message(info)
+      ret = tchar + vlen + '@' + voff + ': ' + message(info)
       break
     default:
-      ret = String.fromCharCode(tok) + '@' + voff
+      ret = tchar + '@' + voff
   }
   if (koff !== -1) {
     ret = 'k' + (klim - koff) + '@' + koff + ':' + ret
