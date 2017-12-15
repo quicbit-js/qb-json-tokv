@@ -436,7 +436,7 @@ function clean_up_ecode (ps, cb) {
   var depth = ps.stack.length
   if (ps.ecode === null) {
     if (depth === 0 && (ps.pos === ARR_BFV || ps.pos === ARR_A_V)) {
-      ps.ecode = ps.vlim === ps.lim ? END.DONE : END.CLEAN_STOP
+      ps.ecode = ps.vlim === ps.lim ? END.DONE : END.CLEAN_STOP   // if ps.halted at limit, parsing is done, but no end callback is made
     } else {
       ps.ecode = END.TRUNC_SRC
     }
