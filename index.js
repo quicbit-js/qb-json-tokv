@@ -393,6 +393,7 @@ function _tokenize (init, opt, cb) {
     halted: !cb_continue,
     src: src,           // src, koff, klim... hold the key and value bytes that can be used to recover from truncation.
     position: {
+      src: src,
       off: off,
       lim: lim,
       vcount: vcount,
@@ -407,7 +408,7 @@ function _tokenize (init, opt, cb) {
     },
   }
 
-  clean_up_ecode(info.position, src, off, lim, koff, klim, tok, voff, idx, stack.length, state0, cb)
+  clean_up_ecode(info.position, cb)
   var pi = info.position
   if (pi.ecode === null || pi.ecode === END.DONE || pi.ecode === END.CLEAN_STOP || pi.ecode === END.TRUNC_SRC) {
     pi.voff = idx    // wipe out phantom value
@@ -446,10 +447,11 @@ function figure_etok (ecode, incremental) {
   }
 }
 
-function clean_up_ecode (pi, src, off, lim, koff, klim, tok, voff, vlim, depth, state, cb) {
+function clean_up_ecode (pi, cb) {
+  var depth = pi.stack.length
   if (pi.ecode === null) {
-    if (depth === 0 && (state === ARR_BFV || state === ARR_A_V)) {
-      pi.ecode = vlim === lim ? END.DONE : END.CLEAN_STOP
+    if (depth === 0 && (pi.state === ARR_BFV || pi.state === ARR_A_V)) {
+      pi.ecode = pi.vlim === pi.lim ? END.DONE : END.CLEAN_STOP
     } else {
       pi.ecode = END.TRUNC_SRC
     }
@@ -458,19 +460,19 @@ function clean_up_ecode (pi, src, off, lim, koff, klim, tok, voff, vlim, depth, 
     // token or value.  we backtrack here to check rather than check in the main_loop.
     var NON_DELIM = ascii_to_code('ntf', 1)
     if (
-      voff > off
-      && ALL_NUM_CHARS[src[voff-1]]
-      && NON_DELIM[src[voff]]
+      pi.voff > pi.off
+      && ALL_NUM_CHARS[pi.src[pi.voff-1]]
+      && NON_DELIM[pi.src[pi.voff]]
     ){
       pi.ecode = END.UNEXP_BYTE
     }
   } else if (pi.ecode === END.TRUNC_VAL) {
-    if (state === OBJ_BFK || state === OBJ_B_K) {
+    if (pi.state === OBJ_BFK || pi.state === OBJ_B_K) {
       pi.ecode = END.TRUNC_KEY
-    } else if (vlim === lim && tok === TOK.NUM && depth === 0 && (state === ARR_BFV || state === ARR_B_V)) {
+    } else if (pi.vlim === pi.lim && pi.tok === TOK.NUM && depth === 0 && (pi.state === ARR_BFV || pi.state === ARR_B_V)) {
       // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
       // note - this means we won't be able to split no-context numbers outside of an array or object container.
-      cb(src, koff, klim, tok, voff, vlim, null)
+      cb(pi.src, pi.koff, pi.klim, pi.tok, pi.voff, pi.vlim, null)
       pi.ecode = END.DONE
 
       pi.koff = -1
