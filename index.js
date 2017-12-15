@@ -32,29 +32,27 @@ var END = {
   TRUNC_KEY: 'TRUNC_KEY',       // stopped before an object key was finished
   TRUNC_VAL: 'TRUNC_VAL',       // stopped before a value was finished (number, false, true, null, string)
   TRUNC_SRC: 'TRUNC_SRC',       // stopped before done (stack.length > 0 or after comma)
-  CLEAN_STOP: 'CLEAN_STOP',     // did not reach src lim, but stopped at a clean point (zero stack, no pending value)
+  CLEAN_STOP: 'CLEAN_STOP',     // client stopped at a clean point (zero stack, no pending value)
   DONE: 'DONE',                 // parsed to src lim and state is clean (stack.length = 0, no pending value)
 }
 
 // ascii tokens as well as special codes for number, error, begin and end.
 var TOK = {
-  // ascii codes - the token is represented by the first ascii byte encountered
-  ARR: 91,        // '['
-  ARR_END: 93,    // ']'
-  OBJ: 123,       // '{'
-  OBJ_END: 125,   // '}'
-  FAL: 102,       // 'f'
-  NUL: 110,       // 'n'
-  STR: 34,        // '"'    // string
-  TRU: 116,       // 't'
-  DEC: 78,        // 'D'  - a decimal value starting with: -, 0, 1, ..., 9
+  // ascii codes - for all but decimal, token is represented by the first ascii byte encountered
+  STR:      34,   // '"'    // string
+  ARR:      91,   // '['
+  ARR_END:  93,   // ']'
+  DEC:      100,  // 'd'  - a decimal value starting with: -, 0, 1, ..., 9
+  FAL:      102,  // 'f'
+  NUL:      110,  // 'n'
+  TRU:      116,  // 't'
+  OBJ:      123,  // '{'
+  OBJ_END:  125,  // '}'
 
   // special codes
   BEG: 66,        // 'B'  - begin - about to process a buffer
   END: 69,        // 'E'  - end -   buffer limit reached and state is clean (stack is empty and no pending values)
   ERR: 0,         //  0   - error.  unexpected state.  check info for details.
-  // BAD_TOK: 85,       // 'U'  - unexpected token
-  // BAD_BYTE:
 }
 
 // create an int-int map from (pos + tok) -- to --> (new pos)
@@ -290,17 +288,17 @@ function _tokenize (init, opt, cb) {
 
         // placing (somewhat redundant) logic below this point allows fast skip of whitespace (above)
 
-        case 44:                                        // ,    COMMA
-        case 58:                                        // :    COLON
+        case 44:                                          // ,    COMMA
+        case 58:                                          // :    COLON
           pos1 = pmap[pos0 | tok]
           idx++
           if (pos1 === 0) { ecode = END.UNEXP_VAL; break main_loop }
           pos0 = pos1
           continue
 
-        case 102:                                       // f    false
-        case 110:                                       // n    null
-        case 116:                                       // t    true
+        case 102:                                         // f    false
+        case 110:                                         // n    null
+        case 116:                                         // t    true
           idx = skip_bytes(src, idx, lim, tok_bytes[tok])
           pos1 = pmap[pos0 | tok]
           if (idx <= 0) { idx = -idx; ecode = pos1 === 0 ? END.UNEXP_VAL : END.TRUNC_VAL; break main_loop }
@@ -308,7 +306,7 @@ function _tokenize (init, opt, cb) {
           vcount++
           break
 
-        case 34:                                        // "    QUOTE
+        case 34:                                          // "    QUOTE
           pos1 = pmap[pos0 | tok]
           idx = skip_str(src, idx + 1, lim)
           if (idx === -1) { idx = lim; ecode = pos1 === 0 ? END.UNEXP_VAL : END.TRUNC_VAL; break main_loop }
@@ -324,11 +322,11 @@ function _tokenize (init, opt, cb) {
           vcount++
           break
 
-        case 48:case 49:case 50:case 51:case 52:         // DIGITS 0-4
-        case 53:case 54:case 55:case 56:case 57:         /* DIGITS 5-9 */
-        case 45:                                         // '-'   ('+' is not legal here)
+        case 48:case 49:case 50:case 51:case 52:          // 0-4    digits
+        case 53:case 54:case 55:case 56:case 57:          // 5-9    digits
+        case 45:                                          // '-'    ('+' is not legal here)
           pos1 = pmap[pos0 | tok]
-          tok = 78                                       // D Decimal
+          tok = 100                                       // d   decimal
           while (all_num_chars[src[++idx]] === 1 && idx < lim) {}
           if (pos1 === 0) { ecode = END.UNEXP_VAL; break main_loop }
           if (idx === lim) { ecode = END.TRUNC_VAL; break main_loop }  // *might* be truncated - flag it here and handle below
