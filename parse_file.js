@@ -48,10 +48,10 @@ var tok_count = 0
 var t0
 var tokcb = function (src, koff, klim, tok, voff, vlim, info) {
     switch (tok) {
-        case 66:
+        case 40: //TOK.BEG:
             t0 = new Date()
             break
-        case 69:
+        case 41: // TOK.END:
             console.log('callback end', (new Date() - t0)/1000, { tok_count: tok_count })
             break
         default:
