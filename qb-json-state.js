@@ -104,9 +104,9 @@ function ascii_to_code (s, code) {
 // converts the 'arguments' array from cb into a terse string code.
 function args2str () {
   var a = arguments[0]
-  var i=0
-// src, koff, klim, tok, voff, vlim, info
-  var src = a[i++], koff = a[i++], klim = a[i++], tok = a[i++], voff = a[i++], vlim = a[i++], info = a[i++]
+  var i = 1
+// callback arguments [src, koff, klim, tok, voff, vlim, info]
+  koff = a[i++], klim = a[i++], tok = a[i++], voff = a[i++], vlim = a[i++], info = a[i++]
   var ret
   var vlen = (vlim === voff) ? '' : vlim - voff
   var tstr = String.fromCharCode(tok)
