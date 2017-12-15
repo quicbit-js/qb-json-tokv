@@ -72,30 +72,20 @@ function state_map () {
     })
   }
 
-  var a_bfv = ARR_BFV
-  var a_b_v = ARR_B_V
-  var a_a_v = ARR_A_V
-  var o_bfk = OBJ_BFK
-  var o_b_k = OBJ_B_K
-  var o_a_k = OBJ_A_K
-  var o_bfv = OBJ_BFV
-  var o_b_v = OBJ_B_V
-  var o_a_v = OBJ_A_V
-
   var val = '"ntf-0123456789' // all legal value starts (ascii)
 
   // 0 = no context (comma separated values)
   // (s0 ctxs +       s0 positions + tokens) -> s1
-  map([a_bfv, a_b_v], val, a_a_v)
-  map([a_a_v], ',', a_b_v)
+  map([ARR_BFV, ARR_B_V], val, ARR_A_V)
+  map([ARR_A_V], ',', ARR_B_V)
 
-  map([a_bfv, a_b_v, o_bfv, o_b_v], '[',  a_bfv)
-  map([a_bfv, a_b_v, o_bfv, o_b_v], '{',  o_bfk)
+  map([ARR_BFV, ARR_B_V, OBJ_BFV, OBJ_B_V], '[',  ARR_BFV)
+  map([ARR_BFV, ARR_B_V, OBJ_BFV, OBJ_B_V], '{',  OBJ_BFK)
 
-  map([o_a_v],            ',',  o_b_k)
-  map([o_bfk, o_b_k],     '"',  o_a_k)
-  map([o_a_k],            ':',  o_b_v)
-  map([o_b_v],            val,  o_a_v)
+  map([OBJ_A_V],            ',',  OBJ_B_K)
+  map([OBJ_BFK, OBJ_B_K],     '"',  OBJ_A_K)
+  map([OBJ_A_K],            ':',  OBJ_B_V)
+  map([OBJ_B_V],            val,  OBJ_A_V)
 
   // ending of object and array '}' and ']' is handled in the code by checking the stack
 
@@ -417,7 +407,7 @@ function _tokenize (init, opt, cb) {
   } // else callback was stopped - don't call
 
   if (ps.etok === TOK.ERR) {
-    var err = new Error('error while parsing.  check error.info has the parse state details')
+    var err = new Error('error while parsing.  error.info has the parse state')
     err.info = ps
     throw err
   } else {
