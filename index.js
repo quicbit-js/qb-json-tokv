@@ -27,13 +27,13 @@ var OBJ_B_V = 0x400
 var OBJ_A_V = 0x480
 
 var END = {
-  UNEXP_VAL: 'UNEXP_VAL',       // token or value was recognized, but was not expected
-  UNEXP_BYTE: 'UNEXP_BYTE',     // byte was not a recognized token or legal part of a value
-  TRUNC_KEY: 'TRUNC_KEY',       // stopped before an object key was finished
-  TRUNC_VAL: 'TRUNC_VAL',       // stopped before a value was finished (number, false, true, null, string)
-  TRUNC_SRC: 'TRUNC_SRC',       // stopped before done (stack.length > 0 or after comma)
-  CLEAN_STOP: 'CLEAN_STOP',     // client stopped at a clean point (zero stack, no pending value)
-  DONE: 'DONE',                 // parsed to src lim and state is clean (stack.length = 0, no pending value)
+  UNEXP_VAL:  'UNEXP_VAL',    // token or value was recognized, but was not expected
+  UNEXP_BYTE: 'UNEXP_BYTE',   // byte was not a recognized token or legal part of a value
+  TRUNC_KEY:  'TRUNC_KEY',    // stopped before an object key was finished
+  TRUNC_VAL:  'TRUNC_VAL',    // stopped before a value was finished (number, false, true, null, string)
+  TRUNC_SRC:  'TRUNC_SRC',    // stopped before done (stack.length > 0 or after comma)
+  CLEAN_STOP: 'CLEAN_STOP',   // client stopped at a clean point (zero stack, no pending value)
+  DONE:       'DONE',         // parsed to src lim and state is clean (stack.length = 0, no pending value)
 }
 
 // ascii tokens as well as special codes for number, error, begin and end.
