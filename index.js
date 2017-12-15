@@ -100,7 +100,7 @@ function pos_map () {
 var POS_MAP = pos_map()
 
 function ascii_to_code (str_to_code) {
-  var ret = []; for (var i=0; i<=0xFF; i++) {ret[i] = 0}
+  var ret = []; for (var i=0; i<=0x7F; i++) {ret[i] = 0}
   Object.keys(str_to_code).forEach(function (s) {
     s.split('').forEach(function (c) {ret[c.charCodeAt(0)] = str_to_code[s]})
   })
@@ -338,7 +338,7 @@ function _tokenize (init, opt, cb) {
         case 45:                                          // '-'    ('+' is not legal here)
           pos1 = pmap[pos0 | tok]
           tok = 100                                       // d   decimal
-          while (tok_types[src[++idx]] === 100 && idx < lim) {}     // d also means decimal-type character
+          while (tok_types[src[++idx]] === 100 && idx < lim) {}     // d also means decimal-type ascii
           if (pos1 === 0) { ecode = END.UNEXP_TOK; break main_loop }
           else if (idx === lim) { ecode = END.TRUNC_VAL; break main_loop }  // *might* be truncated - flag it here and handle below
           vcount++
