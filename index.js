@@ -240,7 +240,7 @@ function tokenize (src, opt, cb) {
 
 function _tokenize (init, opt, cb) {
   // localized constants for faster access
-  var poss = POS_MAP
+  var pmap = POS_MAP
   var obj_bfk = OBJ_BFK
   var obj_a_k = OBJ_A_K
   var obj_a_v = OBJ_A_V
@@ -288,26 +288,26 @@ function _tokenize (init, opt, cb) {
 
         // placing (somewhat redundant) logic below this point allows fast skip of whitespace (above)
 
-        case 44:                                  // ,    COMMA
-        case 58:                                  // :    COLON
-          pos1 = poss[pos0 | tok]
+        case 44:                                        // ,    COMMA
+        case 58:                                        // :    COLON
+          pos1 = pmap[pos0 | tok]
           idx++
           if (pos1 === 0) { ecode = END.UNEXP_VAL; break main_loop }
           pos0 = pos1
           continue
 
-        case 102:                                 // f    false
-        case 110:                                 // n    null
-        case 116:                                 // t    true
+        case 102:                                       // f    false
+        case 110:                                       // n    null
+        case 116:                                       // t    true
           idx = skip_bytes(src, idx, lim, tok_bytes[tok])
-          pos1 = poss[pos0 | tok]
+          pos1 = pmap[pos0 | tok]
           if (idx <= 0) { idx = -idx; ecode = pos1 === 0 ? END.UNEXP_VAL : END.TRUNC_VAL; break main_loop }
           if (pos1 === 0) { ecode = END.UNEXP_VAL; break main_loop }
           vcount++
           break
 
-        case 34:                                  // "    QUOTE
-          pos1 = poss[pos0 | tok]
+        case 34:                                        // "    QUOTE
+          pos1 = pmap[pos0 | tok]
           idx = skip_str(src, idx + 1, lim)
           if (idx === -1) { idx = lim; ecode = pos1 === 0 ? END.UNEXP_VAL : END.TRUNC_VAL; break main_loop }
           if (pos1 === 0) { ecode = END.UNEXP_VAL; break main_loop }
@@ -322,27 +322,27 @@ function _tokenize (init, opt, cb) {
           vcount++
           break
 
-        case 48:case 49:case 50:case 51:case 52:   // digits 0-4
-        case 53:case 54:case 55:case 56:case 57:   /* digits 5-9 */
-        case 45:                                   // '-'   ('+' is not legal here)
-          pos1 = poss[pos0 | tok]
-          tok = 78                                // N  Number
+        case 48:case 49:case 50:case 51:case 52:         // DIGITS 0-4
+        case 53:case 54:case 55:case 56:case 57:         /* DIGITS 5-9 */
+        case 45:                                         // '-'   ('+' is not legal here)
+          pos1 = pmap[pos0 | tok]
+          tok = 78                                       // N  Number
           while (all_num_chars[src[++idx]] === 1 && idx < lim) {}
           if (pos1 === 0) { ecode = END.UNEXP_VAL; break main_loop }
           if (idx === lim) { ecode = END.TRUNC_VAL; break main_loop }  // *might* be truncated - flag it here and handle below
           vcount++
           break
 
-        case 91:                                  // [    ARRAY START
-        case 123:                                 // {    OBJECT START
+        case 91:                                          // [    ARRAY START
+        case 123:                                         // {    OBJECT START
           in_obj = tok === 123
-          pos1 = poss[pos0 | tok]
+          pos1 = pmap[pos0 | tok]
           idx++
           if (pos1 === 0) { ecode = END.UNEXP_VAL; break main_loop }
           stack.push(tok)
           break
 
-        case 93:                                  // ]    ARRAY END
+        case 93:                                          // ]    ARRAY END
           in_obj = stack[stack.length - 2] === 123        // set before breaking loop
           idx++
           if ((pos0 !== arr_bfv && pos0 !== arr_a_v) || stack.pop() !== 91) { ecode = END.UNEXP_VAL; break main_loop }
@@ -350,7 +350,7 @@ function _tokenize (init, opt, cb) {
           vcount++
           break
 
-        case 125:                                 // }    OBJECT END
+        case 125:                                         // }    OBJECT END
           in_obj = stack[stack.length - 2] === 123        // set before breaking loop
           idx++
           if ((pos0 !== obj_bfk && pos0 !== obj_a_v) || stack.pop() !== 123) { ecode = END.UNEXP_VAL; break main_loop }
@@ -360,7 +360,7 @@ function _tokenize (init, opt, cb) {
 
         default:
           idx++
-          ecode = END.UNEXP_BYTE          // no legal transition for this token
+          ecode = END.UNEXP_BYTE                          // no legal transition for this token
           break main_loop
       }
       // clean transition was made from pos0 to pos1
