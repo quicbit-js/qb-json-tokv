@@ -120,10 +120,10 @@ test('tokenize - errors', function (t) {
       [ '[ 1, 2 ] "c"',     [ 'd1@5,]@7,!3@9: unexpected string "c", after value at 9..11', 'UNEXP_VAL', '3/12:12/.' ]                ],
 
       // truncated src (not an error in incremental mode)
-      [ '{"a" : ',          [ '(@0,{@0,k3@1:!0@7: truncated input, in object before value at 7', 'TRUNC_SRC', '0/7:7/{3.2:' ]            ],
-      [ '{"a"',             [ '(@0,{@0,k3@1:!0@4: truncated input, in object after key at 4', 'TRUNC_SRC', '0/4:4/{3.' ]               ],
-      [ '{"a" ',            [ '(@0,{@0,k3@1:!0@5: truncated input, in object after key at 5', 'TRUNC_SRC', '0/5:5/{3.1.' ]             ],
-      [ '[1, 2, ',          [ 'd1@1,d1@4,!0@7: truncated input, in array before value at 7', 'TRUNC_SRC', '2/7:7/[+' ]                ],
+      [ '{"a" : ',          [ '(@0,{@0,k3@1:!@7: truncated input, in object before value at 7', 'TRUNC_SRC', '0/7:7/{3.2:' ]            ],
+      [ '{"a"',             [ '(@0,{@0,k3@1:!@4: truncated input, in object after key at 4', 'TRUNC_SRC', '0/4:4/{3.' ]               ],
+      [ '{"a" ',            [ '(@0,{@0,k3@1:!@5: truncated input, in object after key at 5', 'TRUNC_SRC', '0/5:5/{3.1.' ]             ],
+      [ '[1, 2, ',          [ 'd1@1,d1@4,!@7: truncated input, in array before value at 7', 'TRUNC_SRC', '2/7:7/[+' ]                ],
     ],
     function (src) {
       var hector = t.hector()

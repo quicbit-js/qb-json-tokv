@@ -110,18 +110,19 @@ function args2str () {
   var ret
   // var vlen = (vlim === voff) ? '' : vlim - voff
   var vlen = vlim - voff
+  var tstr = String.fromCharCode(tok)
   switch (tok) {
     case TOK.STR:
-      ret = 's' + (vlen || '') + '@' + voff
+      ret = tstr + (vlen || '') + '@' + voff
       break
     case TOK.DEC:
-      ret = 'd' + (vlen || '') + '@' + voff
+      ret = tstr + (vlen || '') + '@' + voff
       break
     case TOK.END:
-      ret = ')' + (vlen || '') + '@' + voff
+      ret = tstr + (vlen || '') + '@' + voff
       break
     case TOK.ERR:
-      ret = '!' + vlen + '@' + voff + ': ' + message(info)
+      ret = tstr + (vlen || '') + '@' + voff + ': ' + message(info)
       break
     default:
       ret = String.fromCharCode(tok) + '@' + voff
