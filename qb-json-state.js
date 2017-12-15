@@ -4,7 +4,7 @@ var jtok = require('.')
 var END = jtok.END
 var TOK = jtok.TOK
 
-// STATES from jtok - not public, so just copied here (must keep in sync)
+// positions from jtok - not public and subject to change, so copied here (must keep in sync)
 var ARR_BFV = 0x080
 var ARR_B_V = 0x100
 var ARR_A_V = 0x180
