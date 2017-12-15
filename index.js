@@ -92,7 +92,7 @@ function pos_map () {
   return ret
 }
 
-var STATE_MAP = pos_map()
+var POS_MAP = pos_map()
 
 function ascii_to_code (s, code) {
   var ret = []
@@ -190,7 +190,7 @@ function init_truncated (src, off, lim, prev, cb) {
     return [ps]
   }
   var init = init_defaults(src.slice(vlim), 0, lim - vlim)
-  init.pos = STATE_MAP[p.pos | prev.tok]        // pos was checked
+  init.pos = POS_MAP[p.pos | prev.tok]        // pos was checked
   init.stack = p.stack
   return init
 }
@@ -240,7 +240,7 @@ function tokenize (src, opt, cb) {
 
 function _tokenize (init, opt, cb) {
   // localized constants for faster access
-  var poss = STATE_MAP
+  var poss = POS_MAP
   var obj_bfk = OBJ_BFK
   var obj_a_k = OBJ_A_K
   var obj_a_v = OBJ_A_V
