@@ -108,21 +108,20 @@ function args2str () {
 // src, koff, klim, tok, voff, vlim, info
   var src = a[i++], koff = a[i++], klim = a[i++], tok = a[i++], voff = a[i++], vlim = a[i++], info = a[i++]
   var ret
-  // var vlen = (vlim === voff) ? '' : vlim - voff
-  var vlen = vlim - voff
+  var vlen = (vlim === voff) ? '' : vlim - voff
   var tstr = String.fromCharCode(tok)
   switch (tok) {
     case TOK.STR:
-      ret = tstr + (vlen || '') + '@' + voff
+      ret = tstr + vlen + '@' + voff
       break
     case TOK.DEC:
-      ret = tstr + (vlen || '') + '@' + voff
+      ret = tstr + vlen + '@' + voff
       break
     case TOK.END:
-      ret = tstr + (vlen || '') + '@' + voff
+      ret = tstr + vlen + '@' + voff
       break
     case TOK.ERR:
-      ret = tstr + (vlen || '') + '@' + voff + ': ' + message(info)
+      ret = tstr + vlen + '@' + voff + ': ' + message(info)
       break
     default:
       ret = String.fromCharCode(tok) + '@' + voff
