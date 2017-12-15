@@ -113,10 +113,11 @@ function args2str () {
 // src, koff, klim, tok, voff, vlim, info
   var src = a[i++], koff = a[i++], klim = a[i++], tok = a[i++], voff = a[i++], vlim = a[i++], info = a[i++]
   var ret
+  // var vlen = (vlim === voff) ? '' : vlim - voff
   var vlen = vlim - voff
   switch (tok) {
     case TOK.STR:
-      ret = 'S' + vlen + '@' + voff
+      ret = 's' + vlen + '@' + voff
       break
     case TOK.DEC:
       ret = 'd' + vlen + '@' + voff
@@ -131,7 +132,7 @@ function args2str () {
       ret = String.fromCharCode(tok) + '@' + voff
   }
   if (koff !== -1) {
-    ret = 'K' + (klim - koff) + '@' + koff + ':' + ret
+    ret = 'k' + (klim - koff) + '@' + koff + ':' + ret
   }
   return ret
 }
