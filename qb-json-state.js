@@ -39,41 +39,41 @@ function assign () {
 
 function err (msg) { throw Error(msg) }
 
-function desc (pi) {
-  var in_obj = pi.stack[pi.stack.length - 1] === 123
-  var in_arr = pi.stack[pi.stack.length - 1] === 91
+function desc (info) {
+  var in_obj = info.stack[info.stack.length - 1] === 123
+  var in_arr = info.stack[info.stack.length - 1] === 91
   var ctx = in_arr ? 'in array ' : (in_obj ? 'in object ' : '')
-  return ctx + pos_str(pi.state, pi.ecode !== END.TRUNC_KEY && pi.ecode !== END.TRUNC_VAL)
+  return ctx + pos_str(info.state, info.ecode !== END.TRUNC_KEY && info.ecode !== END.TRUNC_VAL)
 }
 
-function parse_state (pi) {
-  var in_obj = pi.stack[pi.stack.length - 1] === 123
-  var ret = pi.stack.map(function (b) { return String.fromCharCode(b) }).join('')
-  var vlen = pi.vlim - pi.voff
+function parse_state (info) {
+  var in_obj = info.stack[info.stack.length - 1] === 123
+  var ret = info.stack.map(function (b) { return String.fromCharCode(b) }).join('')
+  var vlen = info.vlim - info.voff
 
   var klen = 0
   var gap = 0
-  if (pi.koff !== -1) {
-    gap = pi.voff - pi.klim
-    klen = pi.klim - pi.koff
+  if (info.koff !== -1) {
+    gap = info.voff - info.klim
+    klen = info.klim - info.koff
   }
 
-  if (pi.ecode === END.TRUNC_KEY) {
+  if (info.ecode === END.TRUNC_KEY) {
     ret += vlen   // only complete keyss are represented by koff..klim.  truncations and other errors are all at voff/vlim
-  } else if (pi.ecode === END.TRUNC_VAL ) {
+  } else if (info.ecode === END.TRUNC_VAL ) {
     if (in_obj) {
-      if (pi.state === ARR_B_V) {
+      if (info.state === ARR_B_V) {
         ret += vlen
-      } else if (pi.state === OBJ_B_V) {
+      } else if (info.state === OBJ_B_V) {
         ret += klen + '.' + (gap - 1) + ':' + vlen
       } else {
-        err('unexpected state for truncated value: ' + pi.state)
+        err('unexpected state for truncated value: ' + info.state)
       }
     } else {
       ret += vlen
     }
   } else {
-    switch (pi.state) {
+    switch (info.state) {
       case ARR_BFV:
       case OBJ_BFK:
         ret += '-'
@@ -93,17 +93,16 @@ function parse_state (pi) {
         ret += klen + (gap > 1 ? '.' + (gap - 1) : '') + ':'
         break
       default:
-        err('state not handled: ' + pi.state)
+        err('state not handled: ' + info.state)
     }
   }
   return ret
 }
 
 function str (info) {
-  var pi = info.position
-  var bytes = pi.vlim - pi.off
-  var tbytes = pi.lim - pi.off
-  return pi.vcount + '/' + bytes + ':' + tbytes + '/' + parse_state(pi)
+  var bytes = info.vlim - info.off
+  var tbytes = info.lim - info.off
+  return info.vcount + '/' + bytes + ':' + tbytes + '/' + parse_state(info)
 }
 
 // a convenience function for summarizing/logging/debugging callback arguments as compact strings
@@ -147,14 +146,13 @@ function esc_str (src, off, lim) {
 }
 
 // figure out end/error message and callback token
-function message (src, info) {
-  var pi = info.position
-  var val_str = esc_str(src, pi.voff, pi.vlim)
+function message (src, ps) {
+  var val_str = esc_str(src, ps.voff, ps.vlim)
 
-  var tok_str = pi.tok === TOK.NUM ? 'number' : (pi.tok === TOK.STR ? 'string' : 'token')
+  var tok_str = ps.tok === TOK.NUM ? 'number' : (ps.tok === TOK.STR ? 'string' : 'token')
   var ret
 
-  switch (pi.ecode) {
+  switch (ps.ecode) {
     case END.UNEXP_VAL:       // failed transition (state0 + tok => state1) === 0
       if (tok_str === 'token') { val_str = '"' + val_str + '"' }
       ret = 'unexpected ' + tok_str + ' ' + val_str
@@ -178,11 +176,11 @@ function message (src, info) {
       ret = 'done'
       break
     default:
-      err('internal error, end state not handled: ' + pi.ecode)
+      err('internal error, end state not handled: ' + ps.ecode)
   }
 
-  var range = (pi.voff >= pi.vlim - 1) ? pi.voff : pi.voff + '..' + (pi.vlim - 1)
-  ret += ', ' + desc(pi) + ' at ' + range
+  var range = (ps.voff >= ps.vlim - 1) ? ps.voff : ps.voff + '..' + (ps.vlim - 1)
+  ret += ', ' + desc(ps) + ' at ' + range
 
   return ret
 }

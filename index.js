@@ -195,9 +195,9 @@ function init_truncated (src, off, lim, prev, cb) {
     vcount: 0
   }
 
-  var info = _tokenize(p, cb)
-  if (info.halted) {
-    return [info]
+  var ps = _tokenize(p, cb)
+  if (ps.halted) {
+    return [ps]
   }
   var init = init_defaults(src.slice(vlim), 0, lim - vlim)
   init.state = STATE_MAP[p.state | prev.tok]        // state was checked
@@ -387,46 +387,41 @@ function _tokenize (init, opt, cb) {
     }  // end main_loop: while(vlim < lim) {...
   }
 
-  // check and clarify end state (before handling end state)
-  var info = {
-    msg: null,
+  // parse state
+  var ps = {
+    src: src,
+    off: off,
+    lim: lim,
+    vcount: vcount,
+    koff: koff,
+    klim: klim,
+    tok: tok,
+    voff: voff,
+    vlim: idx,
+    stack: stack,
+    state: state0,
+    ecode: ecode,
     halted: !cb_continue,
-    src: src,           // src, koff, klim... hold the key and value bytes that can be used to recover from truncation.
-    position: {
-      src: src,
-      off: off,
-      lim: lim,
-      vcount: vcount,
-      koff: koff,
-      klim: klim,
-      tok: tok,
-      voff: voff,
-      vlim: idx,
-      stack: stack,
-      state: state0,
-      ecode: ecode,
-    },
   }
 
-  clean_up_ecode(info.position, cb)
-  var pi = info.position
-  if (pi.ecode === null || pi.ecode === END.DONE || pi.ecode === END.CLEAN_STOP || pi.ecode === END.TRUNC_SRC) {
-    pi.voff = idx    // wipe out phantom value
+  // check and clarify end state (before handling end state)
+  clean_up_ecode(ps, cb)
+  if (ps.ecode === null || ps.ecode === END.DONE || ps.ecode === END.CLEAN_STOP || ps.ecode === END.TRUNC_SRC) {
+    ps.voff = idx    // wipe out phantom value
   }
 
-  info.etok = figure_etok(pi.ecode, opt.incremental)
+  ps.etok = figure_etok(ps.ecode, opt.incremental)
 
   if (cb_continue) {
-    cb(src, koff, klim, info.etok, info.position.voff, idx, info)
+    cb(src, koff, klim, ps.etok, ps.voff, idx, ps)
   } // else callback was stopped - don't call
 
-  if (info.etok === TOK.ERR) {
-    // 'error parsing src. Use require("qb-json-state").str(error.info) for details'
-    var err = new Error(info)
-    err.info = info
+  if (ps.etok === TOK.ERR) {
+    var err = new Error('error while parsing.  check error.info has the parse state details')
+    err.info = ps
     throw err
   } else {
-    return info
+    return ps
   }
 }
 
@@ -447,39 +442,39 @@ function figure_etok (ecode, incremental) {
   }
 }
 
-function clean_up_ecode (pi, cb) {
-  var depth = pi.stack.length
-  if (pi.ecode === null) {
-    if (depth === 0 && (pi.state === ARR_BFV || pi.state === ARR_A_V)) {
-      pi.ecode = pi.vlim === pi.lim ? END.DONE : END.CLEAN_STOP
+function clean_up_ecode (ps, cb) {
+  var depth = ps.stack.length
+  if (ps.ecode === null) {
+    if (depth === 0 && (ps.state === ARR_BFV || ps.state === ARR_A_V)) {
+      ps.ecode = ps.vlim === ps.lim ? END.DONE : END.CLEAN_STOP
     } else {
-      pi.ecode = END.TRUNC_SRC
+      ps.ecode = END.TRUNC_SRC
     }
-  } else if (pi.ecode === END.UNEXP_VAL) {
+  } else if (ps.ecode === END.UNEXP_VAL) {
     // tokens 'n', 't' and 'f' following a number are more clearly reported as unexpected byte instead of
     // token or value.  we backtrack here to check rather than check in the main_loop.
     var NON_DELIM = ascii_to_code('ntf', 1)
     if (
-      pi.voff > pi.off
-      && ALL_NUM_CHARS[pi.src[pi.voff-1]]
-      && NON_DELIM[pi.src[pi.voff]]
+      ps.voff > ps.off
+      && ALL_NUM_CHARS[ps.src[ps.voff-1]]
+      && NON_DELIM[ps.src[ps.voff]]
     ){
-      pi.ecode = END.UNEXP_BYTE
+      ps.ecode = END.UNEXP_BYTE
     }
-  } else if (pi.ecode === END.TRUNC_VAL) {
-    if (pi.state === OBJ_BFK || pi.state === OBJ_B_K) {
-      pi.ecode = END.TRUNC_KEY
-    } else if (pi.vlim === pi.lim && pi.tok === TOK.NUM && depth === 0 && (pi.state === ARR_BFV || pi.state === ARR_B_V)) {
+  } else if (ps.ecode === END.TRUNC_VAL) {
+    if (ps.state === OBJ_BFK || ps.state === OBJ_B_K) {
+      ps.ecode = END.TRUNC_KEY
+    } else if (ps.vlim === ps.lim && ps.tok === TOK.NUM && depth === 0 && (ps.state === ARR_BFV || ps.state === ARR_B_V)) {
       // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
       // note - this means we won't be able to split no-context numbers outside of an array or object container.
-      cb(pi.src, pi.koff, pi.klim, pi.tok, pi.voff, pi.vlim, null)
-      pi.ecode = END.DONE
+      cb(ps.src, ps.koff, ps.klim, ps.tok, ps.voff, ps.vlim, null)
+      ps.ecode = END.DONE
 
-      pi.koff = -1
-      pi.klim = -1
-      pi.tok = TOK.END
-      pi.voff = pi.vlim
-      pi.state = ARR_A_V
+      ps.koff = -1
+      ps.klim = -1
+      ps.tok = TOK.END
+      ps.voff = ps.vlim
+      ps.state = ARR_A_V
     }
   }
 }

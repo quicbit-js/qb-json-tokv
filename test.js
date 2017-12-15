@@ -78,7 +78,7 @@ test('tokenize', function (t) {
       var info = jtok.tokenize(utf8.buffer(input), {off: off, lim: lim}, cb)
       info === endinfo || err('expected returned info to equal endinfo')
 
-      return [ hector.arg(0).slice(-3).join(','), endinfo.position.ecode, pstate.str(endinfo) ]
+      return [ hector.arg(0).slice(-3).join(','), info.ecode, pstate.str(info) ]
     }
   )
 })
@@ -140,7 +140,7 @@ test('tokenize - errors', function (t) {
         jtok.tokenize(utf8.buffer(src), null, cb)
       } catch (e) {
         e.info === errinfo || err('this is not the error you are looking for: ' + e)
-        return [ hector.arg(0).slice(-3).join(','), e.info.position.ecode, pstate.str(e.info) ]
+        return [ hector.arg(0).slice(-3).join(','), e.info.ecode, pstate.str(e.info) ]
       }
     }
   )
@@ -166,7 +166,7 @@ test('callback stop', function (t) {
         return (count++ === at_cb) ? ret : true
       }
       var info = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
-      return [ hector.arg(0).slice(-3).join(','), info.position.ecode, pstate.str(info) ]
+      return [ hector.arg(0).slice(-3).join(','), info.ecode, pstate.str(info) ]
     }
   )
 })
@@ -199,7 +199,7 @@ test('incremental clean',         function (t) {
       var info = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
       info === endinfo || err('expected returned info to equal endinfo')
 
-      return [ hector.arg(0).slice(-3).join(','), info.position.ecode, pstate.str(info) ]
+      return [ hector.arg(0).slice(-3).join(','), info.ecode, pstate.str(info) ]
     }
   )
 })
@@ -239,7 +239,7 @@ test('incremental', function (t) {
       var info = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
       info === endinfo || err('expected returned info to equal endinfo')
 
-      return [ hector.arg(0).slice(-3).join(','), info.position.ecode, pstate.str(info) ]
+      return [ hector.arg(0).slice(-3).join(','), info.ecode, pstate.str(info) ]
     }
   )
 })
