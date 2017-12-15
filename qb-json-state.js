@@ -106,7 +106,7 @@ function args2str () {
   var a = arguments[0]
   var i = 1
 // callback arguments [src, koff, klim, tok, voff, vlim, info]
-  koff = a[i++], klim = a[i++], tok = a[i++], voff = a[i++], vlim = a[i++], info = a[i++]
+  var koff = a[i++], klim = a[i++], tok = a[i++], voff = a[i++], vlim = a[i++], info = a[i++]
   var ret
   var vlen = (vlim === voff) ? '' : vlim - voff
   var tstr = String.fromCharCode(tok)
