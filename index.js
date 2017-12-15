@@ -121,6 +121,14 @@ var TOK_TYPES = ascii_to_code({
   '\b\f\n\t\r ':      119,  // 'w'   whitespace
 })
 
+var SEP_ASCII = ascii_to_code({
+  '-0123456789+.eE':  100,  // 'd'   all legal decimal ascii  // +.eE are not really tokens, but none overlap with other tokens, so we use same map
+  'ntf':              102,  // 'f'   fixed-length tokens
+  '\b\f\n\t\r ':      119,  // 'w'   whitespace
+})
+
+
+
 var TOK_BYTES = ascii_to_bytes({ f: 'false', t: 'true', n: 'null' })
 
 // skip as many bytes of src that match bsrc, up to lim.
@@ -313,7 +321,11 @@ function _tokenize (init, opt, cb) {
           idx = skip_bytes(src, idx, lim, tok_bytes[tok])
           pos1 = pmap[pos0 | tok]
           if (pos1 === 0) { idx = idx <= 0 ? -idx : idx; ecode = END.UNEXP_TOK; break main_loop }
-          if (idx <= 0) { idx = -idx; ecode = END.TRUNC_VAL; break main_loop }
+          if (idx <= 0) {
+            idx = -idx
+            if (idx === lim) { ecode = END.TRUNC_VAL; break main_loop }
+            else { idx++; ecode = END.UNEXP_BYTE; break main_loop }  // include unexpected byte in value
+          }
           vcount++
           break
 
@@ -340,9 +352,11 @@ function _tokenize (init, opt, cb) {
           pos1 = pmap[pos0 | tok]
           tok = 100                                       // d   decimal
           while (tok_types[src[++idx]] === 100 && idx < lim) {}     // d (100) here means decimal-type ascii
+
+          // for UNEXP_BYTE, the byte is included with the number to indicate it was encountered while parsing number.
           if (pos1 === 0)                       { ecode = END.UNEXP_TOK;       break main_loop }
-          else if (idx === lim)                 { ecode = END.TRUNC_VAL;       break main_loop }  // *might* be truncated - flag it here and handle below
-          else if (tok_types[src[idx]] === 102) { idx++; ecode = END.UNEXP_BYTE; break main_loop }  // f (102) - (n)ull (t)rue (f)alse are byte-errors here
+          else if (idx === lim)                 { ecode = END.TRUNC_VAL;       break main_loop }   // *might* be truncated - flag it here and handle below
+          else if (tok_types[src[idx]] === 102) { idx++; ecode = END.UNEXP_BYTE; break main_loop } // treat non-separating chars as unexpected byte
           vcount++
           break
 
