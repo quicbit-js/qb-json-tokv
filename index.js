@@ -316,7 +316,7 @@ function _tokenize (init, opt, cb) {
           tok = 115
           idx = skip_str(src, idx + 1, lim)
           if (pos1 === 0) { idx = idx === -1 ? lim : idx; ecode = END.UNEXP_TOK; break main_loop }
-          if (idx === -1) { idx = lim; ecode = END.TRUNC_VAL; break main_loop }
+          else if (idx === -1) { idx = lim; ecode = END.TRUNC_VAL; break main_loop }
 
           // key
           if (pos1 === obj_a_k) {
@@ -335,7 +335,7 @@ function _tokenize (init, opt, cb) {
           tok = 100                                       // d   decimal
           while (all_num_chars[src[++idx]] === 1 && idx < lim) {}
           if (pos1 === 0) { ecode = END.UNEXP_TOK; break main_loop }
-          if (idx === lim) { ecode = END.TRUNC_VAL; break main_loop }  // *might* be truncated - flag it here and handle below
+          else if (idx === lim) { ecode = END.TRUNC_VAL; break main_loop }  // *might* be truncated - flag it here and handle below
           vcount++
           break
 
