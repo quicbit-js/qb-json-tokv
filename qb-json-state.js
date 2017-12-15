@@ -105,6 +105,12 @@ function str (info) {
   return info.vcount + '/' + bytes + ':' + tbytes + '/' + parse_state(info)
 }
 
+function ascii_to_code (s, code) {
+  var ret = []
+  for (var i = 0; i < s.length; i++) { ret[s.charCodeAt(i)] = code }
+  return ret
+}
+
 // a convenience function for summarizing/logging/debugging callback arguments as compact strings
 // converts the 'arguments' array from cb into a terse string code.
 function args2str () {
@@ -117,10 +123,10 @@ function args2str () {
   var vlen = vlim - voff
   switch (tok) {
     case TOK.STR:
-      ret = 's' + vlen + '@' + voff
+      ret = 's' + (vlen || '') + '@' + voff
       break
     case TOK.DEC:
-      ret = 'd' + vlen + '@' + voff
+      ret = 'd' + (vlen || '') + '@' + voff
       break
     case TOK.END:
       ret = 'E' + (vlen || '') + '@' + voff

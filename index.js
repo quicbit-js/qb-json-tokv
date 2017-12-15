@@ -39,12 +39,12 @@ var END = {
 // ascii tokens as well as special codes for number, error, begin and end.
 var TOK = {
   // ascii codes - for all but decimal, token is represented by the first ascii byte encountered
-  STR:      34,   // '"'    // string
   ARR:      91,   // '['
   ARR_END:  93,   // ']'
   DEC:      100,  // 'd'  - a decimal value starting with: -, 0, 1, ..., 9
   FAL:      102,  // 'f'
   NUL:      110,  // 'n'
+  STR:      115,  // 's'  - a string value starting with "
   TRU:      116,  // 't'
   OBJ:      123,  // '{'
   OBJ_END:  125,  // '}'
@@ -54,7 +54,7 @@ var TOK = {
   // END: 41,        // ')'  - end -   buffer limit reached and state is clean (stack is empty and no pending values)
   BEG: 66,        // 'B'  - begin - about to process a buffer
   END: 69,        // 'E'  - end -   buffer limit reached and state is clean (stack is empty and no pending values)
-  ERR: 0,         //  0   - error.  unexpected state.  check info for details.
+  ERR: 33,        //  0   - error.  unexpected state.  check info for details.
   ERR_BYTE: 89,   // 'Y'  bad bYte
   ERR_TOK:  84,   // 'T'  bad Token
 
@@ -313,6 +313,7 @@ function _tokenize (init, opt, cb) {
 
         case 34:                                          // "    QUOTE
           pos1 = pmap[pos0 | tok]
+          tok = 115
           idx = skip_str(src, idx + 1, lim)
           if (idx === -1) { idx = lim; ecode = pos1 === 0 ? END.UNEXP_VAL : END.TRUNC_VAL; break main_loop }
           if (pos1 === 0) { ecode = END.UNEXP_VAL; break main_loop }
