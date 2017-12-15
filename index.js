@@ -47,12 +47,14 @@ var TOK = {
   NUL: 110,       // 'n'
   STR: 34,        // '"'    // string
   TRU: 116,       // 't'
-  NUM: 78,        // 'N'  - a number value starting with: -, 0, 1, ..., 9
+  DEC: 78,        // 'D'  - a decimal value starting with: -, 0, 1, ..., 9
 
   // special codes
   BEG: 66,        // 'B'  - begin - about to process a buffer
   END: 69,        // 'E'  - end -   buffer limit reached and state is clean (stack is empty and no pending values)
   ERR: 0,         //  0   - error.  unexpected state.  check info for details.
+  // BAD_TOK: 85,       // 'U'  - unexpected token
+  // BAD_BYTE:
 }
 
 // create an int-int map from (pos + tok) -- to --> (new pos)
@@ -326,7 +328,7 @@ function _tokenize (init, opt, cb) {
         case 53:case 54:case 55:case 56:case 57:         /* DIGITS 5-9 */
         case 45:                                         // '-'   ('+' is not legal here)
           pos1 = pmap[pos0 | tok]
-          tok = 78                                       // N  Number
+          tok = 78                                       // D Decimal
           while (all_num_chars[src[++idx]] === 1 && idx < lim) {}
           if (pos1 === 0) { ecode = END.UNEXP_VAL; break main_loop }
           if (idx === lim) { ecode = END.TRUNC_VAL; break main_loop }  // *might* be truncated - flag it here and handle below
@@ -454,7 +456,7 @@ function clean_up_ecode (ps, cb) {
   } else if (ps.ecode === END.TRUNC_VAL) {
     if (ps.pos === OBJ_BFK || ps.pos === OBJ_B_K) {
       ps.ecode = END.TRUNC_KEY
-    } else if (ps.vlim === ps.lim && ps.tok === TOK.NUM && depth === 0 && (ps.pos === ARR_BFV || ps.pos === ARR_B_V)) {
+    } else if (ps.vlim === ps.lim && ps.tok === TOK.DEC && depth === 0 && (ps.pos === ARR_BFV || ps.pos === ARR_B_V)) {
       // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
       // note - this means we won't be able to split no-context numbers outside of an array or object container.
       cb(ps.src, ps.koff, ps.klim, ps.tok, ps.voff, ps.vlim, null)

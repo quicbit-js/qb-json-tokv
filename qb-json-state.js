@@ -118,7 +118,7 @@ function args2str () {
     case TOK.STR:
       ret = 'S' + vlen + '@' + voff
       break
-    case TOK.NUM:
+    case TOK.DEC:
       ret = 'N' + vlen + '@' + voff
       break
     case TOK.END:
@@ -149,7 +149,7 @@ function esc_str (src, off, lim) {
 function message (ps) {
   var val_str = esc_str(ps.src, ps.voff, ps.vlim)
 
-  var tok_str = ps.tok === TOK.NUM ? 'number' : (ps.tok === TOK.STR ? 'string' : 'token')
+  var tok_str = ps.tok === TOK.DEC ? 'decimal' : (ps.tok === TOK.STR ? 'string' : 'token')
   var ret
 
   switch (ps.ecode) {
