@@ -15,7 +15,7 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 // PARSE POSITIONS   - LSB (0x7F) are reserved for token ascii value.
-// BFK = before first key, B_K = before key, A_V = after value, ...
+// OBJ_BFK = in object before first key, ARR_A_V = in array after value, ...
 var ARR_BFV = 0x080
 var ARR_B_V = 0x100
 var ARR_A_V = 0x180
