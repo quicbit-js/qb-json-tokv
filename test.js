@@ -101,8 +101,10 @@ test('tokenize - errors', function (t) {
       // unexpected bytes
       [ '0*',               [ '(@0,d1@0,!1@1: unexpected byte "*", after value at 1', 'UNEXP_BYTE', '1/2:2/.' ]                      ],
       [ '{"a":3^6}',        [ '{@0,k3@1:d1@5,!1@6: unexpected byte "^", in object after value at 6', 'UNEXP_BYTE', '1/7:9/{.' ]       ],
-      [ ' 1f',              [ '(@0,d1@1,!1@2: unexpected byte "f", after value at 2', 'UNEXP_BYTE', '1/3:3/.' ]                      ],
-      [ '1,2n',             [ 'd1@0,d1@2,!1@3: unexpected byte "n", after value at 3', 'UNEXP_BYTE', '2/4:4/.' ]                     ],
+
+      // illegal decimal
+      [ ' 1f',              [ '(@0,!2@1: illegal decimal "1f", first value at 1..2', 'ILLEGAL_DECIMAL', '0/3:3/2' ]                      ],
+      [ '1,2.4n',           [ '(@0,d1@0,!4@2: illegal decimal "2.4n", value at 2..5', 'ILLEGAL_DECIMAL', '1/6:6/4' ]                     ],
 
       // unexpected values
       [ '"a""b"',           [ '(@0,s3@0,!3@3: unexpected string "b", after value at 3..5', 'UNEXP_VAL', '1/6:6/.' ]                  ],

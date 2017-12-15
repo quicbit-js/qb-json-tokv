@@ -27,6 +27,7 @@ var OBJ_B_V = 0x400
 var OBJ_A_V = 0x480
 
 var END = {
+  ILLEGAL_DECIMAL: 'ILLEGAL_DECIMAL',
   UNEXP_TOK:  'UNEXP_VAL',    // token or value was recognized, but was not expected
   UNEXP_BYTE: 'UNEXP_BYTE',   // byte was not a recognized token or legal part of a value
   TRUNC_KEY:  'TRUNC_KEY',    // stopped before an object key was finished
@@ -338,9 +339,10 @@ function _tokenize (init, opt, cb) {
         case 45:                                          // '-'    ('+' is not legal here)
           pos1 = pmap[pos0 | tok]
           tok = 100                                       // d   decimal
-          while (tok_types[src[++idx]] === 100 && idx < lim) {}     // d also means decimal-type ascii
-          if (pos1 === 0) { ecode = END.UNEXP_TOK; break main_loop }
-          else if (idx === lim) { ecode = END.TRUNC_VAL; break main_loop }  // *might* be truncated - flag it here and handle below
+          while (tok_types[src[++idx]] === 100 && idx < lim) {}     // d (100) here means decimal-type ascii
+          if (pos1 === 0)                       { ecode = END.UNEXP_TOK;       break main_loop }
+          else if (idx === lim)                 { ecode = END.TRUNC_VAL;       break main_loop }  // *might* be truncated - flag it here and handle below
+          else if (tok_types[src[idx]] === 102) { idx++; ecode = END.ILLEGAL_DECIMAL; break main_loop }  // f (102) - (n)ull (t)rue (f)alse are byte-errors here
           vcount++
           break
 
@@ -430,6 +432,7 @@ function figure_etok (ecode, incremental) {
   switch (ecode) {
     case END.UNEXP_TOK:
     case END.UNEXP_BYTE:
+    case END.ILLEGAL_DECIMAL:
       return TOK.ERR
     case END.TRUNC_KEY:
     case END.TRUNC_VAL:
@@ -450,16 +453,6 @@ function clean_up_ecode (ps, cb) {
       ps.ecode = ps.vlim === ps.lim ? END.DONE : END.CLEAN_STOP   // if ps.halted at limit, parsing is done, but no end callback is made
     } else {
       ps.ecode = END.TRUNC_SRC
-    }
-  } else if (ps.ecode === END.UNEXP_TOK) {
-    // tokens 'n', 't' and 'f' following a number are more clearly reported as unexpected byte instead of
-    // token or value.  we backtrack here to check rather than check in the main_loop.
-    if (
-      ps.voff > ps.off
-      && TOK_TYPES[ps.src[ps.voff-1]] === 100
-      && TOK_TYPES[ps.src[ps.voff]] === 102
-    ){
-      ps.ecode = END.UNEXP_BYTE
     }
   } else if (ps.ecode === END.TRUNC_VAL) {
     if (ps.pos === OBJ_BFK || ps.pos === OBJ_B_K) {

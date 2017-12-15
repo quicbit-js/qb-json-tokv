@@ -28,41 +28,41 @@ function pos_str (pos, relative) {
 
 function err (msg) { throw Error(msg) }
 
-function desc (info) {
-  var in_obj = info.stack[info.stack.length - 1] === 123
-  var in_arr = info.stack[info.stack.length - 1] === 91
+function desc (ps) {
+  var in_obj = ps.stack[ps.stack.length - 1] === 123
+  var in_arr = ps.stack[ps.stack.length - 1] === 91
   var ctx = in_arr ? 'in array ' : (in_obj ? 'in object ' : '')
-  return ctx + pos_str(info.pos, info.ecode !== END.TRUNC_KEY && info.ecode !== END.TRUNC_VAL)
+  return ctx + pos_str(ps.pos, ps.ecode !== END.TRUNC_KEY && ps.ecode !== END.TRUNC_VAL && ps.ecode !== END.ILLEGAL_DECIMAL)
 }
 
-function parse_state (info) {
-  var in_obj = info.stack[info.stack.length - 1] === 123
-  var ret = info.stack.map(function (b) { return String.fromCharCode(b) }).join('')
-  var vlen = info.vlim - info.voff
+function parse_state (ps) {
+  var in_obj = ps.stack[ps.stack.length - 1] === 123
+  var ret = ps.stack.map(function (b) { return String.fromCharCode(b) }).join('')
+  var vlen = ps.vlim - ps.voff
 
   var klen = 0
   var gap = 0
-  if (info.koff !== -1) {
-    gap = info.voff - info.klim
-    klen = info.klim - info.koff
+  if (ps.koff !== -1) {
+    gap = ps.voff - ps.klim
+    klen = ps.klim - ps.koff
   }
 
-  if (info.ecode === END.TRUNC_KEY) {
+  if (ps.ecode === END.TRUNC_KEY) {
     ret += vlen   // only complete keyss are represented by koff..klim.  truncations and other errors are all at voff/vlim
-  } else if (info.ecode === END.TRUNC_VAL ) {
+  } else if (ps.ecode === END.TRUNC_VAL || ps.ecode === END.ILLEGAL_DECIMAL) {
     if (in_obj) {
-      if (info.pos === ARR_B_V) {
+      if (ps.pos === ARR_B_V) {
         ret += vlen
-      } else if (info.pos === OBJ_B_V) {
+      } else if (ps.pos === OBJ_B_V) {
         ret += klen + '.' + (gap - 1) + ':' + vlen
       } else {
-        err('unexpected pos for truncated value: ' + info.pos)
+        err('unexpected pos for truncated value: ' + ps.pos)
       }
     } else {
       ret += vlen
     }
   } else {
-    switch (info.pos) {
+    switch (ps.pos) {
       case ARR_BFV:
       case OBJ_BFK:
         ret += '-'
@@ -82,7 +82,7 @@ function parse_state (info) {
         ret += klen + (gap > 1 ? '.' + (gap - 1) : '') + ':'
         break
       default:
-        err('pos not handled: ' + info.pos)
+        err('pos not handled: ' + ps.pos)
     }
   }
   return ret
@@ -135,6 +135,9 @@ function message (ps) {
       break
     case END.UNEXP_BYTE:
       ret = 'unexpected byte ' + '"' + val_str + '"'
+      break
+    case END.ILLEGAL_DECIMAL:
+      ret = 'illegal decimal ' + '"' + val_str + '"'
       break
     case END.TRUNC_KEY:
       ret = 'truncated key'
