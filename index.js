@@ -53,8 +53,10 @@ var TOK = {
   BEG: 40,        // '('  - begin - about to process a buffer
   END: 41,        // ')'  - end -   buffer limit reached and state is clean (stack is empty and no pending values)
   ERR: 33,        // '!'  - error.  unexpected state.  check info for details.
-  ERR_BYTE: 89,   // 'Y'  bad bYte
-  ERR_TOK:  84,   // 'T'  bad Token
+  // ERR_BYTE: 89,   // 'B'  bad byte
+  // ERR_TOK:  84,   // 'T'  bad Token
+  // TRUNC_DEC: 68,    // 'D' truncated decimal
+  // TRUNC_STR: 83,    // 'S' truncated string
 
 }
 
@@ -304,8 +306,8 @@ function _tokenize (init, opt, cb) {
         case 116:                                         // t    true
           idx = skip_bytes(src, idx, lim, tok_bytes[tok])
           pos1 = pmap[pos0 | tok]
-          if (idx <= 0) { idx = -idx; ecode = pos1 === 0 ? END.UNEXP_VAL : END.TRUNC_VAL; break main_loop }
-          if (pos1 === 0) { ecode = END.UNEXP_VAL; break main_loop }
+          if (pos1 === 0) { idx = idx <= 0 ? -idx : idx; ecode = END.UNEXP_VAL; break main_loop }
+          if (idx <= 0) { idx = -idx; ecode = END.TRUNC_VAL; break main_loop }
           vcount++
           break
 
@@ -313,8 +315,8 @@ function _tokenize (init, opt, cb) {
           pos1 = pmap[pos0 | tok]
           tok = 115
           idx = skip_str(src, idx + 1, lim)
-          if (idx === -1) { idx = lim; ecode = pos1 === 0 ? END.UNEXP_VAL : END.TRUNC_VAL; break main_loop }
-          if (pos1 === 0) { ecode = END.UNEXP_VAL; break main_loop }
+          if (pos1 === 0) { idx = idx === -1 ? lim : idx; ecode = END.UNEXP_VAL; break main_loop }
+          if (idx === -1) { idx = lim; ecode = END.TRUNC_VAL; break main_loop }
 
           // key
           if (pos1 === obj_a_k) {
