@@ -99,9 +99,11 @@ function pos_map () {
 
 var POS_MAP = pos_map()
 
-function ascii_to_code (s, code) {
-  var ret = []
-  for (var i = 0; i < s.length; i++) { ret[s.charCodeAt(i)] = code }
+function ascii_to_code (str_to_code) {
+  var ret = []; for (var i=0; i<=0xFF; i++) {ret[i] = 0}
+  Object.keys(str_to_code).forEach(function (s) {
+    s.split('').forEach(function (c) {ret[c.charCodeAt(0)] = str_to_code[s]})
+  })
   return ret
 }
 
@@ -112,8 +114,12 @@ function ascii_to_bytes (bychar) {
   }, [])
 }
 
-var WHITESPACE = ascii_to_code('\b\f\n\t\r ', 1)
-var ALL_NUM_CHARS = ascii_to_code('-0123456789+.eE', 1)
+var TOK_TYPES = ascii_to_code({
+  '-0123456789+.eE':  100,  // 'd'   all legal decimal ascii
+  'ntf':              102,  // 'f'   fixed-length tokens
+  '\b\f\n\t\r ':      119,  // 'w'   whitespace
+})
+
 var TOK_BYTES = ascii_to_bytes({ f: 'false', t: 'true', n: 'null' })
 
 // skip as many bytes of src that match bsrc, up to lim.
@@ -251,8 +257,7 @@ function _tokenize (init, opt, cb) {
   var obj_a_v = OBJ_A_V
   var arr_bfv = ARR_BFV
   var arr_a_v = ARR_A_V
-  var whitespace = WHITESPACE
-  var all_num_chars = ALL_NUM_CHARS
+  var tok_types = TOK_TYPES
   var tok_bytes = TOK_BYTES
 
   // localized init fo faster access
@@ -286,8 +291,8 @@ function _tokenize (init, opt, cb) {
       tok = src[voff]
       switch (tok) {
         case 8: case 9: case 10: case 12: case 13: case 32:
-          if (whitespace[src[++idx]] && idx < lim) {
-            while (whitespace[src[++idx]] === 1 && idx < lim) {}
+          if (tok_types[src[++idx]] === 119 && idx < lim) {             // 'w' whitespace
+            while (tok_types[src[++idx]] === 119 && idx < lim) {}
           }
           continue
 
@@ -333,7 +338,7 @@ function _tokenize (init, opt, cb) {
         case 45:                                          // '-'    ('+' is not legal here)
           pos1 = pmap[pos0 | tok]
           tok = 100                                       // d   decimal
-          while (all_num_chars[src[++idx]] === 1 && idx < lim) {}
+          while (tok_types[src[++idx]] === 100 && idx < lim) {}     // d also means decimal-type character
           if (pos1 === 0) { ecode = END.UNEXP_TOK; break main_loop }
           else if (idx === lim) { ecode = END.TRUNC_VAL; break main_loop }  // *might* be truncated - flag it here and handle below
           vcount++
@@ -449,11 +454,10 @@ function clean_up_ecode (ps, cb) {
   } else if (ps.ecode === END.UNEXP_TOK) {
     // tokens 'n', 't' and 'f' following a number are more clearly reported as unexpected byte instead of
     // token or value.  we backtrack here to check rather than check in the main_loop.
-    var NON_DELIM = ascii_to_code('ntf', 1)
     if (
       ps.voff > ps.off
-      && ALL_NUM_CHARS[ps.src[ps.voff-1]]
-      && NON_DELIM[ps.src[ps.voff]]
+      && TOK_TYPES[ps.src[ps.voff-1]] === 100
+      && TOK_TYPES[ps.src[ps.voff]] === 102
     ){
       ps.ecode = END.UNEXP_BYTE
     }
