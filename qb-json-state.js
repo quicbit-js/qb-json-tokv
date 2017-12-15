@@ -26,17 +26,6 @@ function pos_str (pos, relative) {
   }
 }
 
-function assign () {
-  var ret = Object(arguments[0])
-  for (var i = 1; i < arguments.length; i++) {
-    var src = arguments[i]
-    if (src != null) {
-      Object.keys(src).forEach(function (k) { ret[k] = src[k] })
-    }
-  }
-  return ret
-}
-
 function err (msg) { throw Error(msg) }
 
 function desc (info) {
@@ -129,7 +118,7 @@ function args2str () {
       ret = 'd' + (vlen || '') + '@' + voff
       break
     case TOK.END:
-      ret = 'E' + (vlen || '') + '@' + voff
+      ret = ')' + (vlen || '') + '@' + voff
       break
     case TOK.ERR:
       ret = '!' + vlen + '@' + voff + ': ' + message(info)
