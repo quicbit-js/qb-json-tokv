@@ -94,12 +94,6 @@ function str (info) {
   return info.vcount + '/' + bytes + ':' + tbytes + '/' + parse_state(info)
 }
 
-function ascii_to_code (s, code) {
-  var ret = []
-  for (var i = 0; i < s.length; i++) { ret[s.charCodeAt(i)] = code }
-  return ret
-}
-
 var LEN_TOKENS = 'sd)!'.split('').reduce(function (m,c) { m[c] = 1; return m }, {})
 // a convenience function for summarizing/logging/debugging callback arguments as compact strings
 // converts the 'arguments' array from cb into a terse string code.
