@@ -27,7 +27,7 @@ var OBJ_B_V = 0x400
 var OBJ_A_V = 0x480
 
 var END = {
-  UNEXP_VAL:  'UNEXP_VAL',    // token or value was recognized, but was not expected
+  UNEXP_TOK:  'UNEXP_VAL',    // token or value was recognized, but was not expected
   UNEXP_BYTE: 'UNEXP_BYTE',   // byte was not a recognized token or legal part of a value
   TRUNC_KEY:  'TRUNC_KEY',    // stopped before an object key was finished
   TRUNC_VAL:  'TRUNC_VAL',    // stopped before a value was finished (number, false, true, null, string)
@@ -297,7 +297,7 @@ function _tokenize (init, opt, cb) {
         case 58:                                          // :    COLON
           pos1 = pmap[pos0 | tok]
           idx++
-          if (pos1 === 0) { ecode = END.UNEXP_VAL; break main_loop }
+          if (pos1 === 0) { ecode = END.UNEXP_TOK; break main_loop }
           pos0 = pos1
           continue
 
@@ -306,7 +306,7 @@ function _tokenize (init, opt, cb) {
         case 116:                                         // t    true
           idx = skip_bytes(src, idx, lim, tok_bytes[tok])
           pos1 = pmap[pos0 | tok]
-          if (pos1 === 0) { idx = idx <= 0 ? -idx : idx; ecode = END.UNEXP_VAL; break main_loop }
+          if (pos1 === 0) { idx = idx <= 0 ? -idx : idx; ecode = END.UNEXP_TOK; break main_loop }
           if (idx <= 0) { idx = -idx; ecode = END.TRUNC_VAL; break main_loop }
           vcount++
           break
@@ -315,7 +315,7 @@ function _tokenize (init, opt, cb) {
           pos1 = pmap[pos0 | tok]
           tok = 115
           idx = skip_str(src, idx + 1, lim)
-          if (pos1 === 0) { idx = idx === -1 ? lim : idx; ecode = END.UNEXP_VAL; break main_loop }
+          if (pos1 === 0) { idx = idx === -1 ? lim : idx; ecode = END.UNEXP_TOK; break main_loop }
           if (idx === -1) { idx = lim; ecode = END.TRUNC_VAL; break main_loop }
 
           // key
@@ -334,7 +334,7 @@ function _tokenize (init, opt, cb) {
           pos1 = pmap[pos0 | tok]
           tok = 100                                       // d   decimal
           while (all_num_chars[src[++idx]] === 1 && idx < lim) {}
-          if (pos1 === 0) { ecode = END.UNEXP_VAL; break main_loop }
+          if (pos1 === 0) { ecode = END.UNEXP_TOK; break main_loop }
           if (idx === lim) { ecode = END.TRUNC_VAL; break main_loop }  // *might* be truncated - flag it here and handle below
           vcount++
           break
@@ -344,14 +344,14 @@ function _tokenize (init, opt, cb) {
           in_obj = tok === 123
           pos1 = pmap[pos0 | tok]
           idx++
-          if (pos1 === 0) { ecode = END.UNEXP_VAL; break main_loop }
+          if (pos1 === 0) { ecode = END.UNEXP_TOK; break main_loop }
           stack.push(tok)
           break
 
         case 93:                                          // ]    ARRAY END
           in_obj = stack[stack.length - 2] === 123        // set before breaking loop
           idx++
-          if ((pos0 !== arr_bfv && pos0 !== arr_a_v) || stack.pop() !== 91) { ecode = END.UNEXP_VAL; break main_loop }
+          if ((pos0 !== arr_bfv && pos0 !== arr_a_v) || stack.pop() !== 91) { ecode = END.UNEXP_TOK; break main_loop }
           pos1 = in_obj ? obj_a_v : arr_a_v
           vcount++
           break
@@ -359,7 +359,7 @@ function _tokenize (init, opt, cb) {
         case 125:                                         // }    OBJECT END
           in_obj = stack[stack.length - 2] === 123        // set before breaking loop
           idx++
-          if ((pos0 !== obj_bfk && pos0 !== obj_a_v) || stack.pop() !== 123) { ecode = END.UNEXP_VAL; break main_loop }
+          if ((pos0 !== obj_bfk && pos0 !== obj_a_v) || stack.pop() !== 123) { ecode = END.UNEXP_TOK; break main_loop }
           pos1 = in_obj ? obj_a_v : arr_a_v
           vcount++
           break
@@ -423,7 +423,7 @@ function _tokenize (init, opt, cb) {
 
 function figure_etok (ecode, incremental) {
   switch (ecode) {
-    case END.UNEXP_VAL:
+    case END.UNEXP_TOK:
     case END.UNEXP_BYTE:
       return TOK.ERR
     case END.TRUNC_KEY:
@@ -446,7 +446,7 @@ function clean_up_ecode (ps, cb) {
     } else {
       ps.ecode = END.TRUNC_SRC
     }
-  } else if (ps.ecode === END.UNEXP_VAL) {
+  } else if (ps.ecode === END.UNEXP_TOK) {
     // tokens 'n', 't' and 'f' following a number are more clearly reported as unexpected byte instead of
     // token or value.  we backtrack here to check rather than check in the main_loop.
     var NON_DELIM = ascii_to_code('ntf', 1)
