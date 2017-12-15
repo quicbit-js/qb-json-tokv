@@ -96,7 +96,8 @@ function str (info) {
 
 // a convenience function for summarizing/logging/debugging callback arguments as compact strings
 // converts the 'arguments' array from cb into a terse string code.
-var LEN_TOKENS = 'sd)!'.split('').reduce(function (m,c) { m[c] = 1; return m }, {})
+// only show value lengths for string, decimal, end and error tokens.
+var TOKENS_WITH_LENGTH = 'sd)!'.split('').reduce(function (m,c) { m[c] = 1; return m }, {})
 function args2str () {
   var a = arguments[0]
   var i = 1
@@ -105,7 +106,7 @@ function args2str () {
 
   var tchar = String.fromCharCode(tok)
   var keystr = koff !== -1 ? 'k' + (klim - koff) + '@' + koff + ':' : ''
-  var vlen = (LEN_TOKENS[tchar] && vlim !== voff) ? vlim - voff : ''
+  var vlen = (TOKENS_WITH_LENGTH[tchar] && vlim !== voff) ? vlim - voff : ''
   var msg = tchar === '!' ? ': ' + message(info) : ''
 
   return keystr + tchar + vlen + '@' + voff + msg

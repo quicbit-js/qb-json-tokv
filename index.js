@@ -115,7 +115,7 @@ function ascii_to_bytes (bychar) {
 }
 
 var TOK_TYPES = ascii_to_code({
-  '-0123456789+.eE':  100,  // 'd'   all legal decimal ascii
+  '-0123456789+.eE':  100,  // 'd'   all legal decimal ascii  // +.eE are not really tokens, but none overlap with other tokens, so we use same map
   'ntf':              102,  // 'f'   fixed-length tokens
   '\b\f\n\t\r ':      119,  // 'w'   whitespace
 })
