@@ -94,9 +94,9 @@ function str (info) {
   return info.vcount + '/' + bytes + ':' + tbytes + '/' + parse_state(info)
 }
 
-var LEN_TOKENS = 'sd)!'.split('').reduce(function (m,c) { m[c] = 1; return m }, {})
 // a convenience function for summarizing/logging/debugging callback arguments as compact strings
 // converts the 'arguments' array from cb into a terse string code.
+var LEN_TOKENS = 'sd)!'.split('').reduce(function (m,c) { m[c] = 1; return m }, {})
 function args2str () {
   var a = arguments[0]
   var i = 1
