@@ -28,11 +28,17 @@ function pos_str (pos, relative) {
 
 function err (msg) { throw Error(msg) }
 
+function within_value (ps) {
+  return ps.ecode === END.TRUNC_KEY ||
+  ps.ecode === END.TRUNC_VAL ||
+  (ps.ecode === END.UNEXP_BYTE && ps.vlim - ps.voff > 1)    // unexpected byte within a token or number
+}
+
 function desc (ps) {
   var in_obj = ps.stack[ps.stack.length - 1] === 123
   var in_arr = ps.stack[ps.stack.length - 1] === 91
   var ctx = in_arr ? 'in array ' : (in_obj ? 'in object ' : '')
-  return ctx + pos_str(ps.pos, ps.ecode !== END.TRUNC_KEY && ps.ecode !== END.TRUNC_VAL && ps.ecode !== END.ILLEGAL_DECIMAL)
+  return ctx + pos_str(ps.pos, !within_value(ps))
 }
 
 function parse_state (ps) {
@@ -48,8 +54,8 @@ function parse_state (ps) {
   }
 
   if (ps.ecode === END.TRUNC_KEY) {
-    ret += vlen   // only complete keyss are represented by koff..klim.  truncations and other errors are all at voff/vlim
-  } else if (ps.ecode === END.TRUNC_VAL || ps.ecode === END.ILLEGAL_DECIMAL) {
+    ret += vlen   // only complete keys are represented by koff..klim.  truncations and other errors are all at voff/vlim
+  } else if (within_value(ps)) {
     if (in_obj) {
       if (ps.pos === ARR_B_V) {
         ret += vlen
@@ -134,10 +140,11 @@ function message (ps) {
       ret = 'unexpected ' + tok_str + ' ' + val_str
       break
     case END.UNEXP_BYTE:
-      ret = 'unexpected byte ' + '"' + val_str + '"'
-      break
-    case END.ILLEGAL_DECIMAL:
-      ret = 'illegal decimal ' + '"' + val_str + '"'
+      if (ps.vlim - ps.voff > 1) {
+        ret = 'illegal ' + tok_str + ' "' + val_str + '"'
+      } else {
+        ret = 'unexpected byte ' + '"' + val_str + '"'
+      }
       break
     case END.TRUNC_KEY:
       ret = 'truncated key'

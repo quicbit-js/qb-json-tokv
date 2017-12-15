@@ -342,7 +342,7 @@ function _tokenize (init, opt, cb) {
           while (tok_types[src[++idx]] === 100 && idx < lim) {}     // d (100) here means decimal-type ascii
           if (pos1 === 0)                       { ecode = END.UNEXP_TOK;       break main_loop }
           else if (idx === lim)                 { ecode = END.TRUNC_VAL;       break main_loop }  // *might* be truncated - flag it here and handle below
-          else if (tok_types[src[idx]] === 102) { idx++; ecode = END.ILLEGAL_DECIMAL; break main_loop }  // f (102) - (n)ull (t)rue (f)alse are byte-errors here
+          else if (tok_types[src[idx]] === 102) { idx++; ecode = END.UNEXP_BYTE; break main_loop }  // f (102) - (n)ull (t)rue (f)alse are byte-errors here
           vcount++
           break
 
