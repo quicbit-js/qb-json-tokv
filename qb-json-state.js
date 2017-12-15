@@ -39,21 +39,6 @@ function assign () {
 
 function err (msg) { throw Error(msg) }
 
-// Position represents parse position information - both logical and absolute (bytes).  Format (line and column) is
-// not tracked by Position.
-function Position (params) {
-  assign(this, params)
-}
-Position.prototype = {
-  constructor: Position,
-  get in_arr () { return this.stack[this.stack.length - 1] === 91 },
-  get in_obj () { return this.stack[this.stack.length - 1] === 123 },
-
-  toString: function () {
-    return str(this)
-  }
-}
-
 function desc (pi) {
   var in_obj = pi.stack[pi.stack.length - 1] === 123
   var in_arr = pi.stack[pi.stack.length - 1] === 91
