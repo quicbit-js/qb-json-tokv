@@ -15,8 +15,8 @@ var OBJ_BFV = 0x380
 var OBJ_B_V = 0x400
 var OBJ_A_V = 0x480
 
-function pos_str (state, relative) {
-  switch (state) {
+function pos_str (pos, relative) {
+  switch (pos) {
     case OBJ_BFK: return relative ? 'before first key' : 'first key'
     case OBJ_B_K: return relative ? 'before key' : 'key'
     case OBJ_A_K: return relative ? 'after key' : 'key'
@@ -43,7 +43,7 @@ function desc (info) {
   var in_obj = info.stack[info.stack.length - 1] === 123
   var in_arr = info.stack[info.stack.length - 1] === 91
   var ctx = in_arr ? 'in array ' : (in_obj ? 'in object ' : '')
-  return ctx + pos_str(info.state, info.ecode !== END.TRUNC_KEY && info.ecode !== END.TRUNC_VAL)
+  return ctx + pos_str(info.pos, info.ecode !== END.TRUNC_KEY && info.ecode !== END.TRUNC_VAL)
 }
 
 function parse_state (info) {
@@ -62,18 +62,18 @@ function parse_state (info) {
     ret += vlen   // only complete keyss are represented by koff..klim.  truncations and other errors are all at voff/vlim
   } else if (info.ecode === END.TRUNC_VAL ) {
     if (in_obj) {
-      if (info.state === ARR_B_V) {
+      if (info.pos === ARR_B_V) {
         ret += vlen
-      } else if (info.state === OBJ_B_V) {
+      } else if (info.pos === OBJ_B_V) {
         ret += klen + '.' + (gap - 1) + ':' + vlen
       } else {
-        err('unexpected state for truncated value: ' + info.state)
+        err('unexpected pos for truncated value: ' + info.pos)
       }
     } else {
       ret += vlen
     }
   } else {
-    switch (info.state) {
+    switch (info.pos) {
       case ARR_BFV:
       case OBJ_BFK:
         ret += '-'
@@ -93,7 +93,7 @@ function parse_state (info) {
         ret += klen + (gap > 1 ? '.' + (gap - 1) : '') + ':'
         break
       default:
-        err('state not handled: ' + info.state)
+        err('pos not handled: ' + info.pos)
     }
   }
   return ret
@@ -153,7 +153,7 @@ function message (ps) {
   var ret
 
   switch (ps.ecode) {
-    case END.UNEXP_VAL:       // failed transition (state0 + tok => state1) === 0
+    case END.UNEXP_VAL:       // failed transition (pos0 + tok => pos1) === 0
       if (tok_str === 'token') { val_str = '"' + val_str + '"' }
       ret = 'unexpected ' + tok_str + ' ' + val_str
       break
@@ -176,7 +176,7 @@ function message (ps) {
       ret = 'done'
       break
     default:
-      err('internal error, end state not handled: ' + ps.ecode)
+      err('internal error, end pos not handled: ' + ps.ecode)
   }
 
   var range = (ps.voff >= ps.vlim - 1) ? ps.voff : ps.voff + '..' + (ps.vlim - 1)
