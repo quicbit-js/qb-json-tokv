@@ -100,6 +100,7 @@ function ascii_to_code (s, code) {
   return ret
 }
 
+var LEN_TOKENS = 'sd)!'.split('').reduce(function (m,c) { m[c] = 1; return m }, {})
 // a convenience function for summarizing/logging/debugging callback arguments as compact strings
 // converts the 'arguments' array from cb into a terse string code.
 function args2str () {
@@ -107,29 +108,13 @@ function args2str () {
   var i = 1
 // callback arguments [src, koff, klim, tok, voff, vlim, info]
   var koff = a[i++], klim = a[i++], tok = a[i++], voff = a[i++], vlim = a[i++], info = a[i++]
-  var ret
-  var vlen = (vlim === voff) ? '' : vlim - voff
+
   var tchar = String.fromCharCode(tok)
-  switch (tok) {
-    case TOK.STR:
-      ret = tchar + vlen + '@' + voff
-      break
-    case TOK.DEC:
-      ret = tchar + vlen + '@' + voff
-      break
-    case TOK.END:
-      ret = tchar + vlen + '@' + voff
-      break
-    case TOK.ERR:
-      ret = tchar + vlen + '@' + voff + ': ' + message(info)
-      break
-    default:
-      ret = tchar + '@' + voff
-  }
-  if (koff !== -1) {
-    ret = 'k' + (klim - koff) + '@' + koff + ':' + ret
-  }
-  return ret
+  var keystr = koff !== -1 ? 'k' + (klim - koff) + '@' + koff + ':' : ''
+  var vlen = (LEN_TOKENS[tchar] && vlim !== voff) ? vlim - voff : ''
+  var msg = tchar === '!' ? ': ' + message(info) : ''
+
+  return keystr + tchar + vlen + '@' + voff + msg
 }
 
 function esc_str (src, off, lim) {
