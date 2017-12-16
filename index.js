@@ -27,7 +27,7 @@ var OBJ_B_V = 0x400
 var OBJ_A_V = 0x480
 
 var END = {
-  TRUNC_SRC:  'TRUNC_SRC',    // reached limit before done (stack.length > 0 or after comma)
+  INCOMPLETE:  'INCOMPLETE',    // reached limit before done (stack.length > 0 or after comma)
   CLEAN_STOP: 'CLEAN_STOP',   // client stopped at a clean point (zero stack, no pending value)
   DONE:       'DONE',         // parsed to src lim and state is clean (stack.length = 0, no pending value)
 }
@@ -46,15 +46,13 @@ var TOK = {
   OBJ_END:  125,  // '}'
 
   // special codes
-  BEG: 40,        // '('  - begin - about to process a buffer
-  END: 41,        // ')'  - end -   buffer limit reached and state is clean (stack is empty and no pending values)
-  ERR: 33,        // '!'  - error.  unexpected state.  check info for details.
-  UNEXP_BYTE: 89,   // 'B'  unexpected byte.  if value len > 1, then bad byte is within a value with a legal beginning, else it's separate from value.
-  TRUNC_VAL: 84,    // 'T'  truncated value - reached src limit before a key or value was finished
-  UNEXP_TOK: 85,    // 'U'  unexpected token
-
-  // TRUNC_DEC: 68,    // 'D' truncated decimal
-  // TRUNC_STR: 83,    // 'S' truncated string
+  BEG: 40,            // '('  - begin - about to process a buffer
+  END: 41,            // ')'  - end -   buffer limit reached and state is clean (stack is empty and no pending values)
+  ERR: 33,            // '!'  - error.  unexpected state.  check info for details.
+  ILLEGAL_BYTE: 89,   // 'B'  illegal byte.  if value len > 1, then bad byte is within a value with a valid start, else it's separate from value.
+  TRUNC_VAL: 84,      // 'T'  truncated value - reached src limit before a key or value was finished
+  UNEXP_TOK: 85,      // 'U'  unexpected token
+  INCOMPLETE: 73,     // 'I'  input is incomplete.  terminates within an object or array or with a trailing comma
 
 }
 
@@ -321,7 +319,7 @@ function _tokenize (init, opt, cb) {
           if (idx <= 0) {
             idx = -idx
             if (idx === lim) { ecode = TOK.TRUNC_VAL; break main_loop }
-            else { idx++; ecode = TOK.UNEXP_BYTE; break main_loop }  // include unexpected byte in value
+            else { idx++; ecode = TOK.ILLEGAL_BYTE; break main_loop }  // include unexpected byte in value
           }
           vcount++
           break
@@ -353,7 +351,7 @@ function _tokenize (init, opt, cb) {
           // for UNEXP_BYTE, the byte is included with the number to indicate it was encountered while parsing number.
           if (pos1 === 0)                       { ecode = TOK.UNEXP_TOK;       break main_loop }
           else if (idx === lim)                 { ecode = TOK.TRUNC_VAL;       break main_loop }   // *might* be truncated - flag it here and handle below
-          else if (tok_types[src[idx]] === 102) { idx++; ecode = TOK.UNEXP_BYTE; break main_loop } // treat non-separating chars as unexpected byte
+          else if (tok_types[src[idx]] === 102) { idx++; ecode = TOK.ILLEGAL_BYTE; break main_loop } // treat non-separating chars as unexpected byte
           vcount++
           break
 
@@ -384,7 +382,7 @@ function _tokenize (init, opt, cb) {
 
         default:
           idx++
-          ecode = TOK.UNEXP_BYTE                          // no legal transition for this byte
+          ecode = TOK.ILLEGAL_BYTE                          // no legal transition for this byte
           break main_loop
       }
       // clean transition was made from pos0 to pos1
@@ -420,7 +418,7 @@ function _tokenize (init, opt, cb) {
 
   // check and clarify end pos (before handling end pos)
   clean_up_ecode(ps, cb)
-  if (ps.ecode === null || ps.ecode === END.DONE || ps.ecode === END.CLEAN_STOP || ps.ecode === END.TRUNC_SRC) {
+  if (ps.ecode === null || ps.ecode === END.DONE || ps.ecode === END.CLEAN_STOP || ps.ecode === END.INCOMPLETE) {
     ps.voff = idx    // wipe out phantom value
   }
 
@@ -442,10 +440,10 @@ function _tokenize (init, opt, cb) {
 function figure_etok (ecode, incremental) {
   switch (ecode) {
     case TOK.UNEXP_TOK:
-    case TOK.UNEXP_BYTE:
+    case TOK.ILLEGAL_BYTE:
       return TOK.ERR
     case TOK.TRUNC_VAL:
-    case END.TRUNC_SRC:
+    case END.INCOMPLETE:
       return incremental ? TOK.END : TOK.ERR
     case END.CLEAN_STOP:
     case END.DONE:
@@ -461,7 +459,7 @@ function clean_up_ecode (ps, cb) {
     if (depth === 0 && (ps.pos === ARR_BFV || ps.pos === ARR_A_V)) {
       ps.ecode = ps.vlim === ps.lim ? END.DONE : END.CLEAN_STOP   // if ps.halted at limit, parsing is done, but no end callback is made
     } else {
-      ps.ecode = END.TRUNC_SRC
+      ps.ecode = END.INCOMPLETE
     }
   } else if (ps.ecode === TOK.TRUNC_VAL) {
     if (ps.vlim === ps.lim && ps.tok === TOK.DEC && depth === 0 && (ps.pos === ARR_BFV || ps.pos === ARR_B_V)) {

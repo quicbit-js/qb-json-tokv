@@ -30,7 +30,7 @@ function err (msg) { throw Error(msg) }
 
 function within_value (ps) {
   return ps.ecode === TOK.TRUNC_VAL ||
-  (ps.ecode === TOK.UNEXP_BYTE && ps.vlim - ps.voff > 1)    // unexpected byte within a token or number
+  (ps.ecode === TOK.ILLEGAL_BYTE && ps.vlim - ps.voff > 1)    // unexpected byte within a token or number
 }
 
 function desc (ps) {
@@ -130,7 +130,7 @@ function message (ps) {
       if (tok_str === 'token') { val_str = '"' + val_str + '"' }
       ret = 'unexpected ' + tok_str + ' ' + val_str
       break
-    case TOK.UNEXP_BYTE:
+    case TOK.ILLEGAL_BYTE:
       if (ps.vlim - ps.voff > 1) {
         ret = 'illegal ' + tok_str + ' "' + val_str + '"'
       } else {
@@ -140,7 +140,7 @@ function message (ps) {
     case TOK.TRUNC_VAL:
       ret = 'truncated ' + tok_str
       break
-    case END.TRUNC_SRC:
+    case END.INCOMPLETE:
       ret = 'truncated input'
       break
     case END.CLEAN_STOP:
