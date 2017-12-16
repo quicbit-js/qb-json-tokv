@@ -27,7 +27,6 @@ var OBJ_B_V = 0x400
 var OBJ_A_V = 0x480
 
 var END = {
-  TRUNC_VAL:  'TRUNC_VAL',    // stopped before a value was finished (number, false, true, null, string)
   TRUNC_SRC:  'TRUNC_SRC',    // reached limit before done (stack.length > 0 or after comma)
   CLEAN_STOP: 'CLEAN_STOP',   // client stopped at a clean point (zero stack, no pending value)
   DONE:       'DONE',         // parsed to src lim and state is clean (stack.length = 0, no pending value)
@@ -222,7 +221,7 @@ function init_truncated (src, off, lim, prev, cb) {
 function init_from_prev(src, off, lim, prev, cb) {
   // get vcount, stack, and pos from position and ecode
   switch (prev.ecode) {
-    case END.TRUNC_VAL:
+    case TOK.TRUNC_VAL:
       return init_truncated(src, off, lim, prev, cb)
       break
     default: err('restore for ' + p.ecode + ' not implemented')
@@ -321,7 +320,7 @@ function _tokenize (init, opt, cb) {
           if (pos1 === 0) { idx = idx <= 0 ? -idx : idx; ecode = TOK.UNEXP_TOK; break main_loop }
           if (idx <= 0) {
             idx = -idx
-            if (idx === lim) { ecode = END.TRUNC_VAL; break main_loop }
+            if (idx === lim) { ecode = TOK.TRUNC_VAL; break main_loop }
             else { idx++; ecode = TOK.UNEXP_BYTE; break main_loop }  // include unexpected byte in value
           }
           vcount++
@@ -332,7 +331,7 @@ function _tokenize (init, opt, cb) {
           tok = 115
           idx = skip_str(src, idx + 1, lim)
           if (pos1 === 0) { idx = idx === -1 ? lim : idx; ecode = TOK.UNEXP_TOK; break main_loop }
-          else if (idx === -1) { idx = lim; ecode = END.TRUNC_VAL; break main_loop }
+          else if (idx === -1) { idx = lim; ecode = TOK.TRUNC_VAL; break main_loop }
 
           // key
           if (pos1 === obj_a_k) {
@@ -353,7 +352,7 @@ function _tokenize (init, opt, cb) {
 
           // for UNEXP_BYTE, the byte is included with the number to indicate it was encountered while parsing number.
           if (pos1 === 0)                       { ecode = TOK.UNEXP_TOK;       break main_loop }
-          else if (idx === lim)                 { ecode = END.TRUNC_VAL;       break main_loop }   // *might* be truncated - flag it here and handle below
+          else if (idx === lim)                 { ecode = TOK.TRUNC_VAL;       break main_loop }   // *might* be truncated - flag it here and handle below
           else if (tok_types[src[idx]] === 102) { idx++; ecode = TOK.UNEXP_BYTE; break main_loop } // treat non-separating chars as unexpected byte
           vcount++
           break
@@ -445,7 +444,7 @@ function figure_etok (ecode, incremental) {
     case TOK.UNEXP_TOK:
     case TOK.UNEXP_BYTE:
       return TOK.ERR
-    case END.TRUNC_VAL:
+    case TOK.TRUNC_VAL:
     case END.TRUNC_SRC:
       return incremental ? TOK.END : TOK.ERR
     case END.CLEAN_STOP:
@@ -464,7 +463,7 @@ function clean_up_ecode (ps, cb) {
     } else {
       ps.ecode = END.TRUNC_SRC
     }
-  } else if (ps.ecode === END.TRUNC_VAL) {
+  } else if (ps.ecode === TOK.TRUNC_VAL) {
     if (ps.vlim === ps.lim && ps.tok === TOK.DEC && depth === 0 && (ps.pos === ARR_BFV || ps.pos === ARR_B_V)) {
       // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
       // note - this means we won't be able to split no-context numbers outside of an array or object container.

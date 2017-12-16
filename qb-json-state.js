@@ -29,7 +29,7 @@ function pos_str (pos, relative) {
 function err (msg) { throw Error(msg) }
 
 function within_value (ps) {
-  return ps.ecode === END.TRUNC_VAL ||
+  return ps.ecode === TOK.TRUNC_VAL ||
   (ps.ecode === TOK.UNEXP_BYTE && ps.vlim - ps.voff > 1)    // unexpected byte within a token or number
 }
 
@@ -137,7 +137,7 @@ function message (ps) {
         ret = 'unexpected byte ' + '"' + val_str + '"'
       }
       break
-    case END.TRUNC_VAL:
+    case TOK.TRUNC_VAL:
       ret = 'truncated ' + tok_str
       break
     case END.TRUNC_SRC:
