@@ -29,8 +29,8 @@ function pos_str (pos, relative) {
 function err (msg) { throw Error(msg) }
 
 function within_value (ps) {
-  return ps.ecode === TOK.TRUNC_VAL ||
-  (ps.ecode === TOK.BAD_BYTE && ps.vlim - ps.voff > 1)    // unexpected byte within a token or number
+  return ps.tok === TOK.TRUNC_VAL ||
+  (ps.tok === TOK.BAD_BYTE && ps.vlim - ps.voff > 1)    // unexpected byte within a token or number
 }
 
 function desc (ps) {
@@ -66,7 +66,7 @@ function parse_state (ps) {
         break
       case ARR_B_V:
       case OBJ_B_K:
-        ret += '+'
+        ret += ','
         break
       case ARR_A_V:
       case OBJ_A_V:
@@ -94,7 +94,7 @@ function str (info) {
 // a convenience function for summarizing/logging/debugging callback arguments as compact strings
 // converts the 'arguments' array from cb into a terse string code.
 // only show value lengths for string, decimal, end and error tokens.
-var TOKENS_WITH_LENGTH = 'sd)!'.split('').reduce(function (m,c) { m[c] = 1; return m }, {})
+var NO_LEN_TOKENS = '[]{}()SI'.split('').reduce(function (m,c) { m[c] = 1; return m }, {})
 function args2str () {
   var a = arguments[0]
   var i = 1
@@ -103,10 +103,10 @@ function args2str () {
 
   var tchar = String.fromCharCode(tok)
   var keystr = koff !== -1 ? 'k' + (klim - koff) + '@' + koff + ':' : ''
-  var vlen = (TOKENS_WITH_LENGTH[tchar] && vlim !== voff) ? vlim - voff : ''
-  var msg = tchar === '!' ? ': ' + message(info) : ''
+  var vlen = (!NO_LEN_TOKENS[tchar] && vlim !== voff) ? vlim - voff : ''
+  // var msg = tchar === '!' ? ': ' + message(info) : ''
 
-  return keystr + tchar + vlen + '@' + voff + msg
+  return keystr + tchar + vlen + '@' + voff
 }
 
 function esc_str (src, off, lim) {
@@ -125,7 +125,7 @@ function message (ps) {
   var tok_str = ps.tok === TOK.DEC ? 'decimal' : (ps.tok === TOK.STR ? 'string' : 'token')
   var ret
 
-  switch (ps.ecode) {
+  switch (ps.tok) {
     case TOK.UNEXP_TOK:       // failed transition (pos0 + tok => pos1) === 0
       if (tok_str === 'token') { val_str = '"' + val_str + '"' }
       ret = 'unexpected ' + tok_str + ' ' + val_str
@@ -150,7 +150,7 @@ function message (ps) {
       ret = 'done'
       break
     default:
-      err('internal error, end pos not handled: ' + ps.ecode)
+      err('internal error, end pos not handled: ' + ps.tok)
   }
 
   var range = (ps.voff >= ps.vlim - 1) ? ps.voff : ps.voff + '..' + (ps.vlim - 1)

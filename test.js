@@ -40,101 +40,98 @@ test('tokenize', function (t) {
   t.tableAssert(
     [
       [ 'src',                                      'off', 'lim', 'exp'                                             ],
-      [ '',                                         0,     null,  [ '(@0,)@0', 68, '0/0:0/-' ] ],
-      [ '1',                                        0,     null,  [ '(@0,d1@0,)@1', 68, '0/1:1/.' ] ],
-      [ '1,2,3',                                    0,     null,  [ 'd1@2,d1@4,)@5', 68, '2/5:5/.' ] ],
-      [ '[1, 2], 3',                                0,     null,  [ ']@5,d1@8,)@9', 68, '3/9:9/.' ]         ],
-      [ '"x"',                                      0,     null,  [ '(@0,s3@0,)@3', 68, '1/3:3/.' ]         ],
-      [ '-3.05',                                    0,     null,  [ '(@0,d5@0,)@5', 68, '0/5:5/.' ]         ],
-      [ '-3.05',                                    1,     null,  [ '(@1,d4@1,)@5', 68, '0/4:4/.' ]         ],
-      [ '  true',                                   0,     null,  [ '(@0,t@2,)@6', 68, '1/6:6/.' ]          ],
-      [ ' false  ',                                 0,     null,  [ '(@0,f@1,)@8', 68, '1/8:8/.' ]          ],
-      [ ' false   ',                                1,     null,  [ '(@1,f@1,)@9', 68, '1/8:8/.' ]          ],
-      [ '[1, 2, 3]',                                0,     null,  [ 'd1@7,]@8,)@9', 68, '4/9:9/.' ]         ],
-      [ '[3.05E-2]',                                0,     null,  [ 'd7@1,]@8,)@9', 68, '2/9:9/.' ]         ],
-      [ '[3.05E-2]',                                4,     5,     [ '(@4,d1@4,)@5', 68, '0/1:1/.' ]         ],
-      [ '{"a":1}',                                  0,     null,  [ 'k3@1:d1@5,}@6,)@7', 68, '2/7:7/.' ]    ],
-      [ '{"a"  :1}',                                0,     null,  [ 'k3@1:d1@7,}@8,)@9', 68, '2/9:9/.' ]    ],
-      [ '{ "a" : 1 }',                              0,     null,  [ 'k3@2:d1@8,}@10,)@11', 68, '2/11:11/.' ] ],
-      [ '"\\""',                                    0,     null,  [ '(@0,s4@0,)@4', 68, '1/4:4/.' ]         ],
-      [ '"\\\\"',                                   0,     null,  [ '(@0,s4@0,)@4', 68, '1/4:4/.' ]         ],
-      [ '\t\t"x\\a\r"  ',                           0,     null,  [ '(@0,s6@2,)@10', 68, '1/10:10/.' ]       ],
-      [ '"\\"x\\"a\r\\""',                          0,     null,  [ '(@0,s11@0,)@11', 68, '1/11:11/.' ]      ],
-      [ ' [0,1,2]',                                 0,     null,  [ 'd1@6,]@7,)@8', 68, '4/8:8/.' ]         ],
-      [ '["a", "bb"] ',                             0,     null,  [ 's4@6,]@10,)@12', 68, '3/12:12/.' ]      ],
-      [ '"x", 4\n, null, 3.2e5 , true, false',      null,  null,  [ 't@23,f@29,)@34', 68, '6/34:34/.' ]      ],
-      [ '["a",1.3,\n\t{ "b" : ["v", "w"]\n}\t\n ]', null,  null,  [ '}@30,]@34,)@35', 68, '7/35:35/.' ]      ],
+      // [ '',                                         0,     null,  [ '(@0,)@0', ')', '0/0:0/-' ] ],
+      [ '1',                                        0,     null,  [ '(@0,d1@0,)@1', ')', '0/1:1/.' ] ],
+      [ '1,2,3',                                    0,     null,  [ 'd1@2,d1@4,)@5', ')', '2/5:5/.' ] ],
+      [ '[1, 2], 3',                                0,     null,  [ ']@5,d1@8,)@9', ')', '3/9:9/.' ]         ],
+      [ '"x"',                                      0,     null,  [ '(@0,s3@0,)@3', ')', '1/3:3/.' ]         ],
+      [ '-3.05',                                    0,     null,  [ '(@0,d5@0,)@5', ')', '0/5:5/.' ]         ],
+      [ '-3.05',                                    1,     null,  [ '(@1,d4@1,)@5', ')', '0/4:4/.' ]         ],
+      [ '  true',                                   0,     null,  [ '(@0,t@2,)@6', ')', '1/6:6/.' ]          ],
+      [ ' false  ',                                 0,     null,  [ '(@0,f@1,)@8', ')', '1/8:8/.' ]          ],
+      [ ' false   ',                                1,     null,  [ '(@1,f@1,)@9', ')', '1/8:8/.' ]          ],
+      [ '[1, 2, 3]',                                0,     null,  [ 'd1@7,]@8,)@9', ')', '4/9:9/.' ]         ],
+      [ '[3.05E-2]',                                0,     null,  [ 'd7@1,]@8,)@9', ')', '2/9:9/.' ]         ],
+      [ '[3.05E-2]',                                4,     5,     [ '(@4,d1@4,)@5', ')', '0/1:1/.' ]         ],
+      [ '{"a":1}',                                  0,     null,  [ 'k3@1:d1@5,}@6,)@7', ')', '2/7:7/.' ]    ],
+      [ '{"a"  :1}',                                0,     null,  [ 'k3@1:d1@7,}@8,)@9', ')', '2/9:9/.' ]    ],
+      [ '{ "a" : 1 }',                              0,     null,  [ 'k3@2:d1@8,}@10,)@11', ')', '2/11:11/.' ] ],
+      [ '"\\""',                                    0,     null,  [ '(@0,s4@0,)@4', ')', '1/4:4/.' ]         ],
+      [ '"\\\\"',                                   0,     null,  [ '(@0,s4@0,)@4', ')', '1/4:4/.' ]         ],
+      [ '\t\t"x\\a\r"  ',                           0,     null,  [ '(@0,s6@2,)@10', ')', '1/10:10/.' ]       ],
+      [ '"\\"x\\"a\r\\""',                          0,     null,  [ '(@0,s11@0,)@11', ')', '1/11:11/.' ]      ],
+      [ ' [0,1,2]',                                 0,     null,  [ 'd1@6,]@7,)@8', ')', '4/8:8/.' ]         ],
+      [ '["a", "bb"] ',                             0,     null,  [ 's4@6,]@10,)@12', ')', '3/12:12/.' ]      ],
+      [ '"x", 4\n, null, 3.2e5 , true, false',      null,  null,  [ 't@23,f@29,)@34', ')', '6/34:34/.' ]      ],
+      [ '["a",1.3,\n\t{ "b" : ["v", "w"]\n}\t\n ]', null,  null,  [ '}@30,]@34,)@35', ')', '7/35:35/.' ]      ],
     ],
     function (input, off, lim) {
       var hector = t.hector()
       var endinfo = null
       var cb = function (src, koff, klim, tok, voff, vlim, info) {
         hector(pstate.args2str(arguments))
-        if (tok === TOK.ERR) {
-          err('callback got error: ' + pstate.str(info) + ' input: ' + input + (off > 0 ? 'off: ' + off : '')) }
-        if (tok === TOK.END) { endinfo = info }
+        if (tok === TOK.DONE) { endinfo = info }
         return true
       }
       var info = jtok.tokenize(utf8.buffer(input), {off: off, lim: lim}, cb)
       info === endinfo || err('expected returned info to equal endinfo')
 
-      return [ hector.arg(0).slice(-3).join(','), info.ecode, pstate.str(info) ]
+      return [ hector.arg(0).slice(-3).join(','), String.fromCharCode(info.tok), pstate.str(info) ]
     }
   )
 })
 
-test('tokenize - errors', function (t) {
+test.only('tokenize - errors', function (t) {
   t.tableAssert(
     [
       [ 'input',            'exp' ],
 
+      // incomplete input (not an error in incremental mode)
+      [ '{"a" : ',          [ '(@0,{@0,k3@1:I@7', '0/7:7/{3.2:' ]   ],
+      [ '{"a"',             [ '(@0,{@0,k3@1:I@4', '0/4:4/{3.' ]     ],
+      [ '{"a" ',            [ '(@0,{@0,k3@1:I@5', '0/5:5/{3.1.' ]   ],
+      [ '[1, 2, ',          [ 'd1@1,d1@4,I@7', '2/7:7/[,' ]         ],
+
       // truncated values / keys (not an error in incremental mode)
-      [ 'fal',              [ '(@0,!3@0: truncated token, first value at 0..2', 84, '0/3:3/3' ]                            ],
-      [ '"ab',              [ '(@0,!3@0: truncated string, first value at 0..2', 84, '0/3:3/3' ]                           ],
-      [ '"ab:',             [ '(@0,!4@0: truncated string, first value at 0..3', 84, '0/4:4/4' ]                           ],
-      [ '"\\\\\\"',         [ '(@0,!5@0: truncated string, first value at 0..4', 84, '0/5:5/5' ]                           ],
-      [ '[3.05E-2',         [ '(@0,[@0,!7@1: truncated decimal, in array first value at 1..7', 84, '0/8:8/[7' ]              ],
-      [ '[3.05E-2,4.',      [ '[@0,d7@1,!2@9: truncated decimal, in array value at 9..10', 84, '1/11:11/[2' ]                 ],
-      [ '{"a',              [ '(@0,{@0,!2@1: truncated string, in object first key at 1..2', 84, '0/3:3/{2' ]               ],
+      [ 'fal',              [ '(@0,T3@0', '0/3:3/3' ]               ],
+      [ '"ab',              [ '(@0,T3@0', '0/3:3/3' ]               ],
+      [ '"ab:',             [ '(@0,T4@0', '0/4:4/4' ]               ],
+      [ '"\\\\\\"',         [ '(@0,T5@0', '0/5:5/5' ]               ],
+      [ '[3.05E-2',         [ '(@0,[@0,T7@1', '0/8:8/[7' ]          ],
+      [ '[3.05E-2,4.',      [ '[@0,d7@1,T2@9', '1/11:11/[2' ]       ],
+      [ '{"a',              [ '(@0,{@0,T2@1', '0/3:3/{2' ]          ],
 
-      // unexpected byte (single)
-      [ '0*',               [ '(@0,!2@0: illegal decimal "0*", first value at 0..1', 66, '0/2:2/2' ]                      ],
-      [ '{"a":3^6}',        [ '(@0,{@0,k3@1:!2@5: illegal decimal "3^", in object value at 5..6', 66, '0/7:9/{3.0:2' ]       ],
+      // unexpected byte in number
+      [ '0*',               [ '(@0,B2@0', '0/2:2/2' ]               ],
+      [ '{"a":3^6}',        [ '(@0,{@0,k3@1:B2@5', '0/7:9/{3.0:2' ] ],
+      [ '1,2.4n',           [ '(@0,d1@0,B4@2', '1/6:6/4' ]          ],
+      [ ' 1f',              [ '(@0,B2@1', '0/3:3/2' ]               ],
 
-      // unexpected byte (in multi-byte number or token)
-      [ '1,2.4n',           [ '(@0,d1@0,!4@2: illegal decimal "2.4n", value at 2..5', 66, '1/6:6/4' ]                     ],
-      [ '{"a": t,',         [ '(@0,{@0,k3@1:!2@6: illegal token "t,", in object value at 6..7', 66, '0/8:8/{3.1:2' ]                  ],
-      [ ' 1f',              [ '(@0,!2@1: illegal decimal "1f", first value at 1..2', 66, '0/3:3/2' ]                      ],
+      // unexpected byte in token
+      [ '{"a": t,',         [ '(@0,{@0,k3@1:B2@6', '0/8:8/{3.1:2' ] ],
 
-      // unexpected values
-      [ '"a""b"',           [ '(@0,s3@0,!3@3: unexpected string "b", after value at 3..5', 85, '1/6:6/.' ]                  ],
-      [ '{"a""b"}',         [ '(@0,{@0,k3@1:!3@4: unexpected string "b", in object after key at 4..6', 85, '0/7:8/{3.' ]      ],
-      [ '{"a"::',           [ '(@0,{@0,k3@1:!1@5: unexpected token ":", in object before value at 5', 85, '0/6:6/{3:' ]       ],
-      [ '0{',               [ '(@0,d1@0,!1@1: unexpected token "{", after value at 1', 85, '1/2:2/.' ]                      ],
-      [ '{ false:',         [ '(@0,{@0,!5@2: unexpected token "false", in object before first key at 2..6', 85, '0/7:8/{-' ] ],
-      [ '{ fal',            [ '(@0,{@0,!3@2: unexpected token "fal", in object before first key at 2..4', 85, '0/5:5/{-' ]   ],
-      [ '{ fal:',           [ '(@0,{@0,!3@2: unexpected token "fal", in object before first key at 2..4', 85, '0/5:6/{-' ]   ],
-      [ '{"a": "b", 3: 4}', [ '{@0,k3@1:s3@6,!1@11: unexpected decimal 3, in object before key at 11', 85, '1/12:16/{+' ]      ],
-      [ '{ 2.4 ]',          [ '(@0,{@0,!3@2: unexpected decimal 2.4, in object before first key at 2..4', 85, '0/5:7/{-' ]    ],
-      [ '{ "a" ]',          [ '(@0,{@0,k3@2:!1@6: unexpected token "]", in object after key at 6', 85, '0/7:7/{3.1.' ]          ],
-      // unexpected token has precidence over truncation (be relatively optimistic about truncation)
-      [ '[ 1, 2 ] "c',      [ 'd1@5,]@7,!2@9: unexpected string "c, after value at 9..10', 85, '3/11:11/.' ]                 ],
-      [ '[ 1, 2 ] "c"',     [ 'd1@5,]@7,!3@9: unexpected string "c", after value at 9..11', 85, '3/12:12/.' ]                ],
-
-      // truncated src (not an error in incremental mode)
-      [ '{"a" : ',          [ '(@0,{@0,k3@1:!@7: truncated input, in object before value at 7', 73, '0/7:7/{3.2:' ]            ],
-      [ '{"a"',             [ '(@0,{@0,k3@1:!@4: truncated input, in object after key at 4', 73, '0/4:4/{3.' ]               ],
-      [ '{"a" ',            [ '(@0,{@0,k3@1:!@5: truncated input, in object after key at 5', 73, '0/5:5/{3.1.' ]             ],
-      [ '[1, 2, ',          [ 'd1@1,d1@4,!@7: truncated input, in array before value at 7', 73, '2/7:7/[+' ]                ],
+      // unexpected token
+      [ '"a""b"',           [ '(@0,s3@0,U3@3', '1/6:6/.' ]          ],
+      [ '{"a""b"}',         [ '(@0,{@0,k3@1:U3@4', '0/7:8/{3.' ]    ],
+      [ '{"a"::',           [ '(@0,{@0,k3@1:U1@5', '0/6:6/{3:' ]    ],
+      [ '0{',               [ '(@0,d1@0,U1@1', '1/2:2/.' ]          ],
+      [ '{ false:',         [ '(@0,{@0,U5@2', '0/7:8/{-' ]          ],
+      [ '{ fal',            [ '(@0,{@0,U3@2', '0/5:5/{-' ]          ],
+      [ '{ fal:',           [ '(@0,{@0,U3@2', '0/5:6/{-' ]          ],
+      [ '{"a": "b", 3: 4}', [ '{@0,k3@1:s3@6,U1@11', '1/12:16/{,' ] ],
+      [ '{ 2.4 ]',          [ '(@0,{@0,U3@2', '0/5:7/{-' ]          ],
+      [ '{ "a" ]',          [ '(@0,{@0,k3@2:U1@6', '0/7:7/{3.1.' ]  ],
+      [ '[ 1, 2 ] "c',      [ 'd1@5,]@7,U2@9', '3/11:11/.' ]        ],
+      [ '[ 1, 2 ] "c"',     [ 'd1@5,]@7,U3@9', '3/12:12/.' ]        ],
     ],
     function (src) {
       var hector = t.hector()
       var errinfo = null
       var cb = function (src, koff, klim, tok, voff, vlim, info) {
         hector(pstate.args2str(arguments))
-        if (tok === TOK.END) {
-          err('error should not create an END callback') }
-        if (tok === TOK.ERR) { errinfo = info }
+        if (info && tok !== TOK.BEG) {
+          errinfo = info
+        }
         return true
       }
       // jtok.tokenize(utf8.buffer(src), null, cb)
@@ -142,7 +139,7 @@ test('tokenize - errors', function (t) {
         jtok.tokenize(utf8.buffer(src), null, cb)
       } catch (e) {
         e.info === errinfo || err('this is not the error you are looking for: ' + e)
-        return [ hector.arg(0).slice(-3).join(','), e.info.ecode, pstate.str(e.info) ]
+        return [ hector.arg(0).slice(-3).join(','), pstate.str(e.info) ]
       }
     }
   )
@@ -156,8 +153,8 @@ test('callback stop', function (t) {
       [ '{ "a": 7, "b": 4 }', 1,       false, [ '(@0,{@0',                    73,  '0/1:18/{-' ] ],
       [ '{ "a": 7, "b": 4 }', 2,       false, [ '(@0,{@0,k3@2:d1@7',          73,  '1/8:18/{.' ] ],
       [ '{ "a": 7, "b": 4 }', 3,       false, [ '{@0,k3@2:d1@7,k3@10:d1@15',  73,  '2/16:18/{.' ] ],
-      // note that if callback returns false when parsing is done the info still has a 68 code (but no END callback).
-      [ '{ "a": 7, "b": 4 }', 4,       false, [ 'k3@2:d1@7,k3@10:d1@15,}@17', 68,       '3/18:18/.' ] ],
+      // note that if callback returns false when parsing is done the info still has a '. code (but no END callback).
+      [ '{ "a": 7, "b": 4 }', 4,       false, [ 'k3@2:d1@7,k3@10:d1@15,}@17', ')',       '3/18:18/.' ] ],
     ],
     function (src, at_cb, ret) {
       var count = 0
@@ -168,7 +165,7 @@ test('callback stop', function (t) {
         return (count++ === at_cb) ? ret : true
       }
       var info = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
-      return [ hector.arg(0).slice(-3).join(','), info.ecode, pstate.str(info) ]
+      return [ hector.arg(0).slice(-3).join(','), info.tok, pstate.str(info) ]
     }
   )
 })
@@ -178,17 +175,17 @@ test('incremental clean',         function (t) {
   t.table_assert(
     [
       [ 'input',                  'exp'                                        ],
-      [ '',                       [ '(@0,)@0',                68, '0/0:0/-' ] ],
-      [ '3.23e12',                [ '(@0,d7@0,)@7',           68, '0/7:7/.' ] ],
-      [ '"abc"',                  [ '(@0,s5@0,)@5',           68, '1/5:5/.' ] ],
-      [ '[ 83 ]',                 [ 'd2@2,]@5,)@6',           68, '2/6:6/.' ] ],
-      [ '[ 83, "a" ]',            [ 's3@6,]@10,)@11',         68, '3/11:11/.' ] ],
-      [ '{ "a": 3 }',             [ 'k3@2:d1@7,}@9,)@10',     68, '2/10:10/.' ] ],
-      [ '{ "a": 3, "b": 8 }',     [ 'k3@10:d1@15,}@17,)@18',  68, '3/18:18/.' ] ],
-      [ '{ "a": 3, "b": [1,2] }', [ ']@19,}@21,)@22',         68, '5/22:22/.' ] ],
-      [ 'null',                   [ '(@0,n@0,)@4',            68, '1/4:4/.' ] ],
-      [ ' 7E4 ',                  [ '(@0,d3@1,)@5',           68, '1/5:5/.' ] ],
-      [ '{ "a": 93, "b": [] }',   [ ']@17,}@19,)@20',         68, '3/20:20/.' ] ],
+      [ '',                       [ '(@0,)@0',                ')', '0/0:0/-' ] ],
+      [ '3.23e12',                [ '(@0,d7@0,)@7',           ')', '0/7:7/.' ] ],
+      [ '"abc"',                  [ '(@0,s5@0,)@5',           ')', '1/5:5/.' ] ],
+      [ '[ 83 ]',                 [ 'd2@2,]@5,)@6',           ')', '2/6:6/.' ] ],
+      [ '[ 83, "a" ]',            [ 's3@6,]@10,)@11',         ')', '3/11:11/.' ] ],
+      [ '{ "a": 3 }',             [ 'k3@2:d1@7,}@9,)@10',     ')', '2/10:10/.' ] ],
+      [ '{ "a": 3, "b": 8 }',     [ 'k3@10:d1@15,}@17,)@18',  ')', '3/18:18/.' ] ],
+      [ '{ "a": 3, "b": [1,2] }', [ ']@19,}@21,)@22',         ')', '5/22:22/.' ] ],
+      [ 'null',                   [ '(@0,n@0,)@4',            ')', '1/4:4/.' ] ],
+      [ ' 7E4 ',                  [ '(@0,d3@1,)@5',           ')', '1/5:5/.' ] ],
+      [ '{ "a": 93, "b": [] }',   [ ']@17,}@19,)@20',         ')', '3/20:20/.' ] ],
     ],
     function (src) {
       var hector = t.hector()
@@ -201,7 +198,7 @@ test('incremental clean',         function (t) {
       var info = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
       info === endinfo || err('expected returned info to equal endinfo')
 
-      return [ hector.arg(0).slice(-3).join(','), info.ecode, pstate.str(info) ]
+      return [ hector.arg(0).slice(-3).join(','), info.tok, pstate.str(info) ]
     }
   )
 })
@@ -228,20 +225,20 @@ test('incremental', function (t) {
       [ '{ "a": 93, "b": ['  ,  [ 'k3@2:d2@7,k3@11:[@16,)@17', 73, '1/17:17/{[-' ] ],
       [ '{ "a": 93, "b": []' ,  [ 'k3@11:[@16,]@17,)@18',      73, '2/18:18/{.' ] ],
       [ '{ "a": 93, "b": [] ',  [ 'k3@11:[@16,]@17,)@19',      73, '2/19:19/{.' ] ],
-      [ '{ "a": 93, "b": [] }', [ ']@17,}@19,)@20',            68, '3/20:20/.' ] ],
+      [ '{ "a": 93, "b": [] }', [ ']@17,}@19,)@20',            ')', '3/20:20/.' ] ],
     ],
     function (src) {
       var hector = t.hector()
       var endinfo = null
       var cb = function (src, koff, klim, tok, voff, vlim, info) {
         hector(pstate.args2str(arguments))
-        if (tok === TOK.END) { endinfo = info }
+        if (info && tok !== TOK.BEG) { endinfo = info }
         return true
       }
       var info = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
       info === endinfo || err('expected returned info to equal endinfo')
 
-      return [ hector.arg(0).slice(-3).join(','), info.ecode, pstate.str(info) ]
+      return [ hector.arg(0).slice(-3).join(','), info.tok, pstate.str(info) ]
     }
   )
 })

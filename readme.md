@@ -449,7 +449,7 @@ clean array states (2 values)
     -                           start parsing.
     [-                          array start. expecting value or array-end
     [.                          value done.  expecting comma or array-end
-    [+                          got comma, expecting value
+    [,                          got comma, expecting value
     [.                          value done.  expecting comma or array-end
     .                           array done, expecting comma or end-of-input
 
@@ -458,7 +458,7 @@ clean object states (2 key-value pairs)
     -                           start parsing.
     {-                          object start. expecting key-value or object-end
     {.                          key-value done.  expecting comma or object-end
-    {+                          got comma, expecting key-value
+    {,                          got comma, expecting key-value
     {.                          key-value done.  expecting comma or object-end
     .                           object done, expecting comma or end-of-input
    
@@ -489,7 +489,7 @@ Examples
     .               parsed one or more values, expecting end-of-input (or comma for csv values) 
 
     [{-             inside array then object, expecting first key or object end
-    [{+             inside array then object, before a key-value pair, expecting a key
+    [{,             inside array then object, before a key-value pair, expecting a key
     [{.             inside array then object, after a value, expecting a comma or object end
     [{4.            inside array then object, 4 byte key complete, no whitespace           
     [{4.1.          inside array then object, 4 byte key complete, 1 byte whitespace           

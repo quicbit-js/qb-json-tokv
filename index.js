@@ -40,15 +40,15 @@ var TOK = {
   OBJ_END:  125,  // '}'
 
   // special codes
-  BEG: 40,            // '('  - begin - about to process a buffer
-  END: 41,            // ')'  - end -   buffer limit reached and state is clean (stack is empty and no pending values)
   ERR: 33,            // '!'  - error.  unexpected state.  check info for details.
-  DONE: 68,           // 'D'  parsed to src lim and state is clean (stack.length = 0, no trailing comma)
+  BEG: 40,            // '('  - begin - about to process a buffer
+  DONE: 41,           // ')'  parsed to src lim and state is clean (stack.length = 0, no trailing comma)
   STOPPED: 83,        // 'S'  client halted the process by returning false before lim was reached
 
-  BAD_BYTE: 66,       // 'B'  illegal byte.  if value len > 1, then bad byte is within a value with a valid start, else it's separate from value.
-  UNEXP_TOK: 85,      // 'U'  unexpected token
-  INCOMPLETE: 73,     // 'I'  input terminates (at limit) within an object or array or with a trailing comma
+  BAD_BYTE: 66,       // 'B'  if value len > 1, then bad byte is within a value with a valid start, else it's separate from value.
+  UNEXP_TOK: 85,      // 'U'  recognized but unexpected token
+
+  INCOMPLETE: 73,     // 'I'  parsed to src lim ending within an object or array or with a trailing comma
   TRUNC_VAL: 84,      // 'T'  truncated value - reached src limit before a key or value was finished
 }
 
@@ -202,12 +202,12 @@ function init_truncated (src, off, lim, prev, cb) {
 //
 // attempt to convert previous tokenize result into initial pos.
 function init_from_prev(src, off, lim, prev, cb) {
-  // get vcount, stack, and pos from position and ecode
-  switch (prev.ecode) {
+  // get vcount, stack, and pos from position and tok
+  switch (prev.tok) {
     case TOK.TRUNC_VAL:
       return init_truncated(src, off, lim, prev, cb)
       break
-    default: err('restore for ' + p.ecode + ' not implemented')
+    default: err('restore for ' + p.tok + ' not implemented')
   }
 }
 
@@ -223,7 +223,7 @@ function init_defaults (src, off, lim) {
     voff:     off,
 
     stack:    [],
-    pos:    ARR_BFV,
+    pos:      ARR_BFV,
     vcount:   0,
   }
 }
@@ -267,7 +267,6 @@ function _tokenize (init, opt, cb) {
 
   var in_obj =  stack[stack.length - 1] === 123
   var idx =    off              // current source offset
-  var ecode =   null            // end code (not necessarily an error - depends on settings)
   var pos1 = pos0   // pos1 possibilities are:
                         //    1. pos1 = 0;                        unsupported transition
                         //    2. pos1 > 0, pos1 == pos0;      OK, no pending callback
@@ -293,7 +292,7 @@ function _tokenize (init, opt, cb) {
         case 58:                                          // :    COLON
           pos1 = pmap[pos0 | tok]
           idx++
-          if (pos1 === 0) { ecode = TOK.UNEXP_TOK; break main_loop }
+          if (pos1 === 0) { tok = TOK.UNEXP_TOK; break main_loop }
           pos0 = pos1
           continue
 
@@ -302,11 +301,11 @@ function _tokenize (init, opt, cb) {
         case 116:                                         // t    true
           idx = skip_bytes(src, idx, lim, tok_bytes[tok])
           pos1 = pmap[pos0 | tok]
-          if (pos1 === 0) { idx = idx <= 0 ? -idx : idx; ecode = TOK.UNEXP_TOK; break main_loop }
+          if (pos1 === 0) { idx = idx <= 0 ? -idx : idx; tok = TOK.UNEXP_TOK; break main_loop }
           if (idx <= 0) {
             idx = -idx
-            if (idx === lim) { ecode = TOK.TRUNC_VAL; break main_loop }
-            else { idx++; ecode = TOK.BAD_BYTE; break main_loop }  // include unexpected byte in value
+            if (idx === lim) { tok = TOK.TRUNC_VAL; break main_loop }
+            else { idx++; tok = TOK.BAD_BYTE; break main_loop }  // include unexpected byte in value
           }
           vcount++
           break
@@ -315,8 +314,8 @@ function _tokenize (init, opt, cb) {
           pos1 = pmap[pos0 | tok]
           tok = 115
           idx = skip_str(src, idx + 1, lim)
-          if (pos1 === 0) { idx = idx === -1 ? lim : idx; ecode = TOK.UNEXP_TOK; break main_loop }
-          else if (idx === -1) { idx = lim; ecode = TOK.TRUNC_VAL; break main_loop }
+          if (pos1 === 0) { idx = idx === -1 ? lim : idx; tok = TOK.UNEXP_TOK; break main_loop }
+          else if (idx === -1) { idx = lim; tok = TOK.TRUNC_VAL; break main_loop }
 
           // key
           if (pos1 === obj_a_k) {
@@ -336,9 +335,9 @@ function _tokenize (init, opt, cb) {
           while (decimal_ascii[src[++idx]] === 1 && idx < lim) {}     // d (100) here means decimal-type ascii
 
           // for UNEXP_BYTE, the byte is included with the number to indicate it was encountered while parsing number.
-          if (pos1 === 0)                       { ecode = TOK.UNEXP_TOK;       break main_loop }
-          else if (idx === lim)                 { ecode = TOK.TRUNC_VAL;       break main_loop }     // *might* be truncated - flag it here and handle below
-          else if (delim[src[idx]] === 0)       { idx++; ecode = TOK.BAD_BYTE; break main_loop } // treat non-separating chars as unexpected byte
+          if (pos1 === 0)                       { tok = TOK.UNEXP_TOK;       break main_loop }
+          else if (idx === lim)                 { tok = TOK.TRUNC_VAL;       break main_loop }     // *might* be truncated - flag it here and handle below
+          else if (delim[src[idx]] === 0)       { idx++; tok = TOK.BAD_BYTE; break main_loop } // treat non-separating chars as bad byte
           vcount++
           break
 
@@ -347,14 +346,14 @@ function _tokenize (init, opt, cb) {
           in_obj = tok === 123
           pos1 = pmap[pos0 | tok]
           idx++
-          if (pos1 === 0) { ecode = TOK.UNEXP_TOK; break main_loop }
+          if (pos1 === 0) { tok = TOK.UNEXP_TOK; break main_loop }
           stack.push(tok)
           break
 
         case 93:                                          // ]    ARRAY END
           in_obj = stack[stack.length - 2] === 123        // set before breaking loop
           idx++
-          if ((pos0 !== arr_bfv && pos0 !== arr_a_v) || stack.pop() !== 91) { ecode = TOK.UNEXP_TOK; break main_loop }
+          if ((pos0 !== arr_bfv && pos0 !== arr_a_v) || stack.pop() !== 91) { tok = TOK.UNEXP_TOK; break main_loop }
           pos1 = in_obj ? obj_a_v : arr_a_v
           vcount++
           break
@@ -362,14 +361,14 @@ function _tokenize (init, opt, cb) {
         case 125:                                         // }    OBJECT END
           in_obj = stack[stack.length - 2] === 123        // set before breaking loop
           idx++
-          if ((pos0 !== obj_bfk && pos0 !== obj_a_v) || stack.pop() !== 123) { ecode = TOK.UNEXP_TOK; break main_loop }
+          if ((pos0 !== obj_bfk && pos0 !== obj_a_v) || stack.pop() !== 123) { tok = TOK.UNEXP_TOK; break main_loop }
           pos1 = in_obj ? obj_a_v : arr_a_v
           vcount++
           break
 
         default:
           idx++
-          ecode = TOK.BAD_BYTE                          // no legal transition for this byte
+          tok = TOK.BAD_BYTE                          // no legal transition for this byte
           break main_loop
       }
       // clean transition was made from pos0 to pos1
@@ -399,23 +398,22 @@ function _tokenize (init, opt, cb) {
     vlim: idx,
     stack: stack,
     pos: pos0,
-    ecode: ecode,
     halted: !cb_continue,
   }
 
-  // check and clarify end pos (before handling end pos)
-  clean_up_ecode(ps, cb)
-  if (ps.ecode === null || ps.ecode === TOK.DONE || ps.ecode === TOK.STOPPED || ps.ecode === TOK.INCOMPLETE) {
-    ps.voff = idx    // wipe out phantom value
-  }
-
-  ps.etok = figure_etok(ps.ecode, opt.incremental)
+  clean_up_tok(ps, cb)
 
   if (cb_continue) {
-    cb(src, koff, klim, ps.etok, ps.voff, idx, ps)
-  } // else callback was stopped - don't call
+    // final callback
+    cb(ps.src, ps.koff, ps.klim, ps.tok, ps.voff, ps.vlim, ps)
+  }
 
-  if (ps.etok === TOK.ERR) {
+  var is_err =
+    ps.tok === TOK.BAD_BYTE ||
+    ps.tok === TOK.UNEXP_TOK ||
+    (!opt.incremental && (ps.tok === TOK.TRUNC_VAL || ps.tok === TOK.INCOMPLETE))
+
+  if (is_err) {
     var err = new Error('error while parsing.  error.info has the parse state')
     err.info = ps
     throw err
@@ -424,43 +422,33 @@ function _tokenize (init, opt, cb) {
   }
 }
 
-function figure_etok (ecode, incremental) {
-  switch (ecode) {
-    case TOK.UNEXP_TOK:
-    case TOK.BAD_BYTE:
-      return TOK.ERR
-    case TOK.TRUNC_VAL:
-    case TOK.INCOMPLETE:
-      return incremental ? TOK.END : TOK.ERR
-    case TOK.STOPPED:
-    case TOK.DONE:
-      return TOK.END
-    default:
-      err('internal error, end state not handled: ' + ecode)
+function clean_up_tok (ps, cb) {
+  if (ps.halted) {
+    ps.tok = TOK.STOPPED
+    ps.voff = ps.vlim
   }
-}
-
-function clean_up_ecode (ps, cb) {
-  var depth = ps.stack.length
-  if (ps.ecode === null) {
-    if (depth === 0 && (ps.pos === ARR_BFV || ps.pos === ARR_A_V)) {
-      ps.ecode = ps.vlim === ps.lim ? TOK.DONE : TOK.STOPPED   // if ps.halted at limit, parsing is done, but no end callback is made
-    } else {
-      ps.ecode = TOK.INCOMPLETE
-    }
-  } else if (ps.ecode === TOK.TRUNC_VAL) {
-    if (ps.vlim === ps.lim && ps.tok === TOK.DEC && depth === 0 && (ps.pos === ARR_BFV || ps.pos === ARR_B_V)) {
-      // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
-      // note - this means we won't be able to split no-context numbers outside of an array or object container.
-      cb(ps.src, ps.koff, ps.klim, ps.tok, ps.voff, ps.vlim, null)
-      ps.ecode = TOK.DONE
-
-      ps.koff = -1
-      ps.klim = -1
-      ps.tok = TOK.END
+  switch (ps.tok) {
+    case TOK.BAD_BYTE: case TOK.UNEXP_TOK:
+      break
+    case TOK.INCOMPLETE: case TOK.STOPPED:
       ps.voff = ps.vlim
-      ps.pos = ARR_A_V
-    }
+      break
+    case TOK.TRUNC_VAL:
+      if (DECIMAL_ASCII[ps.src[ps.voff]] && ps.stack.length === 0 && ps.vlim === ps.lim && (ps.pos === ARR_BFV || ps.pos === ARR_B_V)) {
+        // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
+        // note - this means we won't be able to split no-context numbers outside of an array or object container.
+        cb(ps.src, ps.koff, ps.klim, TOK.DEC, ps.voff, ps.vlim, null)
+
+        ps.koff = -1
+        ps.klim = -1
+        ps.tok = TOK.DONE
+        ps.voff = ps.vlim
+        ps.pos = ARR_A_V
+      }
+      break
+    default:
+      ps.tok = (ps.stack.length === 0 && (ps.pos === ARR_BFV || ps.pos === ARR_B_V)) ? TOK.DONE : TOK.INCOMPLETE
+      ps.voff = ps.vlim
   }
 }
 
