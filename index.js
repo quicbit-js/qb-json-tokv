@@ -28,7 +28,7 @@ var OBJ_A_V = 0x480
 
 var END = {
   TRUNC_VAL:  'TRUNC_VAL',    // stopped before a value was finished (number, false, true, null, string)
-  TRUNC_SRC:  'TRUNC_SRC',    // stopped before done (stack.length > 0 or after comma)
+  TRUNC_SRC:  'TRUNC_SRC',    // reached limit before done (stack.length > 0 or after comma)
   CLEAN_STOP: 'CLEAN_STOP',   // client stopped at a clean point (zero stack, no pending value)
   DONE:       'DONE',         // parsed to src lim and state is clean (stack.length = 0, no pending value)
 }
@@ -51,7 +51,8 @@ var TOK = {
   END: 41,        // ')'  - end -   buffer limit reached and state is clean (stack is empty and no pending values)
   ERR: 33,        // '!'  - error.  unexpected state.  check info for details.
   UNEXP_BYTE: 89,   // 'B'  unexpected byte.  if value len > 1, then bad byte is within a value with a legal beginning, else it's separate from value.
-  UNEXP_TOK: 84,    // 'T'  unexpected token
+  TRUNC_VAL: 84,    // 'T'  truncated value - reached src limit before a key or value was finished
+  UNEXP_TOK: 85,    // 'U'  unexpected token
 
   // TRUNC_DEC: 68,    // 'D' truncated decimal
   // TRUNC_STR: 83,    // 'S' truncated string
