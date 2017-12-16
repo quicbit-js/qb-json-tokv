@@ -447,7 +447,7 @@ function clean_up_tok (ps, cb) {
       }
       break
     default:
-      ps.tok = (ps.stack.length === 0 && (ps.pos === ARR_BFV || ps.pos === ARR_B_V)) ? TOK.DONE : TOK.INCOMPLETE
+      ps.tok = (ps.stack.length === 0 && (ps.pos === ARR_BFV || ps.pos === ARR_A_V)) ? TOK.DONE : TOK.INCOMPLETE
       ps.voff = ps.vlim
   }
 }

@@ -94,7 +94,7 @@ function str (info) {
 // a convenience function for summarizing/logging/debugging callback arguments as compact strings
 // converts the 'arguments' array from cb into a terse string code.
 // only show value lengths for string, decimal, end and error tokens.
-var NO_LEN_TOKENS = '[]{}()SI'.split('').reduce(function (m,c) { m[c] = 1; return m }, {})
+var NO_LEN_TOKENS = 'tfn[]{}()SI'.split('').reduce(function (m,c) { m[c] = 1; return m }, {})
 function args2str () {
   var a = arguments[0]
   var i = 1

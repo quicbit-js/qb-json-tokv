@@ -40,7 +40,7 @@ test('tokenize', function (t) {
   t.tableAssert(
     [
       [ 'src',                                      'off', 'lim', 'exp'                                             ],
-      // [ '',                                         0,     null,  [ '(@0,)@0', ')', '0/0:0/-' ] ],
+      [ '',                                         0,     null,  [ '(@0,)@0', ')', '0/0:0/-' ] ],
       [ '1',                                        0,     null,  [ '(@0,d1@0,)@1', ')', '0/1:1/.' ] ],
       [ '1,2,3',                                    0,     null,  [ 'd1@2,d1@4,)@5', ')', '2/5:5/.' ] ],
       [ '[1, 2], 3',                                0,     null,  [ ']@5,d1@8,)@9', ')', '3/9:9/.' ]         ],
@@ -81,7 +81,7 @@ test('tokenize', function (t) {
   )
 })
 
-test.only('tokenize - errors', function (t) {
+test('tokenize - errors', function (t) {
   t.tableAssert(
     [
       [ 'input',            'exp' ],
@@ -90,7 +90,7 @@ test.only('tokenize - errors', function (t) {
       [ '{"a" : ',          [ '(@0,{@0,k3@1:I@7', '0/7:7/{3.2:' ]   ],
       [ '{"a"',             [ '(@0,{@0,k3@1:I@4', '0/4:4/{3.' ]     ],
       [ '{"a" ',            [ '(@0,{@0,k3@1:I@5', '0/5:5/{3.1.' ]   ],
-      [ '[1, 2, ',          [ 'd1@1,d1@4,I@7', '2/7:7/[,' ]         ],
+      [ '[1, 2, ',          [ 'd1@1,d1@4,I@7',    '2/7:7/[,' ]      ],
 
       // truncated values / keys (not an error in incremental mode)
       [ 'fal',              [ '(@0,T3@0', '0/3:3/3' ]               ],
@@ -150,18 +150,18 @@ test('callback stop', function (t) {
     [
       [ 'src',                'at_cb', 'ret', 'exp' ],
       [ '{ "a": 7, "b": 4 }', 0,       false, [ '(@0',                        83, '0/0:18/-' ] ],
-      [ '{ "a": 7, "b": 4 }', 1,       false, [ '(@0,{@0',                    73,  '0/1:18/{-' ] ],
-      [ '{ "a": 7, "b": 4 }', 2,       false, [ '(@0,{@0,k3@2:d1@7',          73,  '1/8:18/{.' ] ],
-      [ '{ "a": 7, "b": 4 }', 3,       false, [ '{@0,k3@2:d1@7,k3@10:d1@15',  73,  '2/16:18/{.' ] ],
-      // note that if callback returns false when parsing is done the info still has a '. code (but no END callback).
-      [ '{ "a": 7, "b": 4 }', 4,       false, [ 'k3@2:d1@7,k3@10:d1@15,}@17', ')',       '3/18:18/.' ] ],
+      [ '{ "a": 7, "b": 4 }', 1,       false, [ '(@0,{@0',                    83,  '0/1:18/{-' ] ],
+      [ '{ "a": 7, "b": 4 }', 2,       false, [ '(@0,{@0,k3@2:d1@7',          83,  '1/8:18/{.' ] ],
+      [ '{ "a": 7, "b": 4 }', 3,       false, [ '{@0,k3@2:d1@7,k3@10:d1@15',  83,  '2/16:18/{.' ] ],
+      // note that if callback returns false at the src limit, the info is returned from _tokenize, but there is no end callback
+      [ '{ "a": 7, "b": 4 }', 4,       false, [ 'k3@2:d1@7,k3@10:d1@15,}@17', 83,  '3/18:18/.' ] ],
     ],
     function (src, at_cb, ret) {
       var count = 0
       var hector = t.hector()
       var cb = function (src, koff, klim, tok, voff, vlim, info) {
         hector(pstate.args2str(arguments))
-        if (tok === TOK.END) { err('stopped callback should not call end') }
+        if (info && tok !== TOK.BEG) { err('stopped callback should not have an end/info call') }
         return (count++ === at_cb) ? ret : true
       }
       var info = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
@@ -174,58 +174,18 @@ test('callback stop', function (t) {
 test('incremental clean',         function (t) {
   t.table_assert(
     [
-      [ 'input',                  'exp'                                        ],
-      [ '',                       [ '(@0,)@0',                ')', '0/0:0/-' ] ],
-      [ '3.23e12',                [ '(@0,d7@0,)@7',           ')', '0/7:7/.' ] ],
-      [ '"abc"',                  [ '(@0,s5@0,)@5',           ')', '1/5:5/.' ] ],
-      [ '[ 83 ]',                 [ 'd2@2,]@5,)@6',           ')', '2/6:6/.' ] ],
-      [ '[ 83, "a" ]',            [ 's3@6,]@10,)@11',         ')', '3/11:11/.' ] ],
-      [ '{ "a": 3 }',             [ 'k3@2:d1@7,}@9,)@10',     ')', '2/10:10/.' ] ],
-      [ '{ "a": 3, "b": 8 }',     [ 'k3@10:d1@15,}@17,)@18',  ')', '3/18:18/.' ] ],
-      [ '{ "a": 3, "b": [1,2] }', [ ']@19,}@21,)@22',         ')', '5/22:22/.' ] ],
-      [ 'null',                   [ '(@0,n@0,)@4',            ')', '1/4:4/.' ] ],
-      [ ' 7E4 ',                  [ '(@0,d3@1,)@5',           ')', '1/5:5/.' ] ],
-      [ '{ "a": 93, "b": [] }',   [ ']@17,}@19,)@20',         ')', '3/20:20/.' ] ],
-    ],
-    function (src) {
-      var hector = t.hector()
-      var endinfo = null
-      var cb = function (src, koff, klim, tok, voff, vlim, info) {
-        hector(pstate.args2str(arguments))
-        if (tok === TOK.END) { endinfo = info }
-        return true
-      }
-      var info = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
-      info === endinfo || err('expected returned info to equal endinfo')
-
-      return [ hector.arg(0).slice(-3).join(','), info.tok, pstate.str(info) ]
-    }
-  )
-})
-
-test('incremental', function (t) {
-  t.table_assert(
-    [
-      [ 'input'              ,  'exp' ],
-      [ '"abc", '            ,  [ '(@0,s5@0,)@7',              73, '1/7:7/+' ] ],
-      [ '['                  ,  [ '(@0,[@0,)@1',               73, '0/1:1/[-' ] ],
-      [ '[ 83 '              ,  [ '[@0,d2@2,)@5',              73, '1/5:5/[.' ] ],
-      [ '[ 83 ,'             ,  [ '[@0,d2@2,)@6',              73, '1/6:6/[+' ] ],
-      [ '[ 83 , "a"'         ,  [ 'd2@2,s3@7,)@10',            73, '2/10:10/[.' ] ],
-      [ '[ 83 , "a",'        ,  [ 'd2@2,s3@7,)@11',            73, '2/11:11/[+' ] ],
-      [ '[ 83 , "a", 2'      ,  [ 'd2@2,s3@7,)1@12',           84, '2/13:13/[1' ] ],
-      [ '{'                  ,  [ '(@0,{@0,)@1',               73, '0/1:1/{-' ] ],
-      [ '{ "a"'              ,  [ '(@0,{@0,k3@2:)@5',          73, '0/5:5/{3.' ] ],
-      [ '{ "a":'             ,  [ '(@0,{@0,k3@2:)@6',          73, '0/6:6/{3:' ] ],
-      [ '{ "a": 9'           ,  [ '(@0,{@0,k3@2:)1@7',         84, '0/8:8/{3.1:1' ] ],
-      [ '{ "a": 93, '        ,  [ '{@0,k3@2:d2@7,)@11',        73, '1/11:11/{+' ] ],
-      [ '{ "a": 93, "b'      ,  [ '{@0,k3@2:d2@7,)2@11',       84, '1/13:13/{2' ] ],
-      [ '{ "a": 93, "b"'     ,  [ '{@0,k3@2:d2@7,k3@11:)@14',  73, '1/14:14/{3.' ] ],
-      [ '{ "a": 93, "b":'    ,  [ '{@0,k3@2:d2@7,k3@11:)@15',  73, '1/15:15/{3:' ] ],
-      [ '{ "a": 93, "b": ['  ,  [ 'k3@2:d2@7,k3@11:[@16,)@17', 73, '1/17:17/{[-' ] ],
-      [ '{ "a": 93, "b": []' ,  [ 'k3@11:[@16,]@17,)@18',      73, '2/18:18/{.' ] ],
-      [ '{ "a": 93, "b": [] ',  [ 'k3@11:[@16,]@17,)@19',      73, '2/19:19/{.' ] ],
-      [ '{ "a": 93, "b": [] }', [ ']@17,}@19,)@20',            ')', '3/20:20/.' ] ],
+      [ 'input',                  'exp'                                   ],
+      [ '',                       [ '(@0,)@0',                '0/0:0/-' ] ],
+      [ '3.23e12',                [ '(@0,d7@0,)@7',           '0/7:7/.' ] ],
+      [ '"abc"',                  [ '(@0,s5@0,)@5',           '1/5:5/.' ] ],
+      [ '[ 83 ]',                 [ 'd2@2,]@5,)@6',           '2/6:6/.' ] ],
+      [ '[ 83, "a" ]',            [ 's3@6,]@10,)@11',         '3/11:11/.' ] ],
+      [ '{ "a": 3 }',             [ 'k3@2:d1@7,}@9,)@10',     '2/10:10/.' ] ],
+      [ '{ "a": 3, "b": 8 }',     [ 'k3@10:d1@15,}@17,)@18',  '3/18:18/.' ] ],
+      [ '{ "a": 3, "b": [1,2] }', [ ']@19,}@21,)@22',         '5/22:22/.' ] ],
+      [ 'null',                   [ '(@0,n@0,)@4',            '1/4:4/.' ] ],
+      [ ' 7E4 ',                  [ '(@0,d3@1,)@5',           '1/5:5/.' ] ],
+      [ '{ "a": 93, "b": [] }',   [ ']@17,}@19,)@20',         '3/20:20/.' ] ],
     ],
     function (src) {
       var hector = t.hector()
@@ -238,7 +198,47 @@ test('incremental', function (t) {
       var info = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
       info === endinfo || err('expected returned info to equal endinfo')
 
-      return [ hector.arg(0).slice(-3).join(','), info.tok, pstate.str(info) ]
+      return [ hector.arg(0).slice(-3).join(','), pstate.str(info) ]
+    }
+  )
+})
+
+test('incremental', function (t) {
+  t.table_assert(
+    [
+      [ 'input'              ,  'exp' ],
+      [ '"abc", '            ,  [ '(@0,s5@0,I@7',              '1/7:7/,' ] ],
+      [ '['                  ,  [ '(@0,[@0,I@1',               '0/1:1/[-' ] ],
+      [ '[ 83 '              ,  [ '[@0,d2@2,I@5',              '1/5:5/[.' ] ],
+      [ '[ 83 ,'             ,  [ '[@0,d2@2,I@6',              '1/6:6/[,' ] ],
+      [ '[ 83 , "a"'         ,  [ 'd2@2,s3@7,I@10',            '2/10:10/[.' ] ],
+      [ '[ 83 , "a",'        ,  [ 'd2@2,s3@7,I@11',            '2/11:11/[,' ] ],
+      [ '[ 83 , "a", 2'      ,  [ 'd2@2,s3@7,T1@12',           '2/13:13/[1' ] ],
+      [ '{'                  ,  [ '(@0,{@0,I@1',               '0/1:1/{-' ] ],
+      [ '{ "a"'              ,  [ '(@0,{@0,k3@2:I@5',          '0/5:5/{3.' ] ],
+      [ '{ "a":'             ,  [ '(@0,{@0,k3@2:I@6',          '0/6:6/{3:' ] ],
+      [ '{ "a": 9'           ,  [ '(@0,{@0,k3@2:T1@7',         '0/8:8/{3.1:1' ] ],
+      [ '{ "a": 93, '        ,  [ '{@0,k3@2:d2@7,I@11',        '1/11:11/{,' ] ],
+      [ '{ "a": 93, "b'      ,  [ '{@0,k3@2:d2@7,T2@11',       '1/13:13/{2' ] ],
+      [ '{ "a": 93, "b"'     ,  [ '{@0,k3@2:d2@7,k3@11:I@14',  '1/14:14/{3.' ] ],
+      [ '{ "a": 93, "b":'    ,  [ '{@0,k3@2:d2@7,k3@11:I@15',  '1/15:15/{3:' ] ],
+      [ '{ "a": 93, "b": ['  ,  [ 'k3@2:d2@7,k3@11:[@16,I@17', '1/17:17/{[-' ] ],
+      [ '{ "a": 93, "b": []' ,  [ 'k3@11:[@16,]@17,I@18',      '2/18:18/{.' ] ],
+      [ '{ "a": 93, "b": [] ',  [ 'k3@11:[@16,]@17,I@19',      '2/19:19/{.' ] ],
+      [ '{ "a": 93, "b": [] }', [ ']@17,}@19,)@20',             '3/20:20/.' ] ],
+    ],
+    function (src) {
+      var hector = t.hector()
+      var endinfo = null
+      var cb = function (src, koff, klim, tok, voff, vlim, info) {
+        hector(pstate.args2str(arguments))
+        if (info && tok !== TOK.BEG) { endinfo = info }
+        return true
+      }
+      var info = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
+      info === endinfo || err('expected returned info to equal endinfo')
+
+      return [ hector.arg(0).slice(-3).join(','), pstate.str(info) ]
     }
   )
 })
