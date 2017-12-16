@@ -26,10 +26,6 @@ var OBJ_BFV = 0x380
 var OBJ_B_V = 0x400
 var OBJ_A_V = 0x480
 
-var END = {
-  CLEAN_STOP: 'CLEAN_STOP',   // client stopped processing (by returning false)
-}
-
 // ascii tokens as well as special codes for number, error, begin and end.
 var TOK = {
   // ascii codes - for all but decimal, token is represented by the first ascii byte encountered
@@ -50,6 +46,7 @@ var TOK = {
   ILLEGAL_BYTE: 66,   // 'B'  illegal byte.  if value len > 1, then bad byte is within a value with a valid start, else it's separate from value.
   DONE:     68,       // 'D'  parsed to src lim and state is clean (stack.length = 0, no pending value)
   INCOMPLETE: 73,     // 'I'  input is incomplete.  terminates within an object or array or with a trailing comma
+  STOPPED: 83,        // 'S'  client halted the process by returning false before lim was reached
   TRUNC_VAL: 84,      // 'T'  truncated value - reached src limit before a key or value was finished
   UNEXP_TOK: 85,      // 'U'  unexpected token
 }
@@ -416,7 +413,7 @@ function _tokenize (init, opt, cb) {
 
   // check and clarify end pos (before handling end pos)
   clean_up_ecode(ps, cb)
-  if (ps.ecode === null || ps.ecode === TOK.DONE || ps.ecode === END.CLEAN_STOP || ps.ecode === TOK.INCOMPLETE) {
+  if (ps.ecode === null || ps.ecode === TOK.DONE || ps.ecode === TOK.STOPPED || ps.ecode === TOK.INCOMPLETE) {
     ps.voff = idx    // wipe out phantom value
   }
 
@@ -443,7 +440,7 @@ function figure_etok (ecode, incremental) {
     case TOK.TRUNC_VAL:
     case TOK.INCOMPLETE:
       return incremental ? TOK.END : TOK.ERR
-    case END.CLEAN_STOP:
+    case TOK.STOPPED:
     case TOK.DONE:
       return TOK.END
     default:
@@ -455,7 +452,7 @@ function clean_up_ecode (ps, cb) {
   var depth = ps.stack.length
   if (ps.ecode === null) {
     if (depth === 0 && (ps.pos === ARR_BFV || ps.pos === ARR_A_V)) {
-      ps.ecode = ps.vlim === ps.lim ? TOK.DONE : END.CLEAN_STOP   // if ps.halted at limit, parsing is done, but no end callback is made
+      ps.ecode = ps.vlim === ps.lim ? TOK.DONE : TOK.STOPPED   // if ps.halted at limit, parsing is done, but no end callback is made
     } else {
       ps.ecode = TOK.INCOMPLETE
     }
@@ -478,5 +475,4 @@ function clean_up_ecode (ps, cb) {
 module.exports = {
   tokenize: tokenize,
   TOK: TOK,
-  END: END,
 }
