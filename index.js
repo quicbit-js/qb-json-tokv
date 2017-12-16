@@ -90,34 +90,23 @@ function pos_map () {
 
 var POS_MAP = pos_map()
 
-function ascii_to_code (str_to_code) {
-  var ret = []; for (var i=0; i<=0x7F; i++) {ret[i] = 0}
-  Object.keys(str_to_code).forEach(function (s) {
-    s.split('').forEach(function (c) {ret[c.charCodeAt(0)] = str_to_code[s]})
-  })
+function ascii_to_code (s, code) {
+  var ret = new Uint8Array(0x7F);
+  s.split('').forEach(function (c) { ret[c.charCodeAt(0)] = code })
   return ret
 }
 
-function ascii_to_bytes (bychar) {
-  return Object.keys(bychar).reduce(function (a, c) {
-    a[c.charCodeAt(0)] = bychar[c].split('').map(function (c) { return c.charCodeAt(0) })
+// convert map of strings to array of arrays (of bytes)
+function ascii_to_bytes (strings) {
+  return Object.keys(strings).reduce(function (a, c) {
+    a[c.charCodeAt(0)] = strings[c].split('').map(function (c) { return c.charCodeAt(0) })
     return a
   }, [])
 }
 
-var TOK_TYPES = ascii_to_code({
-  '-0123456789+.eE':  100,  // 'd'   all legal decimal ascii  // +.eE are not really tokens, but none overlap with other tokens, so we use same map
-  'ntf':              102,  // 'f'   fixed-length tokens
-  '\b\f\n\t\r ':      119,  // 'w'   whitespace
-})
-
-var SEP_ASCII = ascii_to_code({
-  '-0123456789+.eE':  100,  // 'd'   all legal decimal ascii  // +.eE are not really tokens, but none overlap with other tokens, so we use same map
-  'ntf':              102,  // 'f'   fixed-length tokens
-  '\b\f\n\t\r ':      119,  // 'w'   whitespace
-})
-
-
+var WHITESPACE = ascii_to_code('\b\f\n\t\r ', 1)
+var DELIM = ascii_to_code('\b\f\n\t\r ,:{}[]', 1)
+var DECIMAL_ASCII = ascii_to_code('-0123456789+.eE', 1)
 
 var TOK_BYTES = ascii_to_bytes({ f: 'false', t: 'true', n: 'null' })
 
@@ -256,8 +245,10 @@ function _tokenize (init, opt, cb) {
   var obj_a_v = OBJ_A_V
   var arr_bfv = ARR_BFV
   var arr_a_v = ARR_A_V
-  var tok_types = TOK_TYPES
   var tok_bytes = TOK_BYTES
+  var decimal_ascii = DECIMAL_ASCII
+  var whitespace = WHITESPACE
+  var delim = DELIM
 
   // localized init fo faster access
   var src =     init.src        // source buffer
@@ -290,8 +281,8 @@ function _tokenize (init, opt, cb) {
       tok = src[voff]
       switch (tok) {
         case 8: case 9: case 10: case 12: case 13: case 32:
-          if (tok_types[src[++idx]] === 119 && idx < lim) {             // 'w' whitespace
-            while (tok_types[src[++idx]] === 119 && idx < lim) {}
+          if (whitespace[src[++idx]] === 1 && idx < lim) {             // 119 = 'w' whitespace
+            while (whitespace[src[++idx]] === 1 && idx < lim) {}
           }
           continue
 
@@ -341,12 +332,12 @@ function _tokenize (init, opt, cb) {
         case 45:                                          // '-'    ('+' is not legal here)
           pos1 = pmap[pos0 | tok]
           tok = 100                                       // d   decimal
-          while (tok_types[src[++idx]] === 100 && idx < lim) {}     // d (100) here means decimal-type ascii
+          while (decimal_ascii[src[++idx]] === 1 && idx < lim) {}     // d (100) here means decimal-type ascii
 
           // for UNEXP_BYTE, the byte is included with the number to indicate it was encountered while parsing number.
           if (pos1 === 0)                       { ecode = TOK.UNEXP_TOK;       break main_loop }
-          else if (idx === lim)                 { ecode = TOK.TRUNC_VAL;       break main_loop }   // *might* be truncated - flag it here and handle below
-          else if (tok_types[src[idx]] === 102) { idx++; ecode = TOK.ILLEGAL_BYTE; break main_loop } // treat non-separating chars as unexpected byte
+          else if (idx === lim)                 { ecode = TOK.TRUNC_VAL;       break main_loop }     // *might* be truncated - flag it here and handle below
+          else if (delim[src[idx]] === 0)       { idx++; ecode = TOK.ILLEGAL_BYTE; break main_loop } // treat non-separating chars as unexpected byte
           vcount++
           break
 

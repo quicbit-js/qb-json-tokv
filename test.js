@@ -98,8 +98,8 @@ test('tokenize - errors', function (t) {
       [ '{"a',              [ '(@0,{@0,!2@1: truncated string, in object first key at 1..2', 84, '0/3:3/{2' ]               ],
 
       // unexpected byte (single)
-      [ '0*',               [ '(@0,d1@0,!1@1: unexpected byte "*", after value at 1', 66, '1/2:2/.' ]                      ],
-      [ '{"a":3^6}',        [ '{@0,k3@1:d1@5,!1@6: unexpected byte "^", in object after value at 6', 66, '1/7:9/{.' ]       ],
+      [ '0*',               [ '(@0,!2@0: illegal decimal "0*", first value at 0..1', 66, '0/2:2/2' ]                      ],
+      [ '{"a":3^6}',        [ '(@0,{@0,k3@1:!2@5: illegal decimal "3^", in object value at 5..6', 66, '0/7:9/{3.0:2' ]       ],
 
       // unexpected byte (in multi-byte number or token)
       [ '1,2.4n',           [ '(@0,d1@0,!4@2: illegal decimal "2.4n", value at 2..5', 66, '1/6:6/4' ]                     ],
