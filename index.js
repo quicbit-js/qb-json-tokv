@@ -28,7 +28,6 @@ var OBJ_A_V = 0x480
 
 var END = {
   CLEAN_STOP: 'CLEAN_STOP',   // client stopped processing (by returning false)
-  DONE:       'DONE',         // parsed to src lim and state is clean (stack.length = 0, no pending value)
 }
 
 // ascii tokens as well as special codes for number, error, begin and end.
@@ -48,11 +47,11 @@ var TOK = {
   BEG: 40,            // '('  - begin - about to process a buffer
   END: 41,            // ')'  - end -   buffer limit reached and state is clean (stack is empty and no pending values)
   ERR: 33,            // '!'  - error.  unexpected state.  check info for details.
-  ILLEGAL_BYTE: 89,   // 'B'  illegal byte.  if value len > 1, then bad byte is within a value with a valid start, else it's separate from value.
+  ILLEGAL_BYTE: 66,   // 'B'  illegal byte.  if value len > 1, then bad byte is within a value with a valid start, else it's separate from value.
+  DONE:     68,       // 'D'  parsed to src lim and state is clean (stack.length = 0, no pending value)
+  INCOMPLETE: 73,     // 'I'  input is incomplete.  terminates within an object or array or with a trailing comma
   TRUNC_VAL: 84,      // 'T'  truncated value - reached src limit before a key or value was finished
   UNEXP_TOK: 85,      // 'U'  unexpected token
-  INCOMPLETE: 73,     // 'I'  input is incomplete.  terminates within an object or array or with a trailing comma
-
 }
 
 // create an int-int map from (pos + tok) -- to --> (new pos)
@@ -417,7 +416,7 @@ function _tokenize (init, opt, cb) {
 
   // check and clarify end pos (before handling end pos)
   clean_up_ecode(ps, cb)
-  if (ps.ecode === null || ps.ecode === END.DONE || ps.ecode === END.CLEAN_STOP || ps.ecode === TOK.INCOMPLETE) {
+  if (ps.ecode === null || ps.ecode === TOK.DONE || ps.ecode === END.CLEAN_STOP || ps.ecode === TOK.INCOMPLETE) {
     ps.voff = idx    // wipe out phantom value
   }
 
@@ -445,7 +444,7 @@ function figure_etok (ecode, incremental) {
     case TOK.INCOMPLETE:
       return incremental ? TOK.END : TOK.ERR
     case END.CLEAN_STOP:
-    case END.DONE:
+    case TOK.DONE:
       return TOK.END
     default:
       err('internal error, end state not handled: ' + ecode)
@@ -456,7 +455,7 @@ function clean_up_ecode (ps, cb) {
   var depth = ps.stack.length
   if (ps.ecode === null) {
     if (depth === 0 && (ps.pos === ARR_BFV || ps.pos === ARR_A_V)) {
-      ps.ecode = ps.vlim === ps.lim ? END.DONE : END.CLEAN_STOP   // if ps.halted at limit, parsing is done, but no end callback is made
+      ps.ecode = ps.vlim === ps.lim ? TOK.DONE : END.CLEAN_STOP   // if ps.halted at limit, parsing is done, but no end callback is made
     } else {
       ps.ecode = TOK.INCOMPLETE
     }
@@ -465,7 +464,7 @@ function clean_up_ecode (ps, cb) {
       // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
       // note - this means we won't be able to split no-context numbers outside of an array or object container.
       cb(ps.src, ps.koff, ps.klim, ps.tok, ps.voff, ps.vlim, null)
-      ps.ecode = END.DONE
+      ps.ecode = TOK.DONE
 
       ps.koff = -1
       ps.klim = -1

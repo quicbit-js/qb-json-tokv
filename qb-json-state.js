@@ -146,7 +146,7 @@ function message (ps) {
     case END.CLEAN_STOP:
       ret = 'stopped early with clean state'
       break
-    case END.DONE:
+    case TOK.DONE:
       ret = 'done'
       break
     default:
