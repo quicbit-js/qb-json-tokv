@@ -40,7 +40,7 @@ var TOK = {
   OBJ_END:  125,  // '}'
 
   // special codes
-  ERR: 33,            // '!'  - error.  unexpected state.  check info for details.
+  ERR: 33,            // '!'  - error.  unexpected state.  check parse_state for details.
   BEG: 40,            // '('  - begin - about to process a buffer
   DONE: 41,           // ')'  parsed to src lim and state is clean (stack.length = 0, no trailing comma)
   HALTED: 83,        // 'S'  client halted the process by returning false before lim was reached
@@ -385,7 +385,7 @@ function _tokenize (init, opt, cb) {
     }  // end main_loop: while(vlim < lim) {...
   }
 
-  // parse pos
+  // parse state
   var ps = {
     src: src,
     off: off,
@@ -401,7 +401,7 @@ function _tokenize (init, opt, cb) {
     halted: !cb_continue,
   }
 
-  handle_incomplete(ps, cb)
+  finish_incomplete(ps, cb)
 
   if (!ps.halted) {
     cb(ps.src, ps.koff, ps.klim, ps.tok, ps.voff, ps.vlim, ps)    // final callback
@@ -412,15 +412,16 @@ function _tokenize (init, opt, cb) {
     ps.tok === TOK.UNEXP_TOK ||
     (!opt.incremental && (ps.tok === TOK.TRUNC_VAL || ps.tok === TOK.INCOMPLETE))
   ) {
-    var err = new Error('error while parsing.  error.info has the parse state')
-    err.info = ps
+    var err = new Error('error while parsing.  error.parse_state has the parse state')
+    err.parse_state = ps
     throw err
   } else {
     return ps
   }
 }
 
-function handle_incomplete (ps, cb) {
+// finish up truncation calls and create cleaner end state eliminating unneeded values etc.
+function finish_incomplete (ps, cb) {
   if (ps.halted) {
     ps.tok = TOK.HALTED
     ps.voff = ps.vlim

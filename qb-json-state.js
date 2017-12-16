@@ -85,10 +85,10 @@ function parse_state (ps) {
   return ret
 }
 
-function str (info) {
-  var bytes = info.vlim - info.off
-  var tbytes = info.lim - info.off
-  return info.vcount + '/' + bytes + ':' + tbytes + '/' + parse_state(info)
+function str (ps) {
+  var bytes = ps.vlim - ps.off
+  var tbytes = ps.lim - ps.off
+  return ps.vcount + '/' + bytes + ':' + tbytes + '/' + parse_state(ps)
 }
 
 // a convenience function for summarizing/logging/debugging callback arguments as compact strings
@@ -98,13 +98,13 @@ var NO_LEN_TOKENS = 'tfn[]{}()SI'.split('').reduce(function (m,c) { m[c] = 1; re
 function args2str () {
   var a = arguments[0]
   var i = 1
-// callback arguments [src, koff, klim, tok, voff, vlim, info]
-  var koff = a[i++], klim = a[i++], tok = a[i++], voff = a[i++], vlim = a[i++], info = a[i++]
+// callback arguments [src, koff, klim, tok, voff, vlim, ps]
+  var koff = a[i++], klim = a[i++], tok = a[i++], voff = a[i++], vlim = a[i++], ps = a[i++]
 
   var tchar = String.fromCharCode(tok)
   var keystr = koff !== -1 ? 'k' + (klim - koff) + '@' + koff + ':' : ''
   var vlen = (!NO_LEN_TOKENS[tchar] && vlim !== voff) ? vlim - voff : ''
-  // var msg = tchar === '!' ? ': ' + message(info) : ''
+  // var msg = tchar === '!' ? ': ' + message(ps) : ''
 
   return keystr + tchar + vlen + '@' + voff
 }

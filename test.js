@@ -20,22 +20,6 @@ var jtok = require('.')
 var TOK = jtok.TOK
 var pstate = require('./qb-json-state')
 
-// other tokens are intuitive - they are the same char code as the first byte parsed
-// 't' for true
-// 'f' for false
-// 'n' for null
-// '{' for object start
-// '}' for object end
-// '[' for array start
-// ...
-
-// a formatting callback is a good way to understand the output of the tokenizer.  See readme.
-//
-//     's4@0' means String, length 4 bytes, at offset zero.  (length includes the quotes).
-//     'k3@1' means Key, length 3 bytes, at offset 1
-//     'd3@5' means Number, length 3 bytes, at offset 5
-//     'n@9'  means null at offset 9                         (null length is always 4 bytes)
-//     't@23' means true at offset 23 ...
 test('tokenize', function (t) {
   t.tableAssert(
     [
@@ -67,16 +51,16 @@ test('tokenize', function (t) {
     ],
     function (input, off, lim) {
       var hector = t.hector()
-      var endinfo = null
-      var cb = function (src, koff, klim, tok, voff, vlim, info) {
+      var cb_ps = null
+      var cb = function (src, koff, klim, tok, voff, vlim, ps) {
         hector(pstate.args2str(arguments))
-        if (tok === TOK.DONE) { endinfo = info }
+        if (tok === TOK.DONE) { cb_ps = ps }
         return true
       }
-      var info = jtok.tokenize(utf8.buffer(input), {off: off, lim: lim}, cb)
-      info === endinfo || err('expected returned info to equal endinfo')
+      var ret_ps = jtok.tokenize(utf8.buffer(input), {off: off, lim: lim}, cb)
+      ret_ps === cb_ps || err('expected returned parse state to equal callback parse state')
 
-      return [ hector.arg(0).slice(-3).join(','), String.fromCharCode(info.tok), pstate.str(info) ]
+      return [ hector.arg(0).slice(-3).join(','), String.fromCharCode(ret_ps.tok), pstate.str(ret_ps) ]
     }
   )
 })
@@ -126,11 +110,11 @@ test('tokenize - errors', function (t) {
     ],
     function (src) {
       var hector = t.hector()
-      var errinfo = null
-      var cb = function (src, koff, klim, tok, voff, vlim, info) {
+      var end_ps = null
+      var cb = function (src, koff, klim, tok, voff, vlim, ps) {
         hector(pstate.args2str(arguments))
-        if (info && tok !== TOK.BEG) {
-          errinfo = info
+        if (ps && tok !== TOK.BEG) {
+          end_ps = ps
         }
         return true
       }
@@ -138,8 +122,8 @@ test('tokenize - errors', function (t) {
       try {
         jtok.tokenize(utf8.buffer(src), null, cb)
       } catch (e) {
-        e.info === errinfo || err('this is not the error you are looking for: ' + e)
-        return [ hector.arg(0).slice(-3).join(','), pstate.str(e.info) ]
+        e.parse_state === end_ps || err('this is not the error you are looking for: ' + e)
+        return [ hector.arg(0).slice(-3).join(','), pstate.str(e.parse_state) ]
       }
     }
   )
@@ -153,19 +137,19 @@ test('callback stop', function (t) {
       [ '{ "a": 7, "b": 4 }', 1,       false, [ '(@0,{@0',                    83,  '0/1:18/{-' ] ],
       [ '{ "a": 7, "b": 4 }', 2,       false, [ '(@0,{@0,k3@2:d1@7',          83,  '1/8:18/{.' ] ],
       [ '{ "a": 7, "b": 4 }', 3,       false, [ '{@0,k3@2:d1@7,k3@10:d1@15',  83,  '2/16:18/{.' ] ],
-      // note that if callback returns false at the src limit, the info is returned from _tokenize, but there is no end callback
+      // if callback returns false at the src limit, the parse state is returned from _tokenize, but no end callback is made
       [ '{ "a": 7, "b": 4 }', 4,       false, [ 'k3@2:d1@7,k3@10:d1@15,}@17', 83,  '3/18:18/.' ] ],
     ],
     function (src, at_cb, ret) {
       var count = 0
       var hector = t.hector()
-      var cb = function (src, koff, klim, tok, voff, vlim, info) {
+      var cb = function (src, koff, klim, tok, voff, vlim, ps) {
         hector(pstate.args2str(arguments))
-        if (info && tok !== TOK.BEG) { err('stopped callback should not have an end/info call') }
+        if (ps && tok !== TOK.BEG) { err('stopped callback should not have an end/ps call') }
         return (count++ === at_cb) ? ret : true
       }
-      var info = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
-      return [ hector.arg(0).slice(-3).join(','), info.tok, pstate.str(info) ]
+      var ps = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
+      return [ hector.arg(0).slice(-3).join(','), ps.tok, pstate.str(ps) ]
     }
   )
 })
@@ -189,16 +173,16 @@ test('incremental clean',         function (t) {
     ],
     function (src) {
       var hector = t.hector()
-      var endinfo = null
-      var cb = function (src, koff, klim, tok, voff, vlim, info) {
+      var end_ps = null
+      var cb = function (src, koff, klim, tok, voff, vlim, ps) {
         hector(pstate.args2str(arguments))
-        if (info && tok !== TOK.BEG) { endinfo = info }
+        if (ps && tok !== TOK.BEG) { end_ps = ps }
         return true
       }
-      var info = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
-      info === endinfo || err('expected returned info to equal endinfo')
+      var ps = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
+      ps === end_ps || err('expected returned parse state to equal end parse state')
 
-      return [ hector.arg(0).slice(-3).join(','), pstate.str(info) ]
+      return [ hector.arg(0).slice(-3).join(','), pstate.str(ps) ]
     }
   )
 })
@@ -229,25 +213,22 @@ test('incremental', function (t) {
     ],
     function (src) {
       var hector = t.hector()
-      var endinfo = null
-      var cb = function (src, koff, klim, tok, voff, vlim, info) {
+      var end_ps = null
+      var cb = function (src, koff, klim, tok, voff, vlim, ps) {
         hector(pstate.args2str(arguments))
-        if (info && tok !== TOK.BEG) { endinfo = info }
+        if (ps && tok !== TOK.BEG) { end_ps = ps }
         return true
       }
-      var info = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
-      info === endinfo || err('expected returned info to equal endinfo')
+      var ps = jtok.tokenize(utf8.buffer(src), {incremental: true}, cb)
+      ps === end_ps || err('expected returned parse state to equal end parse state')
 
-      return [ hector.arg(0).slice(-3).join(','), pstate.str(info) ]
+      return [ hector.arg(0).slice(-3).join(','), pstate.str(ps) ]
     }
   )
 })
 
 function err (msg) { throw Error(msg) }
-
 /*
-
-function err (msg) { throw Error(msg) }
 test('initial state', function (t) {
   var o = 123
   var a = 91
@@ -259,15 +240,15 @@ test('initial state', function (t) {
     // [ '{"a": 3.3}',     4,      null,   null,  OBJ|a_K, TRUNC_vAL, [o],     [ '(@4', 'd3@6', '}@9', ')@10' ] ],
   ], function (input, off, lim, state, err, stack) {
     var hector = t.hector()
-    var cb = function (src, koff, klim, tok, voff, vlim, info) {
-      hector(pstate.args2str(koff, klim, tok, voff, vlim, info))
+    var cb = function (src, koff, klim, tok, voff, vlim, ps) {
+      hector(pstate.args2str(koff, klim, tok, voff, vlim, ps))
       return true
     }
     jtok.tokenize(utf8.buffer(input), { off: off, lim: lim, init: { state: state, stack: stack, err: err } }, cb)
     return hector.arg(0)
   })
 })
-/*
+
 test('incremental processing', function (t) {
   t.table_assert([
     [ 'inputs',                         'exp' ],
@@ -276,8 +257,8 @@ test('incremental processing', function (t) {
   ], function (inputs) {
     var opt = {incremental: 1, init: null}
     var hector = t.hector()
-    var cb = function (src, koff, klim, tok, voff, vlim, info) {
-      hector(pstate.args2str(koff, klim, tok, voff, vlim, info))
+    var cb = function (src, koff, klim, tok, voff, vlim, ps) {
+      hector(pstate.args2str(koff, klim, tok, voff, vlim, ps))
       return true
     }
     inputs.forEach(function (input) {
