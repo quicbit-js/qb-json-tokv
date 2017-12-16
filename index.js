@@ -27,9 +27,7 @@ var OBJ_B_V = 0x400
 var OBJ_A_V = 0x480
 
 var END = {
-  ILLEGAL_DECIMAL: 'ILLEGAL_DECIMAL',
   UNEXP_TOK:  'UNEXP_VAL',    // token or value was recognized, but was not expected
-  UNEXP_BYTE: 'UNEXP_BYTE',   // byte was not a recognized token or legal part of a value
   TRUNC_KEY:  'TRUNC_KEY',    // stopped before an object key was finished
   TRUNC_VAL:  'TRUNC_VAL',    // stopped before a value was finished (number, false, true, null, string)
   TRUNC_SRC:  'TRUNC_SRC',    // stopped before done (stack.length > 0 or after comma)
@@ -54,7 +52,7 @@ var TOK = {
   BEG: 40,        // '('  - begin - about to process a buffer
   END: 41,        // ')'  - end -   buffer limit reached and state is clean (stack is empty and no pending values)
   ERR: 33,        // '!'  - error.  unexpected state.  check info for details.
-  // ERR_BYTE: 89,   // 'B'  bad byte
+  UNEXP_BYTE: 89,   // 'B'  bad byte
   // ERR_TOK:  84,   // 'T'  bad Token
   // TRUNC_DEC: 68,    // 'D' truncated decimal
   // TRUNC_STR: 83,    // 'S' truncated string
@@ -324,7 +322,7 @@ function _tokenize (init, opt, cb) {
           if (idx <= 0) {
             idx = -idx
             if (idx === lim) { ecode = END.TRUNC_VAL; break main_loop }
-            else { idx++; ecode = END.UNEXP_BYTE; break main_loop }  // include unexpected byte in value
+            else { idx++; ecode = TOK.UNEXP_BYTE; break main_loop }  // include unexpected byte in value
           }
           vcount++
           break
@@ -356,7 +354,7 @@ function _tokenize (init, opt, cb) {
           // for UNEXP_BYTE, the byte is included with the number to indicate it was encountered while parsing number.
           if (pos1 === 0)                       { ecode = END.UNEXP_TOK;       break main_loop }
           else if (idx === lim)                 { ecode = END.TRUNC_VAL;       break main_loop }   // *might* be truncated - flag it here and handle below
-          else if (tok_types[src[idx]] === 102) { idx++; ecode = END.UNEXP_BYTE; break main_loop } // treat non-separating chars as unexpected byte
+          else if (tok_types[src[idx]] === 102) { idx++; ecode = TOK.UNEXP_BYTE; break main_loop } // treat non-separating chars as unexpected byte
           vcount++
           break
 
@@ -387,7 +385,7 @@ function _tokenize (init, opt, cb) {
 
         default:
           idx++
-          ecode = END.UNEXP_BYTE                          // no legal transition for this byte
+          ecode = TOK.UNEXP_BYTE                          // no legal transition for this byte
           break main_loop
       }
       // clean transition was made from pos0 to pos1
@@ -445,8 +443,7 @@ function _tokenize (init, opt, cb) {
 function figure_etok (ecode, incremental) {
   switch (ecode) {
     case END.UNEXP_TOK:
-    case END.UNEXP_BYTE:
-    case END.ILLEGAL_DECIMAL:
+    case TOK.UNEXP_BYTE:
       return TOK.ERR
     case END.TRUNC_KEY:
     case END.TRUNC_VAL:

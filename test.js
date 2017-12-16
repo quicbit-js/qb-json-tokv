@@ -97,14 +97,14 @@ test('tokenize - errors', function (t) {
       [ '[3.05E-2,4.',      [ '[@0,d7@1,!2@9: truncated decimal, in array value at 9..10', 'TRUNC_VAL', '1/11:11/[2' ]                 ],
       [ '{"a',              [ '(@0,{@0,!2@1: truncated key, in object first key at 1..2', 'TRUNC_KEY', '0/3:3/{2' ]               ],
 
-      // unexpected bytes
-      [ '0*',               [ '(@0,d1@0,!1@1: unexpected byte "*", after value at 1', 'UNEXP_BYTE', '1/2:2/.' ]                      ],
-      [ '{"a":3^6}',        [ '{@0,k3@1:d1@5,!1@6: unexpected byte "^", in object after value at 6', 'UNEXP_BYTE', '1/7:9/{.' ]       ],
+      // unexpected byte (single)
+      [ '0*',               [ '(@0,d1@0,!1@1: unexpected byte "*", after value at 1', 89, '1/2:2/.' ]                      ],
+      [ '{"a":3^6}',        [ '{@0,k3@1:d1@5,!1@6: unexpected byte "^", in object after value at 6', 89, '1/7:9/{.' ]       ],
 
-      // illegal values in number or token
-      [ ' 1f',              [ '(@0,!2@1: illegal decimal "1f", first value at 1..2', 'UNEXP_BYTE', '0/3:3/2' ]                      ],
-      [ '1,2.4n',           [ '(@0,d1@0,!4@2: illegal decimal "2.4n", value at 2..5', 'UNEXP_BYTE', '1/6:6/4' ]                     ],
-      [ '{"a": t,',         [ '(@0,{@0,k3@1:!2@6: illegal token "t,", in object value at 6..7', 'UNEXP_BYTE', '0/8:8/{3.1:2' ]                  ],
+      // unexpected byte (in multi-byte number or token)
+      [ '1,2.4n',           [ '(@0,d1@0,!4@2: illegal decimal "2.4n", value at 2..5', 89, '1/6:6/4' ]                     ],
+      [ '{"a": t,',         [ '(@0,{@0,k3@1:!2@6: illegal token "t,", in object value at 6..7', 89, '0/8:8/{3.1:2' ]                  ],
+      [ ' 1f',              [ '(@0,!2@1: illegal decimal "1f", first value at 1..2', 89, '0/3:3/2' ]                      ],
 
       // unexpected values
       [ '"a""b"',           [ '(@0,s3@0,!3@3: unexpected string "b", after value at 3..5', 'UNEXP_VAL', '1/6:6/.' ]                  ],
