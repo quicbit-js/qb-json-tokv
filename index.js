@@ -27,8 +27,7 @@ var OBJ_B_V = 0x400
 var OBJ_A_V = 0x480
 
 var END = {
-  INCOMPLETE:  'INCOMPLETE',    // reached limit before done (stack.length > 0 or after comma)
-  CLEAN_STOP: 'CLEAN_STOP',   // client stopped at a clean point (zero stack, no pending value)
+  CLEAN_STOP: 'CLEAN_STOP',   // client stopped processing (by returning false)
   DONE:       'DONE',         // parsed to src lim and state is clean (stack.length = 0, no pending value)
 }
 
@@ -418,7 +417,7 @@ function _tokenize (init, opt, cb) {
 
   // check and clarify end pos (before handling end pos)
   clean_up_ecode(ps, cb)
-  if (ps.ecode === null || ps.ecode === END.DONE || ps.ecode === END.CLEAN_STOP || ps.ecode === END.INCOMPLETE) {
+  if (ps.ecode === null || ps.ecode === END.DONE || ps.ecode === END.CLEAN_STOP || ps.ecode === TOK.INCOMPLETE) {
     ps.voff = idx    // wipe out phantom value
   }
 
@@ -443,7 +442,7 @@ function figure_etok (ecode, incremental) {
     case TOK.ILLEGAL_BYTE:
       return TOK.ERR
     case TOK.TRUNC_VAL:
-    case END.INCOMPLETE:
+    case TOK.INCOMPLETE:
       return incremental ? TOK.END : TOK.ERR
     case END.CLEAN_STOP:
     case END.DONE:
@@ -459,7 +458,7 @@ function clean_up_ecode (ps, cb) {
     if (depth === 0 && (ps.pos === ARR_BFV || ps.pos === ARR_A_V)) {
       ps.ecode = ps.vlim === ps.lim ? END.DONE : END.CLEAN_STOP   // if ps.halted at limit, parsing is done, but no end callback is made
     } else {
-      ps.ecode = END.INCOMPLETE
+      ps.ecode = TOK.INCOMPLETE
     }
   } else if (ps.ecode === TOK.TRUNC_VAL) {
     if (ps.vlim === ps.lim && ps.tok === TOK.DEC && depth === 0 && (ps.pos === ARR_BFV || ps.pos === ARR_B_V)) {

@@ -140,7 +140,7 @@ function message (ps) {
     case TOK.TRUNC_VAL:
       ret = 'truncated ' + tok_str
       break
-    case END.INCOMPLETE:
+    case TOK.INCOMPLETE:
       ret = 'truncated input'
       break
     case END.CLEAN_STOP:
