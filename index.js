@@ -43,12 +43,13 @@ var TOK = {
   BEG: 40,            // '('  - begin - about to process a buffer
   END: 41,            // ')'  - end -   buffer limit reached and state is clean (stack is empty and no pending values)
   ERR: 33,            // '!'  - error.  unexpected state.  check info for details.
-  ILLEGAL_BYTE: 66,   // 'B'  illegal byte.  if value len > 1, then bad byte is within a value with a valid start, else it's separate from value.
-  DONE:     68,       // 'D'  parsed to src lim and state is clean (stack.length = 0, no pending value)
-  INCOMPLETE: 73,     // 'I'  input is incomplete.  terminates within an object or array or with a trailing comma
+  DONE: 68,           // 'D'  parsed to src lim and state is clean (stack.length = 0, no trailing comma)
   STOPPED: 83,        // 'S'  client halted the process by returning false before lim was reached
-  TRUNC_VAL: 84,      // 'T'  truncated value - reached src limit before a key or value was finished
+
+  BAD_BYTE: 66,       // 'B'  illegal byte.  if value len > 1, then bad byte is within a value with a valid start, else it's separate from value.
   UNEXP_TOK: 85,      // 'U'  unexpected token
+  INCOMPLETE: 73,     // 'I'  input terminates (at limit) within an object or array or with a trailing comma
+  TRUNC_VAL: 84,      // 'T'  truncated value - reached src limit before a key or value was finished
 }
 
 // create an int-int map from (pos + tok) -- to --> (new pos)
@@ -305,7 +306,7 @@ function _tokenize (init, opt, cb) {
           if (idx <= 0) {
             idx = -idx
             if (idx === lim) { ecode = TOK.TRUNC_VAL; break main_loop }
-            else { idx++; ecode = TOK.ILLEGAL_BYTE; break main_loop }  // include unexpected byte in value
+            else { idx++; ecode = TOK.BAD_BYTE; break main_loop }  // include unexpected byte in value
           }
           vcount++
           break
@@ -337,7 +338,7 @@ function _tokenize (init, opt, cb) {
           // for UNEXP_BYTE, the byte is included with the number to indicate it was encountered while parsing number.
           if (pos1 === 0)                       { ecode = TOK.UNEXP_TOK;       break main_loop }
           else if (idx === lim)                 { ecode = TOK.TRUNC_VAL;       break main_loop }     // *might* be truncated - flag it here and handle below
-          else if (delim[src[idx]] === 0)       { idx++; ecode = TOK.ILLEGAL_BYTE; break main_loop } // treat non-separating chars as unexpected byte
+          else if (delim[src[idx]] === 0)       { idx++; ecode = TOK.BAD_BYTE; break main_loop } // treat non-separating chars as unexpected byte
           vcount++
           break
 
@@ -368,7 +369,7 @@ function _tokenize (init, opt, cb) {
 
         default:
           idx++
-          ecode = TOK.ILLEGAL_BYTE                          // no legal transition for this byte
+          ecode = TOK.BAD_BYTE                          // no legal transition for this byte
           break main_loop
       }
       // clean transition was made from pos0 to pos1
@@ -426,7 +427,7 @@ function _tokenize (init, opt, cb) {
 function figure_etok (ecode, incremental) {
   switch (ecode) {
     case TOK.UNEXP_TOK:
-    case TOK.ILLEGAL_BYTE:
+    case TOK.BAD_BYTE:
       return TOK.ERR
     case TOK.TRUNC_VAL:
     case TOK.INCOMPLETE:
