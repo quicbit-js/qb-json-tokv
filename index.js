@@ -27,7 +27,6 @@ var OBJ_B_V = 0x400
 var OBJ_A_V = 0x480
 
 var END = {
-  TRUNC_KEY:  'TRUNC_KEY',    // stopped before an object key was finished
   TRUNC_VAL:  'TRUNC_VAL',    // stopped before a value was finished (number, false, true, null, string)
   TRUNC_SRC:  'TRUNC_SRC',    // stopped before done (stack.length > 0 or after comma)
   CLEAN_STOP: 'CLEAN_STOP',   // client stopped at a clean point (zero stack, no pending value)
@@ -53,7 +52,7 @@ var TOK = {
   ERR: 33,        // '!'  - error.  unexpected state.  check info for details.
   UNEXP_BYTE: 89,   // 'B'  unexpected byte.  if value len > 1, then bad byte is within a value with a legal beginning, else it's separate from value.
   UNEXP_TOK: 84,    // 'T'  unexpected token
-  // ERR_TOK:  84,   // 'T'  bad Token
+
   // TRUNC_DEC: 68,    // 'D' truncated decimal
   // TRUNC_STR: 83,    // 'S' truncated string
 
@@ -445,7 +444,6 @@ function figure_etok (ecode, incremental) {
     case TOK.UNEXP_TOK:
     case TOK.UNEXP_BYTE:
       return TOK.ERR
-    case END.TRUNC_KEY:
     case END.TRUNC_VAL:
     case END.TRUNC_SRC:
       return incremental ? TOK.END : TOK.ERR
@@ -466,9 +464,7 @@ function clean_up_ecode (ps, cb) {
       ps.ecode = END.TRUNC_SRC
     }
   } else if (ps.ecode === END.TRUNC_VAL) {
-    if (ps.pos === OBJ_BFK || ps.pos === OBJ_B_K) {
-      ps.ecode = END.TRUNC_KEY
-    } else if (ps.vlim === ps.lim && ps.tok === TOK.DEC && depth === 0 && (ps.pos === ARR_BFV || ps.pos === ARR_B_V)) {
+    if (ps.vlim === ps.lim && ps.tok === TOK.DEC && depth === 0 && (ps.pos === ARR_BFV || ps.pos === ARR_B_V)) {
       // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
       // note - this means we won't be able to split no-context numbers outside of an array or object container.
       cb(ps.src, ps.koff, ps.klim, ps.tok, ps.voff, ps.vlim, null)

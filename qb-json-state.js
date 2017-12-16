@@ -29,8 +29,7 @@ function pos_str (pos, relative) {
 function err (msg) { throw Error(msg) }
 
 function within_value (ps) {
-  return ps.ecode === END.TRUNC_KEY ||
-  ps.ecode === END.TRUNC_VAL ||
+  return ps.ecode === END.TRUNC_VAL ||
   (ps.ecode === TOK.UNEXP_BYTE && ps.vlim - ps.voff > 1)    // unexpected byte within a token or number
 }
 
@@ -42,7 +41,7 @@ function desc (ps) {
 }
 
 function parse_state (ps) {
-  var in_obj = ps.stack[ps.stack.length - 1] === 123
+  // var in_obj = ps.stack[ps.stack.length - 1] === 123
   var ret = ps.stack.map(function (b) { return String.fromCharCode(b) }).join('')
   var vlen = ps.vlim - ps.voff
 
@@ -53,17 +52,9 @@ function parse_state (ps) {
     klen = ps.klim - ps.koff
   }
 
-  if (ps.ecode === END.TRUNC_KEY) {
-    ret += vlen   // only complete keys are represented by koff..klim.  truncations and other errors are all at voff/vlim
-  } else if (within_value(ps)) {
-    if (in_obj) {
-      if (ps.pos === ARR_B_V) {
-        ret += vlen
-      } else if (ps.pos === OBJ_B_V) {
-        ret += klen + '.' + (gap - 1) + ':' + vlen
-      } else {
-        err('unexpected pos for truncated value: ' + ps.pos)
-      }
+  if (within_value(ps)) {
+    if (ps.pos === OBJ_B_V) {
+      ret += klen + '.' + (gap - 1) + ':' + vlen
     } else {
       ret += vlen
     }
@@ -145,9 +136,6 @@ function message (ps) {
       } else {
         ret = 'unexpected byte ' + '"' + val_str + '"'
       }
-      break
-    case END.TRUNC_KEY:
-      ret = 'truncated key'
       break
     case END.TRUNC_VAL:
       ret = 'truncated ' + tok_str

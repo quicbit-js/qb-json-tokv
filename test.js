@@ -95,7 +95,7 @@ test('tokenize - errors', function (t) {
       [ '"\\\\\\"',         [ '(@0,!5@0: truncated string, first value at 0..4', 'TRUNC_VAL', '0/5:5/5' ]                           ],
       [ '[3.05E-2',         [ '(@0,[@0,!7@1: truncated decimal, in array first value at 1..7', 'TRUNC_VAL', '0/8:8/[7' ]              ],
       [ '[3.05E-2,4.',      [ '[@0,d7@1,!2@9: truncated decimal, in array value at 9..10', 'TRUNC_VAL', '1/11:11/[2' ]                 ],
-      [ '{"a',              [ '(@0,{@0,!2@1: truncated key, in object first key at 1..2', 'TRUNC_KEY', '0/3:3/{2' ]               ],
+      [ '{"a',              [ '(@0,{@0,!2@1: truncated string, in object first key at 1..2', 'TRUNC_VAL', '0/3:3/{2' ]               ],
 
       // unexpected byte (single)
       [ '0*',               [ '(@0,d1@0,!1@1: unexpected byte "*", after value at 1', 89, '1/2:2/.' ]                      ],
@@ -222,7 +222,7 @@ test('incremental', function (t) {
       [ '{ "a":'             ,  [ '(@0,{@0,k3@2:)@6',          'TRUNC_SRC', '0/6:6/{3:' ] ],
       [ '{ "a": 9'           ,  [ '(@0,{@0,k3@2:)1@7',         'TRUNC_VAL', '0/8:8/{3.1:1' ] ],
       [ '{ "a": 93, '        ,  [ '{@0,k3@2:d2@7,)@11',        'TRUNC_SRC', '1/11:11/{+' ] ],
-      [ '{ "a": 93, "b'      ,  [ '{@0,k3@2:d2@7,)2@11',       'TRUNC_KEY', '1/13:13/{2' ] ],
+      [ '{ "a": 93, "b'      ,  [ '{@0,k3@2:d2@7,)2@11',       'TRUNC_VAL', '1/13:13/{2' ] ],
       [ '{ "a": 93, "b"'     ,  [ '{@0,k3@2:d2@7,k3@11:)@14',  'TRUNC_SRC', '1/14:14/{3.' ] ],
       [ '{ "a": 93, "b":'    ,  [ '{@0,k3@2:d2@7,k3@11:)@15',  'TRUNC_SRC', '1/15:15/{3:' ] ],
       [ '{ "a": 93, "b": ['  ,  [ 'k3@2:d2@7,k3@11:[@16,)@17', 'TRUNC_SRC', '1/17:17/{[-' ] ],
