@@ -43,7 +43,7 @@ var TOK = {
   ERR: 33,            // '!'  - error.  unexpected state.  check info for details.
   BEG: 40,            // '('  - begin - about to process a buffer
   DONE: 41,           // ')'  parsed to src lim and state is clean (stack.length = 0, no trailing comma)
-  STOPPED: 83,        // 'S'  client halted the process by returning false before lim was reached
+  HALTED: 83,        // 'S'  client halted the process by returning false before lim was reached
 
   BAD_BYTE: 66,       // 'B'  if value len > 1, then bad byte is within a value with a valid start, else it's separate from value.
   UNEXP_TOK: 85,      // 'U'  recognized but unexpected token
@@ -401,19 +401,17 @@ function _tokenize (init, opt, cb) {
     halted: !cb_continue,
   }
 
-  clean_up_tok(ps, cb)
+  handle_incomplete(ps, cb)
 
-  if (cb_continue) {
-    // final callback
-    cb(ps.src, ps.koff, ps.klim, ps.tok, ps.voff, ps.vlim, ps)
+  if (!ps.halted) {
+    cb(ps.src, ps.koff, ps.klim, ps.tok, ps.voff, ps.vlim, ps)    // final callback
   }
 
-  var is_err =
+  if (
     ps.tok === TOK.BAD_BYTE ||
     ps.tok === TOK.UNEXP_TOK ||
     (!opt.incremental && (ps.tok === TOK.TRUNC_VAL || ps.tok === TOK.INCOMPLETE))
-
-  if (is_err) {
+  ) {
     var err = new Error('error while parsing.  error.info has the parse state')
     err.info = ps
     throw err
@@ -422,15 +420,15 @@ function _tokenize (init, opt, cb) {
   }
 }
 
-function clean_up_tok (ps, cb) {
+function handle_incomplete (ps, cb) {
   if (ps.halted) {
-    ps.tok = TOK.STOPPED
+    ps.tok = TOK.HALTED
     ps.voff = ps.vlim
   }
   switch (ps.tok) {
     case TOK.BAD_BYTE: case TOK.UNEXP_TOK:
       break
-    case TOK.INCOMPLETE: case TOK.STOPPED:
+    case TOK.INCOMPLETE: case TOK.HALTED:
       ps.voff = ps.vlim
       break
     case TOK.TRUNC_VAL:

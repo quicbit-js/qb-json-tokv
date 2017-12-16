@@ -143,7 +143,7 @@ function message (ps) {
     case TOK.INCOMPLETE:
       ret = 'truncated input'
       break
-    case TOK.STOPPED:
+    case TOK.HALTED:
       ret = 'stopped early with clean state'
       break
     case TOK.DONE:
