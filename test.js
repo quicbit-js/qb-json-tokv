@@ -107,19 +107,19 @@ test('tokenize - errors', function (t) {
       [ ' 1f',              [ '(@0,!2@1: illegal decimal "1f", first value at 1..2', 89, '0/3:3/2' ]                      ],
 
       // unexpected values
-      [ '"a""b"',           [ '(@0,s3@0,!3@3: unexpected string "b", after value at 3..5', 'UNEXP_VAL', '1/6:6/.' ]                  ],
-      [ '{"a""b"}',         [ '(@0,{@0,k3@1:!3@4: unexpected string "b", in object after key at 4..6', 'UNEXP_VAL', '0/7:8/{3.' ]      ],
-      [ '{"a"::',           [ '(@0,{@0,k3@1:!1@5: unexpected token ":", in object before value at 5', 'UNEXP_VAL', '0/6:6/{3:' ]       ],
-      [ '0{',               [ '(@0,d1@0,!1@1: unexpected token "{", after value at 1', 'UNEXP_VAL', '1/2:2/.' ]                      ],
-      [ '{ false:',         [ '(@0,{@0,!5@2: unexpected token "false", in object before first key at 2..6', 'UNEXP_VAL', '0/7:8/{-' ] ],
-      [ '{ fal',            [ '(@0,{@0,!3@2: unexpected token "fal", in object before first key at 2..4', 'UNEXP_VAL', '0/5:5/{-' ]   ],
-      [ '{ fal:',           [ '(@0,{@0,!3@2: unexpected token "fal", in object before first key at 2..4', 'UNEXP_VAL', '0/5:6/{-' ]   ],
-      [ '{"a": "b", 3: 4}', [ '{@0,k3@1:s3@6,!1@11: unexpected decimal 3, in object before key at 11', 'UNEXP_VAL', '1/12:16/{+' ]      ],
-      [ '{ 2.4 ]',          [ '(@0,{@0,!3@2: unexpected decimal 2.4, in object before first key at 2..4', 'UNEXP_VAL', '0/5:7/{-' ]    ],
-      [ '{ "a" ]',          [ '(@0,{@0,k3@2:!1@6: unexpected token "]", in object after key at 6', 'UNEXP_VAL', '0/7:7/{3.1.' ]          ],
+      [ '"a""b"',           [ '(@0,s3@0,!3@3: unexpected string "b", after value at 3..5', 84, '1/6:6/.' ]                  ],
+      [ '{"a""b"}',         [ '(@0,{@0,k3@1:!3@4: unexpected string "b", in object after key at 4..6', 84, '0/7:8/{3.' ]      ],
+      [ '{"a"::',           [ '(@0,{@0,k3@1:!1@5: unexpected token ":", in object before value at 5', 84, '0/6:6/{3:' ]       ],
+      [ '0{',               [ '(@0,d1@0,!1@1: unexpected token "{", after value at 1', 84, '1/2:2/.' ]                      ],
+      [ '{ false:',         [ '(@0,{@0,!5@2: unexpected token "false", in object before first key at 2..6', 84, '0/7:8/{-' ] ],
+      [ '{ fal',            [ '(@0,{@0,!3@2: unexpected token "fal", in object before first key at 2..4', 84, '0/5:5/{-' ]   ],
+      [ '{ fal:',           [ '(@0,{@0,!3@2: unexpected token "fal", in object before first key at 2..4', 84, '0/5:6/{-' ]   ],
+      [ '{"a": "b", 3: 4}', [ '{@0,k3@1:s3@6,!1@11: unexpected decimal 3, in object before key at 11', 84, '1/12:16/{+' ]      ],
+      [ '{ 2.4 ]',          [ '(@0,{@0,!3@2: unexpected decimal 2.4, in object before first key at 2..4', 84, '0/5:7/{-' ]    ],
+      [ '{ "a" ]',          [ '(@0,{@0,k3@2:!1@6: unexpected token "]", in object after key at 6', 84, '0/7:7/{3.1.' ]          ],
       // unexpected token has precidence over truncation (be relatively optimistic about truncation)
-      [ '[ 1, 2 ] "c',      [ 'd1@5,]@7,!2@9: unexpected string "c, after value at 9..10', 'UNEXP_VAL', '3/11:11/.' ]                 ],
-      [ '[ 1, 2 ] "c"',     [ 'd1@5,]@7,!3@9: unexpected string "c", after value at 9..11', 'UNEXP_VAL', '3/12:12/.' ]                ],
+      [ '[ 1, 2 ] "c',      [ 'd1@5,]@7,!2@9: unexpected string "c, after value at 9..10', 84, '3/11:11/.' ]                 ],
+      [ '[ 1, 2 ] "c"',     [ 'd1@5,]@7,!3@9: unexpected string "c", after value at 9..11', 84, '3/12:12/.' ]                ],
 
       // truncated src (not an error in incremental mode)
       [ '{"a" : ',          [ '(@0,{@0,k3@1:!@7: truncated input, in object before value at 7', 'TRUNC_SRC', '0/7:7/{3.2:' ]            ],

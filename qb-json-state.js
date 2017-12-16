@@ -135,7 +135,7 @@ function message (ps) {
   var ret
 
   switch (ps.ecode) {
-    case END.UNEXP_TOK:       // failed transition (pos0 + tok => pos1) === 0
+    case TOK.UNEXP_TOK:       // failed transition (pos0 + tok => pos1) === 0
       if (tok_str === 'token') { val_str = '"' + val_str + '"' }
       ret = 'unexpected ' + tok_str + ' ' + val_str
       break

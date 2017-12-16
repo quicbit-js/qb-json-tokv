@@ -27,7 +27,6 @@ var OBJ_B_V = 0x400
 var OBJ_A_V = 0x480
 
 var END = {
-  UNEXP_TOK:  'UNEXP_VAL',    // token or value was recognized, but was not expected
   TRUNC_KEY:  'TRUNC_KEY',    // stopped before an object key was finished
   TRUNC_VAL:  'TRUNC_VAL',    // stopped before a value was finished (number, false, true, null, string)
   TRUNC_SRC:  'TRUNC_SRC',    // stopped before done (stack.length > 0 or after comma)
@@ -52,7 +51,8 @@ var TOK = {
   BEG: 40,        // '('  - begin - about to process a buffer
   END: 41,        // ')'  - end -   buffer limit reached and state is clean (stack is empty and no pending values)
   ERR: 33,        // '!'  - error.  unexpected state.  check info for details.
-  UNEXP_BYTE: 89,   // 'B'  bad byte
+  UNEXP_BYTE: 89,   // 'B'  unexpected byte.  if value len > 1, then bad byte is within a value with a legal beginning, else it's separate from value.
+  UNEXP_TOK: 84,    // 'T'  unexpected token
   // ERR_TOK:  84,   // 'T'  bad Token
   // TRUNC_DEC: 68,    // 'D' truncated decimal
   // TRUNC_STR: 83,    // 'S' truncated string
@@ -309,7 +309,7 @@ function _tokenize (init, opt, cb) {
         case 58:                                          // :    COLON
           pos1 = pmap[pos0 | tok]
           idx++
-          if (pos1 === 0) { ecode = END.UNEXP_TOK; break main_loop }
+          if (pos1 === 0) { ecode = TOK.UNEXP_TOK; break main_loop }
           pos0 = pos1
           continue
 
@@ -318,7 +318,7 @@ function _tokenize (init, opt, cb) {
         case 116:                                         // t    true
           idx = skip_bytes(src, idx, lim, tok_bytes[tok])
           pos1 = pmap[pos0 | tok]
-          if (pos1 === 0) { idx = idx <= 0 ? -idx : idx; ecode = END.UNEXP_TOK; break main_loop }
+          if (pos1 === 0) { idx = idx <= 0 ? -idx : idx; ecode = TOK.UNEXP_TOK; break main_loop }
           if (idx <= 0) {
             idx = -idx
             if (idx === lim) { ecode = END.TRUNC_VAL; break main_loop }
@@ -331,7 +331,7 @@ function _tokenize (init, opt, cb) {
           pos1 = pmap[pos0 | tok]
           tok = 115
           idx = skip_str(src, idx + 1, lim)
-          if (pos1 === 0) { idx = idx === -1 ? lim : idx; ecode = END.UNEXP_TOK; break main_loop }
+          if (pos1 === 0) { idx = idx === -1 ? lim : idx; ecode = TOK.UNEXP_TOK; break main_loop }
           else if (idx === -1) { idx = lim; ecode = END.TRUNC_VAL; break main_loop }
 
           // key
@@ -352,7 +352,7 @@ function _tokenize (init, opt, cb) {
           while (tok_types[src[++idx]] === 100 && idx < lim) {}     // d (100) here means decimal-type ascii
 
           // for UNEXP_BYTE, the byte is included with the number to indicate it was encountered while parsing number.
-          if (pos1 === 0)                       { ecode = END.UNEXP_TOK;       break main_loop }
+          if (pos1 === 0)                       { ecode = TOK.UNEXP_TOK;       break main_loop }
           else if (idx === lim)                 { ecode = END.TRUNC_VAL;       break main_loop }   // *might* be truncated - flag it here and handle below
           else if (tok_types[src[idx]] === 102) { idx++; ecode = TOK.UNEXP_BYTE; break main_loop } // treat non-separating chars as unexpected byte
           vcount++
@@ -363,14 +363,14 @@ function _tokenize (init, opt, cb) {
           in_obj = tok === 123
           pos1 = pmap[pos0 | tok]
           idx++
-          if (pos1 === 0) { ecode = END.UNEXP_TOK; break main_loop }
+          if (pos1 === 0) { ecode = TOK.UNEXP_TOK; break main_loop }
           stack.push(tok)
           break
 
         case 93:                                          // ]    ARRAY END
           in_obj = stack[stack.length - 2] === 123        // set before breaking loop
           idx++
-          if ((pos0 !== arr_bfv && pos0 !== arr_a_v) || stack.pop() !== 91) { ecode = END.UNEXP_TOK; break main_loop }
+          if ((pos0 !== arr_bfv && pos0 !== arr_a_v) || stack.pop() !== 91) { ecode = TOK.UNEXP_TOK; break main_loop }
           pos1 = in_obj ? obj_a_v : arr_a_v
           vcount++
           break
@@ -378,7 +378,7 @@ function _tokenize (init, opt, cb) {
         case 125:                                         // }    OBJECT END
           in_obj = stack[stack.length - 2] === 123        // set before breaking loop
           idx++
-          if ((pos0 !== obj_bfk && pos0 !== obj_a_v) || stack.pop() !== 123) { ecode = END.UNEXP_TOK; break main_loop }
+          if ((pos0 !== obj_bfk && pos0 !== obj_a_v) || stack.pop() !== 123) { ecode = TOK.UNEXP_TOK; break main_loop }
           pos1 = in_obj ? obj_a_v : arr_a_v
           vcount++
           break
@@ -442,7 +442,7 @@ function _tokenize (init, opt, cb) {
 
 function figure_etok (ecode, incremental) {
   switch (ecode) {
-    case END.UNEXP_TOK:
+    case TOK.UNEXP_TOK:
     case TOK.UNEXP_BYTE:
       return TOK.ERR
     case END.TRUNC_KEY:
