@@ -422,7 +422,7 @@ begin and end with the states
 
 
     begin:     0/0/{[{-
-    end:       50/5/{[2
+    end:       50/5/{[2L
     
 meaning packet begins with:
                         
@@ -430,11 +430,11 @@ meaning packet begins with:
     0           0 values processed 
     {[{-        inside object, then array, then object, before the first key
         
-and ending with:
+and ends with:
     
     50          50 bytes processed 
     5           5 values processed
-    {[2         inside object then array within a truncated value 2 bytes long
+    {[2L        inside object then array within a truncated value 2 bytes long - buffer (L)imit was reached
     
 The brackets, -, and number string is known as the **parse state** and is explained in detail below
 
@@ -444,32 +444,141 @@ Open brackets, digits, + and minus are used to describe the precise **parse stat
 look similar to the object and value formats themselves which allows them to be both concise and familiar, and
 somewhat intuitive.
 
-clean array states (2 values)
+parse state format
 
-    -                           start parsing.
-    [-                          array start. expecting value or array-end
-    [.                          value done.  expecting comma or array-end
-    [,                          got comma, expecting value
-    [.                          value done.  expecting comma or array-end
-    .                           array done, expecting comma or end-of-input
+    state
+        position
+        position, termination
+        
+    position
+        value-position
+        in-array-stack, value-position 
+        in-object-stack, key-value-position
+        
+    in-array-stack
+        [
+        open-brace, in-array-stack                  
+        
+    in-object-stack
+        {
+        open-brace, in-object-stack                  
+
+    value-position
+        start               -  
+        expect-value        +
+        in-value            digits
+        value-done          .
+    
+    key-value-position
+        start               -
+        expect-key          +
+        in-key              
+        key-done 
+        expect-obj-value
+        in-obj-value
+        obj-value-done      .
+
+    in-key
+        digits
+        
+    key-done
+        digits
+        digits, ., digits       // optional whitespace count 
+
+    expect-obj-value        
+        key-done, :
+        
+    in-obj-value  
+        key-done, :, digits
+        
+    termination                     reason why parsing stopped
+        halted              'H'     a client process halted the parsing
+        bad-byte            'X'     a byte was encountered that was not a legal token or value part
+        unexpected-token    'U'     a valid token is parsed, but in an unexpected place such as { true: 4 }
+        limit               'L'     buffer limit was reached                
+        
+    open-brace 
+        {                   object
+        [                   array
+        
+    digits
+        non-zero-digit              1-9
+        non-zero-digit, any-digit   0-9
+   
+basic array and root positions
+
+    > input                state
+
+    >                      -                    start
+    > [                    [-                   array start
+    > [ 1                  [.                   array value done
+    > [ 1,                 [+                   array expecting value
+    > [ 1, 2               [.                   array value done  
+    > [ 1, 2 ]             .                    value done.
+    > [ 1, 2 ],            +                    expecting value
+    > [ 1, 2 ], null       .                    value done
+    > [ 1, 2 ], null,      +                    expecting value
+    
+    etc...
+
+basic object states
+
+    > input                             state
+
+    > ''                                -                   start
+    > '{'                               {                   object start
+    > '{ "a"'                           {3                  object 3-byte key done
+    > '{ "a":'                          {3:                 object 3-byte key done, expecting value                      
+    > '{ "a": true                      {.                  object key and value done
+    > '{ "a": true,                     {+                  object expecting key              
+    > '{ "a": true, "bc"                {4                  object 4-byte key done 
+    > '{ "a": true, "bc" :              {4.1:               object 4-byte key + 1 space, expecting value
+    > '{ "a": true, "bc" :false         {.                  object key and value done    
+    > '{ "a": true, "bc" :false }       .                   value done   
+    
+
+
+bad-byte status. 'q' is used for the bad byte.  stack + position + 'X' indicate the location of the problem
+
+    > q                    -X                   after start
+    > [ q                  [-X                  after array start
+    > [ 1 q                [.X                  after array value done
+    > [ 1, q               [+X                  after array expecting value
+    > [ 1, 2 q             [.X                  after array value done  
+    > [ 1, 2 ] q           .X                   after value done
+    > [ 1, 2 ], q          +X                   after expecting value
+    
+
+errors within keys and values:
+
+    // L: buffer limit reached
+    > "ab                   3L                  3 byte truncated value
+    > [ "ab", "c            [2L                 array 2 byte truncated value
+    
+    // X: bad byte (within a value)
+    > trud                  3X                  3 bytes followed by a bad byte
+    > [ trud                [3X                 array 3 bytes followed by a bad byte
+
+    // X: bad byte (single)
+    > true, x               .X                  bad byte
+    > [ 1 q                 [-X                 array bad byte (expected value or 
+    > [ 1, q                [+X                 array bad byte 
+
+    
 
 clean object states (2 key-value pairs)
 
     -                           start parsing.
     {-                          object start. expecting key-value or object-end
     {.                          key-value done.  expecting comma or object-end
-    {,                          got comma, expecting key-value
+    {+                          got comma, expecting key-value
     {.                          key-value done.  expecting comma or object-end
     .                           object done, expecting comma or end-of-input
    
-truncated array and csv states:
-
-    v                           truncated value at root (CSV format)
-    [v                          truncated value (v bytes long, v > 0)
     
 truncated and split key-value states (no whitespace):
     
-    {k                          key truncated at k bytes, k > 0)
+    {kT                         key truncated at k bytes, k > 0)
     {k.                         key (complete) k bytes, no colon
     {k:                         key k bytes, colon, (no value)
     {k:v                        key k bytes, colon, value (truncated at v bytes, v > 0)
@@ -495,10 +604,10 @@ Examples
     [{4.1.          inside array then object, 4 byte key complete, 1 byte whitespace           
     [{4.3:          inside array then object, 4 byte key followed by 3 bytes whitespace + colon           
     [{4.3:          inside array then object, 4 byte key followed by 3 bytes whitespace + colon
-    [{4.3:7         inside array then object, 4 byte key followed by 3 bytes whitespace + colon, truncated 7 byte value
+    [{4.3:7T        inside array then object, 4 byte key followed by 3 bytes whitespace + colon, truncated 7 byte value
     
     {[+             inside object then array, expecting a value
-    {[3             inside object then array, truncated 3 byte value
+    {[3T            inside object then array, truncated 3 byte value
     
    
 
