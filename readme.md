@@ -466,8 +466,11 @@ parse state format
     value-position
         start               -  
         expect-value        +
-        in-value            digits
-        value-done          .
+        in-value           
+        value-done          . 
+    
+    in-value
+        digits, termination
     
     key-value-position
         start               -
@@ -479,24 +482,30 @@ parse state format
         obj-value-done      .
 
     in-key
-        digits
+        digits, termination
         
     key-done
         digits
-        digits, ., digits       // optional whitespace count 
+        digits, period, digits       // optional whitespace count 
 
     expect-obj-value        
-        key-done, :
+        key-done, colon
         
     in-obj-value  
-        key-done, :, digits
+        expect-obj-value, digits, termination
         
     termination                     reason why parsing stopped
         halted              'H'     a client process halted the parsing
         bad-byte            'X'     a byte was encountered that was not a legal token or value part
         unexpected-token    'U'     a valid token is parsed, but in an unexpected place such as { true: 4 }
         limit               'L'     buffer limit was reached                
+
+    period
+        .
         
+    colon
+        :
+                
     open-brace 
         {                   object
         [                   array
