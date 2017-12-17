@@ -63,8 +63,8 @@ process can be controlled/stopped via the function return value)
     callback   A function called for each token or each key/value pair.
     
         src         the buffer being parsed
-        koff        index of key start (inclusive) in current object, in arrays koff is -1
-        klim        index of key limit (non-inclusive) in current object, in arrays koff is -1
+        koff        index of key start (inclusive) in current object, in arrays koff === klim
+        klim        index of key limit (non-inclusive) in current object
         tok         integer token representing the type encountered.  In most cases, token is the ASCII of the 
                     first character encountered.  'n' for null, 't' for true, '{' for object start.
                     The TOK property defines these token codes by name:

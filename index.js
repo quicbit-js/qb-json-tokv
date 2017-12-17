@@ -300,7 +300,7 @@ function _tokenize (init, opt, cb) {
         case 116:                                         // t    true
           idx = skip_bytes(src, idx, lim, tok_bytes[tok])
           pos1 = pmap[pos0 | tok]
-          if (pos1 === 0) { idx = idx <= 0 ? -idx : idx; tok = TOK.UNEXP_TOK; break main_loop }
+          if (pos1 === 0) { idx = idx < 0 ? -idx : idx; tok = TOK.UNEXP_TOK; break main_loop }
           if (idx <= 0) {
             idx = -idx
             if (idx === lim) { tok = TOK.TRUNC_VAL; break main_loop }
