@@ -139,105 +139,28 @@ function skip_str (src, off, lim) {
   return -1
 }
 
-function concat (src1, off1, lim1, src2, off2, lim2) {
-  var len1 = lim1 - off1
-  var len2 = lim2 - off2
-  var ret = new Uint8Array(len1 + len2)
-  for (var i=0; i< len1; i++) { ret[i] = src1[i+off1] }
-  for (i=0; i<len2; i++) { ret[i+len1] = src2[i+off2] }
-  return ret
-}
-
-function err (msg) { throw Error(msg) }
-
-// finish truncated key/value
-// return array of result info for the one or two call(s) made (may have halted)
-//
-// prev has previous completion (src, koff, klim, position...) - use, don't modify.
-// init has new src and defaults (koff = 0, klim = 0...) (to be modified)
-function init_truncated (src, off, lim, prev, cb) {
-  // find the value limit in src
-  var vlim
-  switch (prev.tok) {
-    case TOK.STR:
-      vlim = skip_str(src, off, lim)
-      vlim >= 0 || err('could not complete truncated value')   // todo: handle incomplete truncated value
-      break
-    default:
-      err('truncation not implemented')
-  }
-
-  var from_key = prev.koff !== prev.klim
-  var adj = from_key ? prev.koff : prev.voff
-  var psrc = concat(prev.src, adj, prev.lim, src, off, vlim)
-  var p = {
-    src: psrc,
-    off: 0,
-    len: psrc.length,
-    koff: 0,
-    klim: from_key ? prev.klim - adj : 0,
-    tok: prev.tok,
-    voff: prev.voff - adj,
-    vlim: prev.vlim - adj,
-    pos: prev.position.pos_code(),
-    stack: prev.position.stack_codes(),
-    vcount: 0
-  }
-
-  var ps = _tokenize(p, cb)
-  if (ps.halted) {
-    return [ps]
-  }
-  var init = init_defaults(src.slice(vlim), 0, lim - vlim)
-  init.pos = POS_MAP[p.pos | prev.tok]        // pos was checked
-  init.stack = p.stack
-  return init
-}
-
-
-// use values from opt (and opt.restore) to recover from truncated values, making
-// use of _tokenize as needed to restore recover and return updated {src, opt} that
-// will be used to continue processing.
-//
-// attempt to convert previous tokenize result into initial pos.
-function init_from_prev(src, off, lim, prev, cb) {
-  // get vcount, stack, and pos from position and tok
-  switch (prev.tok) {
-    case TOK.TRUNC_VAL:
-      return init_truncated(src, off, lim, prev, cb)
-      break
-    default: err('restore for ' + p.tok + ' not implemented')
-  }
-}
-
-function init_defaults (src, off, lim) {
-  return {
-    src:      src,
-    off:      off,    // current parse offset
-    lim:      lim,
-
-    koff:     0,
-    klim:     0,
-    tok:      0,
-    voff:     off,
-
-    stack:    [],
-    pos:      ARR_BFV,
-    vcount:   0,
-  }
-}
 function tokenize (src, opt, cb) {
-  // set init to
   opt = opt || {}
   var off = opt.off || 0
   var lim = opt.lim == null ? src.length : opt.lim
-  var init = (opt && opt.prev)
-    ? init_from_prev(src, off, lim, opt.prev, cb)
-    : init_defaults(src, off, lim)
-  return _tokenize(init, opt, cb)
-}
 
-function _tokenize (init, opt, cb) {
+  var ps =      opt.ps || {}
+  var koff =    ps.koff || 0            // key offset
+  var klim =    ps.klim || koff         // key limit (exclusive)
+  var tok =     ps.tok  || 0            // current token/byte being handled
+  var voff =    ps.voff || off          // value start index
+                
+  var stack =   ps.stack || []          // ascii codes 91 and 123 for array / object depth
+  var pos0 =    ps.pos || ARR_BFV       // container context and relative position encoded as an int
+  var vcount =  ps.vcount || 0          // number of complete values parsed, such as STR, NUM or OBJ_END, but not counting OBJ_BEG or ARR_BEG.
+
+  var in_obj =  stack[stack.length - 1] === 123
+  var idx =    off              // current source offset
+  var pos1 = pos0   // pos1 possibilities are:
+                        //    1. pos1 = 0;                        unsupported transition
+                        //    2. pos1 > 0, pos1 == pos0;      OK, no pending callback
+                        //    3. pos1 > 0, pos1 != pos0;      OK, callback pending
+
   // localized constants for faster access
   var pmap = POS_MAP
   var obj_bfk = OBJ_BFK
@@ -250,28 +173,6 @@ function _tokenize (init, opt, cb) {
   var whitespace = WHITESPACE
   var delim = DELIM
 
-  // localized init fo faster access
-  var src =     init.src        // source buffer
-  var off =     init.off        // starting offset
-  var lim =     init.lim        // source limit (exclusive)
-
-  var koff =    init.koff       // key offset
-  var klim =    init.klim       // key limit (exclusive)
-  var tok =     init.tok        // current token/byte being handled
-  var voff =    init.voff       // value start index
-
-  var stack =   init.stack      // ascii codes 91 and 123 for array / object depth
-  var pos0 =    init.pos        // container context and relative position encoded as an int
-  var vcount =  init.vcount     // number of complete values parsed, such as STR, NUM or OBJ_END, but not counting OBJ_BEG or ARR_BEG.
-
-  var in_obj =  stack[stack.length - 1] === 123
-  var idx =    off              // current source offset
-  var pos1 = pos0   // pos1 possibilities are:
-                        //    1. pos1 = 0;                        unsupported transition
-                        //    2. pos1 > 0, pos1 == pos0;      OK, no pending callback
-                        //    3. pos1 > 0, pos1 != pos0;      OK, callback pending
-
-  // BEG and END signals are the only calls with zero length (where voff === vlim)
   var cb_continue = cb(src, 0, 0, TOK.BEG, idx, idx)                      // 'B' - BEGIN parse
   if (cb_continue) {
     // breaking main_loop before vlim == lim means callback returned falsey or we have an error
@@ -381,8 +282,8 @@ function _tokenize (init, opt, cb) {
     }  // end main_loop: while(vlim < lim) {...
   }
 
-  // parse state
-  var ps = {
+  // new parse state
+  ps = {
     src: src,
     off: off,
     lim: lim,
