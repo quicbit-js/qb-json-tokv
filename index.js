@@ -40,13 +40,12 @@ var TOK = {
   OBJ_END:  125,  // '}'
 
   // special codes
-  ERR: 33,            // '!'  - error.  unexpected state.  check parse_state for details.
   BEG: 40,            // '('  - begin - about to process a buffer
   DONE: 41,           // ')'  parsed to src lim and state is clean (stack.length = 0, no trailing comma)
-  HALTED: 83,        // 'S'  client halted the process by returning false before lim was reached
+  HALTED: 83,         // 'H'  client halted the process by returning false before lim was reached
 
-  BAD_BYTE: 66,       // 'B'  if value len > 1, then bad byte is within a value with a valid start, else it's separate from value.
   UNEXP_TOK: 85,      // 'U'  recognized but unexpected token
+  BAD_BYTE: 88,       // 'X'  if value len > 0, then bad byte is within a value with a valid start, else it's separate from value.
 
   INCOMPLETE: 73,     // 'I'  parsed to src lim ending within an object or array or with a trailing comma
   TRUNC_VAL: 84,      // 'T'  truncated value - reached src limit before a key or value was finished
@@ -305,7 +304,7 @@ function _tokenize (init, opt, cb) {
           if (idx <= 0) {
             idx = -idx
             if (idx === lim) { tok = TOK.TRUNC_VAL; break main_loop }
-            else { idx++; tok = TOK.BAD_BYTE; break main_loop }  // include unexpected byte in value
+            else { tok = TOK.BAD_BYTE; break main_loop }  // include unexpected byte in value
           }
           vcount++
           break
@@ -335,9 +334,9 @@ function _tokenize (init, opt, cb) {
           while (decimal_ascii[src[++idx]] === 1 && idx < lim) {}     // d (100) here means decimal-type ascii
 
           // for UNEXP_BYTE, the byte is included with the number to indicate it was encountered while parsing number.
-          if (pos1 === 0)                       { tok = TOK.UNEXP_TOK;       break main_loop }
-          else if (idx === lim)                 { tok = TOK.TRUNC_VAL;       break main_loop }     // *might* be truncated - flag it here and handle below
-          else if (delim[src[idx]] === 0)       { idx++; tok = TOK.BAD_BYTE; break main_loop } // treat non-separating chars as bad byte
+          if (pos1 === 0)                       { tok = TOK.UNEXP_TOK;  break main_loop }
+          else if (idx === lim)                 { tok = TOK.TRUNC_VAL;  break main_loop }     // *might* be truncated - flag it here and handle below
+          else if (delim[src[idx]] === 0)       { tok = TOK.BAD_BYTE;   break main_loop } // treat non-separating chars as bad byte
           vcount++
           break
 
@@ -451,4 +450,5 @@ function finish_incomplete (ps, cb) {
 module.exports = {
   tokenize: tokenize,
   TOK: TOK,
+  DECIMAL_ASCII: DECIMAL_ASCII,
 }

@@ -1,8 +1,8 @@
 
 var jtok = require('.')
 
-var END = jtok.END
 var TOK = jtok.TOK
+var DECIMAL_ASCII = jtok.DECIMAL_ASCII
 
 // positions from jtok - not public and subject to change, so copied here (must keep in sync)
 var ARR_BFV = 0x080
@@ -30,7 +30,7 @@ function err (msg) { throw Error(msg) }
 
 function within_value (ps) {
   return ps.tok === TOK.TRUNC_VAL ||
-  (ps.tok === TOK.BAD_BYTE && ps.vlim - ps.voff > 1)    // unexpected byte within a token or number
+  (ps.tok === TOK.BAD_BYTE && ps.vlim !== ps.voff)    // unexpected byte within a token or number
 }
 
 function desc (ps) {
@@ -43,17 +43,24 @@ function desc (ps) {
 function parse_state (ps) {
   // var in_obj = ps.stack[ps.stack.length - 1] === 123
   var ret = ps.stack.map(function (b) { return String.fromCharCode(b) }).join('')
+  var klen = ps.klim - ps.koff
+  var gap = ps.voff - ps.klim
+  if (ps.pos === OBJ_B_V) { gap-- }   // don't include colon
   var vlen = ps.vlim - ps.voff
 
-  var klen = ps.klim - ps.koff
-  var gap = klen ? ps.voff - ps.klim : 0
 
   if (within_value(ps)) {
     if (ps.pos === OBJ_B_V) {
-      ret += klen + '.' + (gap - 1) + ':' + vlen
+      ret += klen + (gap ? '.' + gap : '') + ':' + vlen
     } else {
+      // truncated key
       ret += vlen
     }
+    if (ps.tok === TOK.BAD_BYTE) {
+      ret += 'X'
+    }
+  } else if (ps.tok === TOK.BAD_BYTE) {
+    ret += 'X'
   } else {
     switch (ps.pos) {
       case ARR_BFV:
@@ -69,10 +76,10 @@ function parse_state (ps) {
         ret += '.'
         break
       case OBJ_A_K:
-        ret += klen + (gap > 0 ? '.' + gap : '') + '.'
+        ret += klen + (gap ? '.' + gap : '') + '.'
         break
       case OBJ_B_V:
-        ret += klen + (gap > 1 ? '.' + (gap - 1) : '') + ':'
+        ret += klen + (gap ? '.' + gap : '') + ':'
         break
       default:
         err('pos not handled: ' + ps.pos)
@@ -116,31 +123,30 @@ function esc_str (src, off, lim) {
 
 // figure out end/error message and callback token
 function message (ps) {
-  var val_str = esc_str(ps.src, ps.voff, ps.vlim)
+  var vlen = ps.vlim - ps.voff
 
   var tok_str = ps.tok === TOK.DEC ? 'decimal' : (ps.tok === TOK.STR ? 'string' : 'token')
   var ret
 
   switch (ps.tok) {
-    case TOK.UNEXP_TOK:       // failed transition (pos0 + tok => pos1) === 0
-      if (tok_str === 'token') { val_str = '"' + val_str + '"' }
-      ret = 'unexpected ' + tok_str + ' ' + val_str
+    case TOK.UNEXP_TOK:
+      ret = 'unexpected ' + tok_str + ' "' + esc_str(ps.src, ps.voff, ps.vlim) + '"'
       break
     case TOK.BAD_BYTE:
-      if (ps.vlim - ps.voff > 1) {
-        ret = 'illegal ' + tok_str + ' "' + val_str + '"'
+      if (ps.voff === ps.vlim) {
+        ret = 'unexpected byte ' + '"' + esc_str(ps.src, ps.voff, ps.vlim + 1) + '"'
       } else {
-        ret = 'unexpected byte ' + '"' + val_str + '"'
+        ret = 'illegal ' + tok_str + ' "' + esc_str(ps.src, ps.voff, ps.vlim + 1) + '"'
       }
       break
     case TOK.TRUNC_VAL:
       ret = 'truncated ' + tok_str
       break
     case TOK.INCOMPLETE:
-      ret = 'truncated input'
+      ret = 'incomplete input'
       break
     case TOK.HALTED:
-      ret = 'stopped early with clean state'
+      ret = 'client halted'
       break
     case TOK.DONE:
       ret = 'done'
