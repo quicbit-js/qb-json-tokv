@@ -155,7 +155,7 @@ function err (msg) { throw Error(msg) }
 // return array of result info for the one or two call(s) made (may have halted)
 //
 // prev has previous completion (src, koff, klim, position...) - use, don't modify.
-// init has new src and defaults (koff = -1, klim = -1...) (to be modified)
+// init has new src and defaults (koff = 0, klim = 0...) (to be modified)
 function init_truncated (src, off, lim, prev, cb) {
   // find the value limit in src
   var vlim
@@ -168,15 +168,15 @@ function init_truncated (src, off, lim, prev, cb) {
       err('truncation not implemented')
   }
 
-  var from_key = prev.koff !== -1
+  var from_key = prev.koff !== prev.klim
   var adj = from_key ? prev.koff : prev.voff
   var psrc = concat(prev.src, adj, prev.lim, src, off, vlim)
   var p = {
     src: psrc,
     off: 0,
     len: psrc.length,
-    koff: from_key ? 0 : -1,
-    klim: from_key ? prev.klim - adj : -1,
+    koff: 0,
+    klim: from_key ? prev.klim - adj : 0,
     tok: prev.tok,
     voff: prev.voff - adj,
     vlim: prev.vlim - adj,
@@ -217,8 +217,8 @@ function init_defaults (src, off, lim) {
     off:      off,    // current parse offset
     lim:      lim,
 
-    koff:     -1,
-    klim:     -1,
+    koff:     0,
+    klim:     0,
     tok:      0,
     voff:     off,
 
@@ -273,7 +273,7 @@ function _tokenize (init, opt, cb) {
                         //    3. pos1 > 0, pos1 != pos0;      OK, callback pending
 
   // BEG and END signals are the only calls with zero length (where voff === vlim)
-  var cb_continue = cb(src, -1, -1, TOK.BEG, idx, idx)                      // 'B' - BEGIN parse
+  var cb_continue = cb(src, 0, 0, TOK.BEG, idx, idx)                      // 'B' - BEGIN parse
   if (cb_continue) {
     // breaking main_loop before vlim == lim means callback returned falsey or we have an error
     main_loop: while (idx < lim) {
@@ -373,10 +373,7 @@ function _tokenize (init, opt, cb) {
       }
       // clean transition was made from pos0 to pos1
       cb_continue = cb(src, koff, klim, tok, voff, idx, null)
-      if (koff !== -1) {
-        koff = -1
-        klim = -1
-      }
+      if (koff !== klim) { koff = klim }
       pos0 = pos1
       if (cb_continue === true || cb_continue) {    // === check is slightly faster (node 6)
         continue
@@ -438,8 +435,8 @@ function finish_incomplete (ps, cb) {
         // note - this means we won't be able to split no-context numbers outside of an array or object container.
         cb(ps.src, ps.koff, ps.klim, TOK.DEC, ps.voff, ps.vlim, null)
 
-        ps.koff = -1
-        ps.klim = -1
+        ps.koff = 0
+        ps.klim = 0
         ps.tok = TOK.DONE
         ps.voff = ps.vlim
         ps.pos = ARR_A_V

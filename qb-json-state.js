@@ -45,12 +45,8 @@ function parse_state (ps) {
   var ret = ps.stack.map(function (b) { return String.fromCharCode(b) }).join('')
   var vlen = ps.vlim - ps.voff
 
-  var klen = 0
-  var gap = 0
-  if (ps.koff !== -1) {
-    gap = ps.voff - ps.klim
-    klen = ps.klim - ps.koff
-  }
+  var klen = ps.klim - ps.koff
+  var gap = klen ? ps.voff - ps.klim : 0
 
   if (within_value(ps)) {
     if (ps.pos === OBJ_B_V) {
@@ -102,8 +98,8 @@ function args2str () {
   var koff = a[i++], klim = a[i++], tok = a[i++], voff = a[i++], vlim = a[i++], ps = a[i++]
 
   var tchar = String.fromCharCode(tok)
-  var keystr = koff !== -1 ? 'k' + (klim - koff) + '@' + koff + ':' : ''
-  var vlen = (!NO_LEN_TOKENS[tchar] && vlim !== voff) ? vlim - voff : ''
+  var keystr = koff === klim ? '' : 'k' + (klim - koff) + '@' + koff + ':'
+  var vlen = (NO_LEN_TOKENS[tchar] || vlim === voff) ? '' : vlim - voff
   // var msg = tchar === '!' ? ': ' + message(ps) : ''
 
   return keystr + tchar + vlen + '@' + voff
