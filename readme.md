@@ -440,28 +440,40 @@ The brackets, -, and number string is known as the **parse state** and is explai
 
 #### Parse State ####
 
-Open brackets, digits, + and minus are used to describe the precise **parse state**.  The format is designed to
-look similar to the object and value formats themselves which allows them to be both concise and familiar, and
-somewhat intuitive.
+Parse state is all the parsing data needed to continue parsing from any point, including from within partially-parsed
+keys and values.
 
-parse state format
+Parse state format is designed to be very compact and yet somewhat intuitive.  It consists of
+stack context, position, and end-code.
+
+Stack context or simply 'stack' is a string of 
+zero or more array or object open braces: '[{{[ ...' that indicate the depth and type of containers we are currently
+within.  
+
+Position is a string of +, -, ., :, and digits that length and offset information for any pending key or
+value (not sent to the callback).  It can represent partial keys, values or any point between keys and values.
+
+The end-code is a letter that indicates the nature of how parsing ended - hitting buffer limit, encountering 
+unexpected token, bad byte or halted by client.
+
+#### parse state format
 
     state
         position
-        position, termination
+        position end-code
         
     position
         value-position
-        in-array-stack, value-position 
-        in-object-stack, key-value-position
+        array-stack value-position 
+        object-stack key-value-position
         
-    in-array-stack
+    array-stack
         [
-        open-brace, in-array-stack                  
+        open-brace in-array-stack                  
         
-    in-object-stack
+    object-stack
         {
-        open-brace, in-object-stack                  
+        open-brace in-object-stack                  
 
     value-position
         start               -  
@@ -470,7 +482,7 @@ parse state format
         value-done          . 
     
     in-value
-        digits, termination
+        count end-code
     
     key-value-position
         start               -
@@ -482,19 +494,22 @@ parse state format
         obj-value-done      .
 
     in-key
-        digits, termination
+        count end-code
         
     key-done
-        digits
-        digits, period, digits       // optional whitespace count 
+        count period
+        count period gap-count
+        
+    gap-count
+        count period
 
     expect-obj-value        
-        key-done, colon
+        key-done colon
         
     in-obj-value  
-        expect-obj-value, digits, termination
+        expect-obj-value count end-code
         
-    termination                     reason why parsing stopped
+    end-code                     reason why parsing stopped
         halted              'H'     a client process halted the parsing
         bad-byte            'X'     a byte was encountered that was not a legal token or value part
         unexpected-token    'U'     a valid token is parsed, but in an unexpected place such as { true: 4 }
@@ -510,9 +525,9 @@ parse state format
         {                   object
         [                   array
         
-    digits
-        non-zero-digit              1-9
-        non-zero-digit, any-digit   0-9
+    count
+        non-zero-digit              
+        count any-digit    
    
 basic array and root positions
 
@@ -565,12 +580,12 @@ errors within keys and values:
     > [ "ab", "c            [2L                 array 2 byte truncated value
     
     // X: bad byte (within a value)
-    > trud                  3X                  3 bytes followed by a bad byte
-    > [ trud                [3X                 array 3 bytes followed by a bad byte
+    > trud                  3X                  3 valid bytes followed by a bad byte
+    > [ trud                [3X                 array 3 valid bytes followed by a bad byte
 
     // X: bad byte (single)
     > true, x               .X                  bad byte
-    > [ 1 q                 [-X                 array bad byte (expected value or 
+    > [ 1 q                 [.X                 array bad byte (expected value or 
     > [ 1, q                [+X                 array bad byte 
 
     

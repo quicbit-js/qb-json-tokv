@@ -11,9 +11,8 @@ var ARR_A_V = 0x180
 var OBJ_BFK = 0x200
 var OBJ_B_K = 0x280
 var OBJ_A_K = 0x300
-var OBJ_BFV = 0x380
-var OBJ_B_V = 0x400
-var OBJ_A_V = 0x480
+var OBJ_B_V = 0x380
+var OBJ_A_V = 0x400
 
 function pos_str (pos, relative) {
   switch (pos) {
@@ -30,7 +29,7 @@ function err (msg) { throw Error(msg) }
 
 function within_value (ps) {
   return ps.tok === TOK.TRUNC_VAL ||
-  (ps.tok === TOK.BAD_BYTE && ps.vlim !== ps.voff)    // unexpected byte within a token or number
+  (ps.tok === TOK.BAD_BYT && ps.vlim !== ps.voff)    // unexpected byte within a token or number
 }
 
 function desc (ps) {
@@ -42,56 +41,49 @@ function desc (ps) {
 
 function parse_state (ps) {
   // var in_obj = ps.stack[ps.stack.length - 1] === 123
-  var ret = ps.stack.map(function (b) { return String.fromCharCode(b) }).join('')
+  var stack = ps.stack.map(function (b) { return String.fromCharCode(b) }).join('')
   var klen = ps.klim - ps.koff
   var gap = ps.voff - ps.klim
-  if (ps.pos === OBJ_B_V) { gap-- }   // don't include colon
   var vlen = ps.vlim - ps.voff
 
-
-  if (within_value(ps)) {
-    if (ps.pos === OBJ_B_V) {
-      ret += klen + (gap ? '.' + gap : '') + ':' + vlen
-    } else {
-      // truncated key
-      ret += vlen
-    }
-    if (ps.tok === TOK.BAD_BYTE) {
-      ret += 'X'
-    }
-  } else if (ps.tok === TOK.BAD_BYTE) {
-    ret += 'X'
-  } else {
-    switch (ps.pos) {
-      case ARR_BFV:
-      case OBJ_BFK:
-        ret += '-'
-        break
-      case ARR_B_V:
-      case OBJ_B_K:
-        ret += ','
-        break
-      case ARR_A_V:
-      case OBJ_A_V:
-        ret += '.'
-        break
-      case OBJ_A_K:
-        ret += klen + (gap ? '.' + gap : '') + '.'
-        break
-      case OBJ_B_V:
-        ret += klen + (gap ? '.' + gap : '') + ':'
-        break
-      default:
-        err('pos not handled: ' + ps.pos)
-    }
+  var keyval = ''
+  if (klen) {
+    keyval += klen
+    if (ps.pos === OBJ_B_V) { gap-- }   // don't include colon
+    if (gap > 0) { keyval += '.' + gap }
+    if (vlen) { keyval += ':' + vlen }
+  } else if (vlen) {
+    keyval += vlen
   }
-  return ret
+
+  var poschar = ''
+  switch (ps.pos) {
+    case OBJ_BFK:
+    case ARR_BFV:
+      poschar = '-'
+      break
+    case OBJ_B_K:
+    case ARR_B_V:
+      poschar = '+'
+      break
+    case ARR_A_V:
+    case OBJ_A_V:
+    case OBJ_A_K:
+      poschar = '.'
+      break
+    case OBJ_B_V:
+      poschar = ':'
+      break
+    default:
+      err('pos not handled: ' + ps.pos)
+  }
+
+  return stack + keyval + poschar + String.fromCharCode(ps.tok)
 }
 
 function str (ps) {
   var bytes = ps.vlim - ps.off
-  var tbytes = ps.lim - ps.off
-  return ps.vcount + '/' + bytes + ':' + tbytes + '/' + parse_state(ps)
+  return bytes + '/' +  ps.vcount + '/' + parse_state(ps)
 }
 
 // a convenience function for summarizing/logging/debugging callback arguments as compact strings
@@ -121,35 +113,42 @@ function esc_str (src, off, lim) {
   return ret
 }
 
+function tok_str (byte) {
+  if (jtok.DECIMAL_ASCII[byte]) {
+    return 'decimal'
+  } else if (byte === 34) {
+    return 'string'
+  } else {
+    return 'token'
+  }
+}
+
 // figure out end/error message and callback token
 function message (ps) {
-  var vlen = ps.vlim - ps.voff
-
-  var tok_str = ps.tok === TOK.DEC ? 'decimal' : (ps.tok === TOK.STR ? 'string' : 'token')
   var ret
 
   switch (ps.tok) {
-    case TOK.UNEXP_TOK:
-      ret = 'unexpected ' + tok_str + ' "' + esc_str(ps.src, ps.voff, ps.vlim) + '"'
+    case TOK.BAD_TOK:
+      ret = 'unexpected ' + tok_str(ps.src[ps.voff]) + ' "' + esc_str(ps.src, ps.voff, ps.vlim) + '"'
       break
-    case TOK.BAD_BYTE:
+    case TOK.BAD_BYT:
       if (ps.voff === ps.vlim) {
         ret = 'unexpected byte ' + '"' + esc_str(ps.src, ps.voff, ps.vlim + 1) + '"'
       } else {
-        ret = 'illegal ' + tok_str + ' "' + esc_str(ps.src, ps.voff, ps.vlim + 1) + '"'
+        ret = 'illegal ' + tok_str(ps.src[ps.voff]) + ' "' + esc_str(ps.src, ps.voff, ps.vlim + 1) + '"'
       }
       break
-    case TOK.TRUNC_VAL:
-      ret = 'truncated ' + tok_str
-      break
-    case TOK.INCOMPLETE:
-      ret = 'incomplete input'
-      break
-    case TOK.HALTED:
+    case TOK.STOP:
       ret = 'client halted'
       break
-    case TOK.DONE:
-      ret = 'done'
+    case TOK.LIM:
+      if (ps.voff !== ps.vlim) {
+        ret = 'truncated ' + tok_str(ps.src[ps.voff])
+      } else if (ps.koff !== ps.klim) {
+        ret = 'truncated key'
+      } else {
+        ret = 'done'
+      }
       break
     default:
       err('internal error, end pos not handled: ' + ps.tok)
