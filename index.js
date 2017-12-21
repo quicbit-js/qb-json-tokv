@@ -42,7 +42,7 @@ var TOK = {
   BEG: 66,          // 'B'  beginning of a buffer (starting to process)
 
   // end-codes
-  LIM: 76,          // 'L'  parsed to src limit without issues
+  LIM: 76,          // 'L'  parsed to src limit without error
                     //      if voff != vlim, then parse state has a partial value (objects will have a key as well)
                     //      else if koff != klim, then parse state has a key or partial key (check last quote to see)
   STOP: 83,         // 'S'  client stopped the process by returning false before lim was reached
@@ -194,7 +194,7 @@ function tokenize (parse_state, opt, cb) {
         case 58:                                          // :    COLON
           pos1 = pmap[pos0 | tok]
           idx++
-          if (pos1 === 0) { tok = TOK.BAD_TOK; break main_loop }
+          if (pos1 === 0) { voff = idx-1; tok = TOK.BAD_TOK; break main_loop }
           pos0 = pos1
           continue
 

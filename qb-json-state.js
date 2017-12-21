@@ -2,9 +2,8 @@
 var jtok = require('.')
 
 var TOK = jtok.TOK
-var DECIMAL_ASCII = jtok.DECIMAL_ASCII
 
-// positions from jtok - not public and subject to change, so copied here (must keep in sync)
+// position codes from jtok - not public, so copied here (must keep in sync with qb-json-tokv)
 var ARR_BFV = 0x080
 var ARR_B_V = 0x100
 var ARR_A_V = 0x180
@@ -16,20 +15,19 @@ var OBJ_A_V = 0x400
 
 function pos_str (pos, relative) {
   switch (pos) {
+    case ARR_BFV: return relative ? 'before first value' : 'first value'
     case OBJ_BFK: return relative ? 'before first key' : 'first key'
-    case OBJ_B_K: return relative ? 'before key' : 'key'
-    case OBJ_A_K: return relative ? 'after key' : 'key'
-    case ARR_BFV: case OBJ_BFV: return relative ? 'before first value' : 'first value'
     case ARR_B_V: case OBJ_B_V: return relative ? 'before value' : 'value'
     case ARR_A_V: case OBJ_A_V: return relative ? 'after value' : 'value'
+    case OBJ_B_K: return relative ? 'before key' : 'key'
+    case OBJ_A_K: return relative ? 'after key' : 'key'
   }
 }
 
 function err (msg) { throw Error(msg) }
 
 function within_value (ps) {
-  return ps.tok === TOK.TRUNC_VAL ||
-  (ps.tok === TOK.BAD_BYT && ps.vlim !== ps.voff)    // unexpected byte within a token or number
+  return ps.vlim !== ps.voff && (ps.tok === TOK.LIM || ps.tok === TOK.BAD_BYT)
 }
 
 function desc (ps) {
@@ -52,30 +50,33 @@ function parse_state (ps) {
     if (ps.pos === OBJ_B_V) { gap-- }   // don't include colon
     if (gap > 0) { keyval += '.' + gap }
     if (vlen) { keyval += ':' + vlen }
+    else if (ps.pos === OBJ_B_V) { keyval += ':' }
   } else if (vlen) {
     keyval += vlen
   }
 
   var poschar = ''
-  switch (ps.pos) {
-    case OBJ_BFK:
-    case ARR_BFV:
-      poschar = '-'
-      break
-    case OBJ_B_K:
-    case ARR_B_V:
-      poschar = '+'
-      break
-    case ARR_A_V:
-    case OBJ_A_V:
-    case OBJ_A_K:
-      poschar = '.'
-      break
-    case OBJ_B_V:
-      poschar = ':'
-      break
-    default:
-      err('pos not handled: ' + ps.pos)
+  if (!keyval) {
+    switch (ps.pos) {
+      case OBJ_BFK:
+      case ARR_BFV:
+        poschar = '.'
+        break
+      case OBJ_B_K:
+      case ARR_B_V:
+        poschar = '+'
+        break
+      case ARR_A_V:
+      case OBJ_A_V:
+      case OBJ_A_K:
+        poschar = '-'
+        break
+      case OBJ_B_V:
+        poschar = ':'
+        break
+      default:
+        err('pos not handled: ' + ps.pos)
+    }
   }
 
   return stack + keyval + poschar + String.fromCharCode(ps.tok)
@@ -89,7 +90,7 @@ function str (ps) {
 // a convenience function for summarizing/logging/debugging callback arguments as compact strings
 // converts the 'arguments' array from cb into a terse string code.
 // only show value lengths for string, decimal, end and error tokens.
-var NO_LEN_TOKENS = 'tfn[]{}()SI'.split('').reduce(function (m,c) { m[c] = 1; return m }, {})
+var NO_LEN_TOKENS = 'tfn[]{}()S'.split('').reduce(function (m,c) { m[c] = 1; return m }, {})
 function args2str () {
   var a = arguments[0]
   var i = 1

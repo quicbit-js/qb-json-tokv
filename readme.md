@@ -338,17 +338,9 @@ the open unmatched ascii braces.
        |                            |                |        |
        {  name :  "Samuel" , tags : [ "Sam", "Sammy" ]        } ,  "another value"
     
-### The Components of the 'state' Integer
+### The Position Code 'pos'
  
-Each state integer holds context information about the current parsing context is in the JSON document.  
-There are three possible *contexts*: **in-object**, **in-array**, and **none** that define the type of 
-container the parser is within: 
-
-    no context |        in-object            |    in-array    | in-object |  no context...
-               |                             |                |           |          
-               { "name" : "Samuel", "tags" : [ "Sam", "Sammy" ]           }
-
-State also describes which of the 2 item types: **key** or **value** the position of the parser is near.  Note that
+State describes which of the 2 item types: **key** or **value** the position of the parser is near.  Note that
 both the start and end of arrays and objects
 are considered a values when describing position. 
 
@@ -362,40 +354,40 @@ are considered a values when describing position.
 There are 2 possible *positions* **before**, and **after**, that define parse position relative to a key 
 or value plus a **first** indicator to indicate if it is the first item in a new context: 
 
-    before-first-value (no context)
+    before-first-value                                                          stack = ''
       |  
-      |  in-object|before-first-key        // object context...
+      |  before-first-key                                                       stack = '{'
       |  |
-      |  |    in-object|after-key
+      |  |    after-key
       |  |    |
-      |  |    | in-object|before-value
+      |  |    | before-value
       |  |    | |
       |  |    | | 
       |  |    | |  
-      |  |    | |         in-object|after-value
+      |  |    | |         after-value
       |  |    | |         |
-      |  |    | |         | in-object|before-key        
+      |  |    | |         | before-key        
       |  |    | |         | |
       |  |    | |         | | 
       |  |    | |         | |  
-      |  |    | |         | |    in-object|after-key
+      |  |    | |         | |    after-key
       |  |    | |         | |    |
-      |  |    | |         | |    | in-object|before-value
+      |  |    | |         | |    | before-value
       |  |    | |         | |    | |
-      |  |    | |         | |    | | in-array|before-first-value    // array context...
+      |  |    | |         | |    | | before-first-value                         stack = '{['
       |  |    | |         | |    | | |
       |  |    | |         | |    | | |  
       |  |    | |         | |    | | |    
-      |  |    | |         | |    | | |     in-array|after-value
+      |  |    | |         | |    | | |     after-value
       |  |    | |         | |    | | |     |
-      |  |    | |         | |    | | |     |in-array|before-value
+      |  |    | |         | |    | | |     |before-value
       |  |    | |         | |    | | |     ||
       |  |    | |         | |    | | |     ||
       |  |    | |         | |    | | |     ||   
-      |  |    | |         | |    | | |     ||       in-array|after-value
+      |  |    | |         | |    | | |     ||       after-value
       |  |    | |         | |    | | |     ||       | 
-      |  |    | |         | |    | | |     ||       | in-object|after-value  // object context...
-      |  |    | |         | |    | | |     ||       | |           after-value  // no context... (basic CSV is supported)
+      |  |    | |         | |    | | |     ||       | after-value               stack = '{'
+      |  |    | |         | |    | | |     ||       | |           after-value   stack = ''
       |  |    | |         | |    | | |     ||       | |           |
       |  |    | |         | |    | | |     ||       | |           | before-value
       |  |    | |         | |    | | |     ||       | |           | |
@@ -406,251 +398,5 @@ or value plus a **first** indicator to indicate if it is the first item in a new
        {  name :  "Samuel" , tags : [ "Sam", "Sammy" ]        }    ,  "another value"
     
 
-So state management is the matter of a bitwise-or and one or two array lookups per token.
+Most state management is the matter of a bitwise-or and one or two array lookups per token.
 
-## Incremental Parsing and Packets
-
-A chunk of data is called a "packet".  In Quicbit, packets contain a start and
-end state which indicates the precise parse starting and ending point of a packet.  Quicbit is
-able to start and end parsing at any point, even across split values (allowing split values
-in packages is configurable).
-
-### Packet State (single packet)
-
-Begin and end state is encoded in a concise path-like format.  For a series of JSON packets, a packet may
-begin and end with the states
-
-
-    begin:     0/0/{[{-
-    end:       50/5/{[2L
-    
-meaning packet begins with:
-                        
-    0           0 bytes processed
-    0           0 values processed 
-    {[{-        inside object, then array, then object, before the first key
-        
-and ends with:
-    
-    50          50 bytes processed 
-    5           5 values processed
-    {[2L        inside object then array within a truncated value 2 bytes long - buffer (L)imit was reached
-    
-The brackets, -, and number string is known as the **parse state** and is explained in detail below
-
-#### Parse State ####
-
-Parse state is all the parsing data needed to continue parsing from any point, including from within partially-parsed
-keys and values.
-
-Parse state format is designed to be very compact and yet somewhat intuitive.  It consists of
-stack context, position, and end-code.
-
-Stack context or simply 'stack' is a string of 
-zero or more array or object open braces: '[{{[ ...' that indicate the depth and type of containers we are currently
-within.  
-
-Position is a string of +, -, ., :, and digits that length and offset information for any pending key or
-value (not sent to the callback).  It can represent partial keys, values or any point between keys and values.
-
-The end-code is a letter that indicates the nature of how parsing ended - hitting buffer limit, encountering 
-unexpected token, bad byte or halted by client.
-
-#### parse state format
-
-    state
-        position
-        position end-code
-        
-    position
-        value-position
-        array-stack value-position 
-        object-stack key-value-position
-        
-    array-stack
-        [
-        open-brace in-array-stack                  
-        
-    object-stack
-        {
-        open-brace in-object-stack                  
-
-    value-position
-        start               -  
-        expect-value        +
-        in-value           
-        value-done          . 
-    
-    in-value
-        count end-code
-    
-    key-value-position
-        start               -
-        expect-key          +
-        in-key              
-        key-done 
-        expect-obj-value
-        in-obj-value
-        obj-value-done      .
-
-    in-key
-        count end-code
-        
-    key-done
-        count period
-        count period gap-count
-        
-    gap-count
-        count period
-
-    expect-obj-value        
-        key-done colon
-        
-    in-obj-value  
-        expect-obj-value count end-code
-        
-    end-code                     reason why parsing stopped
-        halted              'H'     a client process halted the parsing
-        bad-byte            'X'     a byte was encountered that was not a legal token or value part
-        unexpected-token    'U'     a valid token is parsed, but in an unexpected place such as { true: 4 }
-        limit               'L'     buffer limit was reached                
-
-    period
-        .
-        
-    colon
-        :
-                
-    open-brace 
-        {                   object
-        [                   array
-        
-    count
-        non-zero-digit              
-        count any-digit    
-   
-basic array and root positions
-
-    > input                state
-
-    >                      -                    start
-    > [                    [-                   array start
-    > [ 1                  [.                   array value done
-    > [ 1,                 [+                   array expecting value
-    > [ 1, 2               [.                   array value done  
-    > [ 1, 2 ]             .                    value done.
-    > [ 1, 2 ],            +                    expecting value
-    > [ 1, 2 ], null       .                    value done
-    > [ 1, 2 ], null,      +                    expecting value
-    
-    etc...
-
-basic object states
-
-    > input                             state
-
-    > ''                                -                   start
-    > '{'                               {                   object start
-    > '{ "a"'                           {3                  object 3-byte key done
-    > '{ "a":'                          {3:                 object 3-byte key done, expecting value                      
-    > '{ "a": true                      {.                  object key and value done
-    > '{ "a": true,                     {+                  object expecting key              
-    > '{ "a": true, "bc"                {4                  object 4-byte key done 
-    > '{ "a": true, "bc" :              {4.1:               object 4-byte key + 1 space, expecting value
-    > '{ "a": true, "bc" :false         {.                  object key and value done    
-    > '{ "a": true, "bc" :false }       .                   value done   
-    
-
-
-bad-byte status. 'q' is used for the bad byte.  stack + position + 'X' indicate the location of the problem
-
-    > q                    -X                   after start
-    > [ q                  [-X                  after array start
-    > [ 1 q                [.X                  after array value done
-    > [ 1, q               [+X                  after array expecting value
-    > [ 1, 2 q             [.X                  after array value done  
-    > [ 1, 2 ] q           .X                   after value done
-    > [ 1, 2 ], q          +X                   after expecting value
-    
-
-errors within keys and values:
-
-    // L: buffer limit reached
-    > "ab                   3L                  3 byte truncated value
-    > [ "ab", "c            [2L                 array 2 byte truncated value
-    
-    // X: bad byte (within a value)
-    > trud                  3X                  3 valid bytes followed by a bad byte
-    > [ trud                [3X                 array 3 valid bytes followed by a bad byte
-
-    // X: bad byte (single)
-    > true, x               .X                  bad byte
-    > [ 1 q                 [.X                 array bad byte (expected value or 
-    > [ 1, q                [+X                 array bad byte 
-
-    
-
-clean object states (2 key-value pairs)
-
-    -                           start parsing.
-    {-                          object start. expecting key-value or object-end
-    {.                          key-value done.  expecting comma or object-end
-    {+                          got comma, expecting key-value
-    {.                          key-value done.  expecting comma or object-end
-    .                           object done, expecting comma or end-of-input
-   
-    
-truncated and split key-value states (no whitespace):
-    
-    {kT                         key truncated at k bytes, k > 0)
-    {k.                         key (complete) k bytes, no colon
-    {k:                         key k bytes, colon, (no value)
-    {k:v                        key k bytes, colon, value (truncated at v bytes, v > 0)
-
-truncated and split key-value states (with whitespace):
-    
-    {k.w                        key (k bytes) followed by w bytes of whitespace, k > 0, w > 0
-    {k.w:                       key (k bytes), w bytes of whitespace, colon *
-    {k.w:v                      key (k bytes), w bytes of whitespace, colon *, and value (truncated at v bytes)
-    
-    * whitespace may be before and/or after colon
-
-
-Examples   
-
-    -               just starting.  nothing parsed.
-    .               parsed one or more values, expecting end-of-input (or comma for csv values) 
-
-    [{-             inside array then object, expecting first key or object end
-    [{,             inside array then object, before a key-value pair, expecting a key
-    [{.             inside array then object, after a value, expecting a comma or object end
-    [{4.            inside array then object, 4 byte key complete, no whitespace           
-    [{4.1.          inside array then object, 4 byte key complete, 1 byte whitespace           
-    [{4.3:          inside array then object, 4 byte key followed by 3 bytes whitespace + colon           
-    [{4.3:          inside array then object, 4 byte key followed by 3 bytes whitespace + colon
-    [{4.3:7T        inside array then object, 4 byte key followed by 3 bytes whitespace + colon, truncated 7 byte value
-    
-    {[+             inside object then array, expecting a value
-    {[3T            inside object then array, truncated 3 byte value
-    
-   
-
-### Packet Series ###
-    
-A series of packets prepends two comma-delimited sections to the packet single information described
-above.  These sections track context counts and parsing state for split buffers.  Parse state handling
-is designed to handle any-length key or value such as very large strings, that span packets without 
-requiring data to be accumulated in memory.
-
-            
-Those are state representations with no prescient knowledge of updoming counts.   
-If total counts are known, colon-values may be used to show 'out-of' totals as in
-    
-    0:5         0 out of 5 total values
-    0:50        0 out of 50 total bytes
-    
-Which in the state string looks like this:
-    
-    0:5/0:50/{[/-
-
-    
