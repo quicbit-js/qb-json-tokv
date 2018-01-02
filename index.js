@@ -38,19 +38,50 @@ var TOK = {
   OBJ:      123,  // '{'
   OBJ_END:  125,  // '}'
 
+  // CAPITAL asciii is used for special start/end codes
+
   // start code
-  BEG: 66,          // 'B'  beginning of a buffer (starting to process)
+  BEG: 66,          // 'B'  (B)eginning of buffer (starting to parse buffer)
 
   // end-codes
-  LIM: 76,          // 'L'  parsed to src limit without error
-                    //      if voff != vlim, then parse state has a partial value (objects will have a key as well)
-                    //      else if koff != klim, then parse state has a key or partial key (check last quote to see)
-  STOP: 83,         // 'S'  client stopped the process by returning false before lim was reached
-  BAD_TOK: 84,      // 'T'  encountered token in wrong place/context
+  END: 69,          // 'E'  (End) of buffer (parsed to limit without error)
+                    //      if the 'incremental' option is set, then voff != vlim means that there is an unfinished
+                    //      value, and koff != klim means that there is an unfinished key.
+
+  // when there is an error, these tokens are returned parse-state (never as callback arguments)
+  UNEXPECTED: 85,   // 'U'  if encountered token in wrong place/context
   BAD_BYT: 88,      // 'X'  encountered invalid byte.  if voff != vlim, then the byte is considered part of a value
 }
 
-var TOK_TRUNCATED = 33  // ! internally used constant to flag truncated values
+// convert internal position code into public ascii code (with accurate position state instead of obj/arr context)
+// F - before first value or first key-value
+// J - before key, K - within key, L - after key
+// U - before val, V - within val, W - after val
+function pcode2pos (pcode, trunc) {
+  if (trunc) {
+    return (pcode === OBJ_BFK || pcode === OBJ_B_K) ? 'K' : 'V'
+  }
+  switch (pcode) {
+    case ARR_BFV: case OBJ_BFK: return 'F'
+    case ARR_B_V: case OBJ_B_V: return 'U'
+    case ARR_A_V: case OBJ_A_V: return 'W'
+    case OBJ_B_K: return 'J'
+    case OBJ_A_K: return 'L'
+  }
+}
+
+// convert public position ascii back to internal position code
+function pos2pcode (pos, in_obj) {
+  switch (pos) {
+    case 'F': return in_obj ? OBJ_BFK : ARR_BFV
+    case 'J': return OBJ_B_K
+    case 'K': err('cannot convert truncated key to valid start state'); break
+    case 'I': return OBJ_A_K
+    case 'U': return in_obj ? OBJ_B_V : ARR_B_V
+    case 'V': return in_obj ? OBJ_A_V : ARR_A_V
+    default: err('cannot convert pos ' + pos + ' to start state')
+  }
+}
 
 // create an int-int map from (pos + tok) -- to --> (new pos)
 function pos_map () {
@@ -109,7 +140,7 @@ var WHITESPACE = ascii_to_code('\b\f\n\t\r ', 1)
 var DELIM = ascii_to_code('\b\f\n\t\r ,:{}[]', 1)
 var DECIMAL_ASCII = ascii_to_code('-0123456789+.eE', 1)
 var TOK_BYTES = ascii_to_bytes({ f: 'false', t: 'true', n: 'null' })
-var VAL_TOKENS = ascii_to_code('sdtfn{}[]!XT', 1, [])       // tokens that use a value range (vlim > voff), including truncated values
+var VAL_TOKENS = ascii_to_code('sdtfn{}[]!XU', 1, [])       // tokens that use a value range (vlim > voff), including truncated values
 
 // skip as many bytes of src that match bsrc, up to lim.
 // return
@@ -155,7 +186,7 @@ function tokenize (parse_state, opt, cb) {
   var idx =     ps.vlim || voff         // current source offset
 
   var stack =   ps.stack || []          // ascii codes 91 and 123 for array / object depth
-  var pos0 =    ps.pos || ARR_BFV       // container context and relative position encoded as an int
+  var pos0 =    ps.pos && pos2pcode(ps.pos) || ARR_BFV   // container context and relative position encoded as an int
   var vcount =  ps.vcount || 0          // number of complete values parsed, such as STR, NUM or OBJ_END, but not counting OBJ_BEG or ARR_BEG.
 
   var in_obj =  stack[stack.length - 1] === 123
@@ -175,6 +206,8 @@ function tokenize (parse_state, opt, cb) {
   var decimal_ascii = DECIMAL_ASCII
   var whitespace = WHITESPACE
   var delim = DELIM
+  var trunc = false   // true for truncated (incomplete) key or value
+  var pcontext = 0
 
   var cb_continue = cb(src, 0, 0, TOK.BEG, idx, idx)                      // 'B' - BEGIN parse
   if (cb_continue) {
@@ -194,7 +227,7 @@ function tokenize (parse_state, opt, cb) {
         case 58:                                          // :    COLON
           pos1 = pmap[pos0 | tok]
           idx++
-          if (pos1 === 0) { voff = idx-1; tok = TOK.BAD_TOK; break main_loop }
+          if (pos1 === 0) { voff = idx-1; tok = TOK.UNEXPECTED; break main_loop }
           pos0 = pos1
           continue
 
@@ -204,11 +237,11 @@ function tokenize (parse_state, opt, cb) {
           voff = idx
           idx = skip_bytes(src, idx, lim, tok_bytes[tok])
           pos1 = pmap[pos0 | tok]
-          if (pos1 === 0) { idx = idx < 0 ? -idx : idx; tok = TOK.BAD_TOK; break main_loop }
+          if (pos1 === 0) { idx = idx < 0 ? -idx : idx; tok = TOK.UNEXPECTED; break main_loop }
           if (idx <= 0) {
             idx = -idx
-            if (idx === lim) { tok = TOK_TRUNCATED; break main_loop }
-            else { tok = TOK.BAD_BYT; break main_loop }  // include unexpected byte in value
+            if (idx === lim) { trunc = true; break main_loop }
+            else { trunc = true; tok = TOK.BAD_BYT; break main_loop }  // include unexpected byte in value
           }
           vcount++
           break
@@ -218,8 +251,8 @@ function tokenize (parse_state, opt, cb) {
           pos1 = pmap[pos0 | tok]
           tok = 115                                       // s for string
           idx = skip_str(src, idx + 1, lim)
-          if (pos1 === 0) { idx = idx === -1 ? lim : idx; tok = TOK.BAD_TOK; break main_loop }
-          else if (idx === -1) { idx = lim; tok = TOK_TRUNCATED; break main_loop }
+          if (pos1 === 0) { idx = idx === -1 ? lim : idx; tok = TOK.UNEXPECTED; break main_loop }
+          else if (idx === -1) { idx = lim; trunc = true; break main_loop }
 
           // key
           if (pos1 === obj_a_k) {
@@ -240,9 +273,9 @@ function tokenize (parse_state, opt, cb) {
           while (decimal_ascii[src[++idx]] === 1 && idx < lim) {}     // d (100) here means decimal-type ascii
 
           // for UNEXP_BYTE, the byte is included with the number to indicate it was encountered while parsing number.
-          if (pos1 === 0)                       { tok = TOK.BAD_TOK;  break main_loop }
-          else if (idx === lim)                 { tok = TOK_TRUNCATED;  break main_loop }     // *might* be truncated - handle below
-          else if (delim[src[idx]] === 0)       { tok = TOK.BAD_BYT;   break main_loop } // treat non-separating chars as bad byte
+          if (pos1 === 0)                       { tok = TOK.UNEXPECTED;  break main_loop }
+          else if (idx === lim)                 { trunc = true; break main_loop }                    // *might* be truncated - handle below
+          else if (delim[src[idx]] === 0)       { trunc = true; tok = TOK.BAD_BYT; break main_loop } // treat non-separating chars as bad byte
           vcount++
           break
 
@@ -252,7 +285,7 @@ function tokenize (parse_state, opt, cb) {
           in_obj = tok === 123
           pos1 = pmap[pos0 | tok]
           idx++
-          if (pos1 === 0) { tok = TOK.BAD_TOK; break main_loop }
+          if (pos1 === 0) { tok = TOK.UNEXPECTED; break main_loop }
           stack.push(tok)
           break
 
@@ -260,7 +293,8 @@ function tokenize (parse_state, opt, cb) {
           voff = idx
           in_obj = stack[stack.length - 2] === 123        // set before breaking loop
           idx++
-          if ((pos0 !== arr_bfv && pos0 !== arr_a_v) || stack.pop() !== 91) { tok = TOK.BAD_TOK; break main_loop }
+          if (pos0 !== arr_bfv && pos0 !== arr_a_v) { tok = TOK.UNEXPECTED; break main_loop }
+          pcontext = stack.pop()
           pos1 = in_obj ? obj_a_v : arr_a_v
           vcount++
           break
@@ -269,7 +303,8 @@ function tokenize (parse_state, opt, cb) {
           voff = idx
           in_obj = stack[stack.length - 2] === 123        // set before breaking loop
           idx++
-          if ((pos0 !== obj_bfk && pos0 !== obj_a_v) || stack.pop() !== 123) { tok = TOK.BAD_TOK; break main_loop }
+          if (pos0 !== obj_bfk && pos0 !== obj_a_v) { tok = TOK.UNEXPECTED; break main_loop }
+          pcontext = stack.pop()
           pos1 = in_obj ? obj_a_v : arr_a_v
           vcount++
           break
@@ -290,92 +325,87 @@ function tokenize (parse_state, opt, cb) {
     }  // end main_loop: while(vlim < lim) {...
   }
 
-  // capture parse state
-  ps = {
-    src: src,
-    off: off,
-    lim: lim,
-    vcount: vcount,
-    koff: koff,
-    klim: klim,
-    tok: tok,
-    voff: voff,
-    vlim: idx,
-    stack: stack,
-    pos: pos0,
-  }
+  var pcode = pcode2pos(pos0, trunc)
+  var is_err = tok === TOK.BAD_BYT || tok === TOK.UNEXPECTED
 
-  // clean up pending value
-  if (ps.voff !== ps.vlim) {
-    if (!VAL_TOKENS[ps.tok]) {
+  if (idx !== voff) {
+    if (!VAL_TOKENS[tok]) {
       // wipe out value ranges cased by whitespace, colon, comma etc.
-      ps.voff = ps.vlim
+      voff = idx
     } else {
       if (in_obj) {
         // finish moving value to key range
-        if (ps.koff === ps.klim) {
-          ps.koff = ps.voff
-          ps.klim = ps.vlim
-          ps.voff = ps.vlim
-        } else  if (ps.klim === ps.vlim) {
-          ps.voff = ps.vlim
+        if (koff === klim) {
+          koff = voff
+          klim = voff = idx
+        } else  if (klim === idx) {
+          voff =idx
         }
       }
     }
   }
 
+  // capture parse state
+  ps = {
+    src: src,
+    koff: koff,
+    klim: klim,
+    tok: is_err ? tok : TOK.END,
+    voff: voff,
+    vlim: idx,
+    vcount: vcount,
+    stack: stack,
+    pos: pcode,
+  }
+
   if (!cb_continue) {
-    ps.tok = TOK.STOP
     return ps
   }
 
-  if (ps.tok === TOK_TRUNCATED) {
-    ps.tok = TOK.LIM  // truncated is represented as TOK.LIM and vlim > voff.
-    if (DECIMAL_ASCII[ps.src[ps.voff]] && ps.stack.length === 0 && ps.vlim === ps.lim && (ps.pos === ARR_BFV || ps.pos === ARR_B_V)) {
+  if (ps.pos === 'V') {
+    if (DECIMAL_ASCII[ps.src[ps.voff]] && ps.stack.length === 0 && ps.vlim === lim) {
       // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
       // note - this means we won't be able to split no-context numbers outside of an array or object container,
       // which seems an acceptable limitation (i.e. use an array or object container if you wish to split values at any point)
       cb(ps.src, ps.koff, ps.klim, TOK.DEC, ps.voff, ps.vlim, null)
 
-      ps.pos = ARR_A_V
+      ps.pos = 'W'        // after value
       ps.voff = ps.vlim
     } else {
       opt.incremental || err('parsing ended on truncated value.  use option {incremental: true} to enable partial parsing', ps)
     }
-  } else if (ps.tok === TOK.BAD_BYT) {
+  }
+
+  if (ps.tok === TOK.BAD_BYT) {
     err('bad byte: ' + ps.src[ps.vlim], ps)
-  } else if (ps.tok === TOK.BAD_TOK) {
+  } else if (tok === TOK.UNEXPECTED) {
     err('unexpected token', ps)
   } else if (!opt.incremental && !parse_complete(ps)) {
-    ps.tok = TOK.LIM
     err('input was incomplete. use option {incremental: true} to enable partial parsing', ps)
-  } else {
-    // reached limit with some other valid token
-    ps.tok = TOK.LIM
-  }
+
+  }   // else reached limit with some other valid token
 
   cb(ps.src, ps.koff, ps.klim, ps.tok, ps.voff, ps.vlim, ps)
   return ps
 }
 
 function err (msg, ps) {
-  msg = msg || 'error while parsing.  details are in error.parse_state'
   var e = new Error(msg)
-  e.parse_state = ps
+  if (ps) {
+    e.parse_state = ps
+  }
   throw e
 }
 
 function parse_complete (ps) {
-  return ps.vlim === ps.lim &&
-    ps.stack.length === 0 &&
+  return ps.stack.length === 0 &&
     ps.koff === ps.klim &&
     ps.voff === ps.vlim &&
-    (ps.pos === ARR_BFV || ps.pos === ARR_A_V)
+    (ps.pos === 'F' || ps.pos === 'W')
 }
 
 module.exports = {
   tokenize: tokenize,
   TOK: TOK,
   DECIMAL_ASCII: DECIMAL_ASCII,
-  parse_complete: parse_complete,
 }
