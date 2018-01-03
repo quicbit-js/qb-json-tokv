@@ -171,23 +171,64 @@ function skip_str (src, off, lim) {
   return -1
 }
 
-function tokenize (parse_state, opt, cb) {
-  var ps = parse_state || {}
+function finish_string (ps, opt, cb) {
+  var i = skip_str(ps.src, ps.vlim, ps.lim)
+  if (i === -1) {
+    err('could not complete string', ps)
+  }
+  ps.vlim = i
+  if (ps.pos === 'K') {
+    ps.pos = 'L'
+  } else {
+    ps.pos = 'W'
+    if (ps.stack[ps.stack.length - 1] === 123) {
+      // in object
+
+      // cb(ps.src, ps.)
+    }
+  }
+}
+
+function finish_value (ps, opt, cb) {
+}
+
+function tokenize (ps, opt, cb) {
+  var nps = {
+    src:   ps.src || err('missing src parameter', ps),
+    off:   ps.off || 0,
+    lim:   ps.lim == null ? ps.src.length : ps.lim,
+    tok:   ps.tok  || 0,
+    koff:  ps.koff,
+    klim:  ps.klim,
+    voff:  ps.voff,
+    vlim:  ps.vlim,
+    stack: ps.stack || [],
+    pos:   ps.pos && pos2pcode(ps.pos) || ARR_BFV,
+    vcount: ps.vcount || 0,
+  }
+  // bump offsets (off <= koff <= klim <= voff <= vlim)
+  nps.koff = nps.koff || nps.off
+  nps.klim = nps.klim || nps.koff
+  nps.voff = nps.voff || nps.klim
+  nps.vlim = nps.vlim || nps.voff
+  // if (nps.pos === 'K' && !finish_string(nps, opt, cb)) { return nps }
+  // if (nps.pos === 'V' && !finish_value(nps, opt, cb)) { return nps }
+  return _tokenize(nps, opt, cb)
+}
+
+function _tokenize (ps, opt, cb) {
   opt = opt || {}
 
-  var src =     ps.src || err('missing src parameter', ps)
-  var off =     ps.off || 0
-  var lim =     ps.lim == null ? ps.src.length : ps.lim
-
-  var tok =     ps.tok  || 0            // current token/byte being handled
-  var koff =    ps.koff || off            // key offset
-  var klim =    ps.klim || koff         // key limit (exclusive)
-  var voff =    ps.voff || koff          // value start index
-  var idx =     ps.vlim || voff         // current source offset
-
-  var stack =   ps.stack || []          // ascii codes 91 and 123 for array / object depth
-  var pos0 =    ps.pos && pos2pcode(ps.pos) || ARR_BFV   // container context and relative position encoded as an int
-  var vcount =  ps.vcount || 0          // number of complete values parsed, such as STR, NUM or OBJ_END, but not counting OBJ_BEG or ARR_BEG.
+  var src =     ps.src
+  var lim =     ps.lim
+  var tok =     ps.tok          // current token/byte being handled
+  var koff =    ps.koff         // key offset
+  var klim =    ps.klim         // key limit (exclusive)
+  var voff =    ps.voff         // value start index
+  var idx =     ps.vlim         // current source offset
+  var stack =   ps.stack        // ascii codes 91 and 123 for array / object depth
+  var pos0 =    ps.pos          // container context and relative position encoded as an int
+  var vcount =  ps.vcount       // number of complete values parsed, such as STR, NUM or OBJ_END, but not counting OBJ_BEG or ARR_BEG.
 
   var in_obj =  stack[stack.length - 1] === 123
   var pos1 = pos0   // pos1 possibilities are:

@@ -270,20 +270,24 @@ test('incremental object - spaces', function (t) {
     }
   )
 })
-
+/*
 test('incremental processing', function (t) {
   t.table_assert([
     [ 'src',          'split',          'exp' ],
-    [ '"abc"',        0,                ['B@0,E@0', '0/0/F', 'B@0,s5@0,E@5', '5/1/W'] ],
+    // [ '"abc"',        0,                ['B@0,E@0', '0/0/F', 'B@0,s5@0,E@5', '5/1/W'] ],
+    [ '"abc"',        1,                ['B@0,E@0', '0/0/F', 'B@0,s5@0,E@5', '5/1/W'] ],
   ], function (src, split) {
     return parse_split(src, split, t)
   })
 })
+*/
 
 function parse_split (src, split, t) {
-  var r1 = record_parse(src.substring(0, split), {incremental: true}, t)
-  var r2 = record_parse(src.substring(split), {incremental: true}, t)
-  return r1.concat(r2)
+  var ps1 = {src: utf8.buffer(src.substring(0, split))}
+  var r1 = record_parse(ps1, {incremental: true}, t)
+  r1.ps.src = utf8.buffer(src.substring(split))
+  var r2 = record_parse(r1.ps, {incremental: true}, t)
+  return [ r1.args.join(','), pstate.encode(r1.ps), r2.args.join(','), pstate.encode(r2.ps) ]
 }
 
 function err (msg) { throw Error(msg) }
