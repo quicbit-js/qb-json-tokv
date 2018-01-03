@@ -24,7 +24,7 @@ test('tokenize', function (t) {
   t.tableAssert(
     [
       [ 'src',                                      'off', 'lim', 'exp' ],
-      // [ '',                                         0,     null,  [ 'B@0,E@0', '0/0/F' ] ],
+      [ '',                                         0,     null,  [ 'B@0,E@0', '0/0/F' ] ],
       [ '1',                                        0,     null,  [ 'B@0,d1@0,E@1', '1/0/W' ] ],
       [ '1,2,3',                                    0,     null,  [ 'd1@2,d1@4,E@5', '5/2/W' ] ],
       [ '[1, 2], 3',                                0,     null,  [ ']@5,d1@8,E@9', '9/3/W' ] ],
@@ -152,14 +152,11 @@ test('callback stop', function (t) {
   )
 })
 
-function parse (src, t) {
+function record_parse (ps_in, opt, t) {
   var hector = t.hector()
-  var cb = function (src, koff, klim, tok, voff, vlim, ps) {
-    hector(pstate.args2str(arguments))
-    return true
-  }
-  var ps = jtok.tokenize({src: utf8.buffer(src)}, {incremental: true}, cb)
-  return [ hector.arg(0).join(','), pstate.encode(ps) ]
+  var cb = function () { hector(pstate.args2str(arguments)); return true }
+  var ps_out = jtok.tokenize(ps_in, opt, cb)
+  return { args: hector.arg(0), ps: ps_out }
 }
 
 test('incremental object - no spaces', function (t) {
@@ -186,7 +183,8 @@ test('incremental object - no spaces', function (t) {
       [ '{"a":71,"b":2}', [ 'B@0,{@0,k3@1:d2@5,k3@8:d1@12,}@13,E@14', '14/3/W' ] ],
     ],
     function (src) {
-      return parse(src, t)
+      var r = record_parse({src: utf8.buffer(src)}, {incremental: true}, t)
+      return [ r.args.join(','), pstate.encode(r.ps) ]
     }
   )
 })
@@ -209,7 +207,8 @@ test('incremental array - no spaces', function (t) {
       [ '[83,"a",2]', [ 'B@0,[@0,d2@1,s3@4,d1@8,]@9,E@10', '10/4/W' ] ],
     ],
     function (src) {
-      return parse(src, t)
+      var r = record_parse({src: utf8.buffer(src)}, {incremental: true}, t)
+      return [ r.args.join(','), pstate.encode(r.ps) ]
     }
   )
 })
@@ -235,7 +234,8 @@ test('incremental array - spaces', function (t) {
       [ '[ 83, "a" , 2 ',  [ 'B@0,[@0,d2@2,s3@6,d1@12,E@14', '14/3/[W' ] ],
       [ '[ 83, "a" , 2 ]', [ 'B@0,[@0,d2@2,s3@6,d1@12,]@14,E@15', '15/4/W' ] ],    ],
     function (src) {
-      return parse(src, t)
+      var r = record_parse({src: utf8.buffer(src)}, {incremental: true}, t)
+      return [ r.args.join(','), pstate.encode(r.ps) ]
     }
   )
 })
@@ -265,39 +265,26 @@ test('incremental object - spaces', function (t) {
       [ ' { "a" : "x" }', [ 'B@0,{@1,k3@3:s3@9,}@13,E@14', '14/2/W' ] ],
     ],
     function (src) {
-      return parse(src, t)
+      var r = record_parse({src: utf8.buffer(src)}, {incremental: true}, t)
+      return [ r.args.join(','), pstate.encode(r.ps) ]
     }
   )
 })
 
+test('incremental processing', function (t) {
+  t.table_assert([
+    [ 'src',          'split',          'exp' ],
+    [ '"abc"',        0,                ['B@0,E@0', '0/0/F', 'B@0,s5@0,E@5', '5/1/W'] ],
+  ], function (src, split) {
+    return parse_split(src, split, t)
+  })
+})
+
+function parse_split (src, split, t) {
+  var r1 = record_parse(src.substring(0, split), {incremental: true}, t)
+  var r2 = record_parse(src.substring(split), {incremental: true}, t)
+  return r1.concat(r2)
+}
+
 function err (msg) { throw Error(msg) }
 
-// // parse string
-// function iparse(s1) {
-//
-// }
-//
-// function token_str (t, src, ps) {
-//   var hector = t.hector()
-//   var cb = function (src, koff, klim, tok, voff, vlim, ps) {
-//     hector(pstate.args2str(arguments))
-//     return true
-//   }
-//   var nps = jtok.tokenize({src: utf8.buffer(src), ps: ps}, {incremental: true}, cb)
-//   var tokens = hector.arg(0)
-//   tokens[0] === 'B@0' || err('expected begin token')
-//   t.last(tokens)[0] === 'L' || err('expected limit token: ' + t.last(tokens))
-//   return { tokens: hector.arg(0).slice(1,-1).join(','), ps: nps }
-// }
-//
-// test('incremental processing', function (t) {
-//   t.table_assert([
-//     [ 'src',          'i',              'exp' ],
-//     [ '"abc"',        0,                's5@0' ],
-//     [ '"abc"',        1,                's5@0' ],
-//   ], function (src, i) {
-//     var res1 =  token_str(t, src.substring(0,i))
-//
-//     var res2 = token_str(t, src.substring(i), res1.ps)
-//   })
-// })
