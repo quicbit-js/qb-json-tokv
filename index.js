@@ -106,7 +106,7 @@ function pos_map () {
     })
   }
 
-  var val = '"ntfd' // legal value starts plus 'd' for decimal token
+  var val = '"ntfd' // legal value starts (string, null, true, false, decimal)
 
   // 0 = no context (comma separated values)
   // (s0 ctxs +       s0 positions + tokens) -> s1
@@ -277,8 +277,7 @@ function tokenize (ps, opt, cb) {
           voff = idx
           pos1 = pmap[pos0 | tok]
           idx = skip_dec(src, idx + 1, lim)
-          // for UNEXP_BYTE, the byte is included with the number to indicate it was encountered while parsing number.
-          if (pos1 === 0) { tok = TOK.UNEXPECTED;  break main_loop }
+          if (pos1 === 0) { idx = idx < 0 ? -idx : idx; tok = TOK.UNEXPECTED;  break main_loop }
           if (idx <= 0) {
             idx = -idx
             trunc = true
@@ -411,8 +410,13 @@ function parse_complete (ps) {
     (ps.pos === 70 || ps.pos === 87)  // 'F' before first || 'W' after value
 }
 
+function endof (ps, src, off, lim) {
+
+}
+
 module.exports = {
   tokenize: tokenize,
+  endof: endof,
   TOK: TOK,
   DECIMAL_ASCII: DECIMAL_ASCII,
 }
