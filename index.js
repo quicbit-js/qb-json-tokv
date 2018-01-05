@@ -59,14 +59,14 @@ var TOK = {
 // U - before val, V - within val, W - after val
 function pcode2pos (pcode, trunc) {
   if (trunc) {
-    return (pcode === OBJ_BFK || pcode === OBJ_B_K) ? 'K' : 'V'
+    return (pcode === OBJ_BFK || pcode === OBJ_B_K) ? 75 : 86   // 'K' or 'V'
   }
   switch (pcode) {
-    case ARR_BFV: case OBJ_BFK: return 'F'
-    case ARR_B_V: case OBJ_B_V: return 'U'
-    case ARR_A_V: case OBJ_A_V: return 'W'
-    case OBJ_B_K: return 'J'
-    case OBJ_A_K: return 'L'
+    case ARR_BFV: case OBJ_BFK: return 70         // 'F'
+    case OBJ_B_K: return 74                       // 'J'
+    case OBJ_A_K: return 76                       // 'L'
+    case ARR_B_V: case OBJ_B_V: return 85         // 'U'
+    case ARR_A_V: case OBJ_A_V: return 87         // 'W'
   }
 }
 
@@ -74,17 +74,17 @@ function pcode2pos (pcode, trunc) {
 function pos2pcode (pos, in_obj) {
   if (in_obj) {
     switch (pos) {
-      case 'F': return OBJ_BFK
-      case 'J': return OBJ_B_K
-      case 'W': return OBJ_A_V
-      default: err('cannot restore object position "' + pos + '"')
+      case 70: return OBJ_BFK     // 'F'
+      case 74: return OBJ_B_K     // 'J'
+      case 87: return OBJ_A_V     // 'W'
+      default: err('cannot restore object position "' + String.fromCharCode(pos) + '"')
     }
   } else {
     switch (pos) {
-      case 'F': return ARR_BFV
-      case 'U': return ARR_B_V
-      case 'W': return ARR_A_V
-      default: err('cannot restore array position "' + pos + '"')
+      case 70: return ARR_BFV
+      case 85: return ARR_B_V
+      case 87: return ARR_A_V
+      default: err('cannot restore array position "' + String.fromCharCode(pos) + '"')
     }
   }
 }
@@ -117,7 +117,7 @@ function pos_map () {
   map([ARR_BFV, ARR_B_V, OBJ_B_V], '{',  OBJ_BFK)
 
   map([OBJ_A_V],            ',',  OBJ_B_K)
-  map([OBJ_BFK, OBJ_B_K],     '"',  OBJ_A_K)
+  map([OBJ_BFK, OBJ_B_K],   '"',  OBJ_A_K)
   map([OBJ_A_K],            ':',  OBJ_B_V)
   map([OBJ_B_V],            val,  OBJ_A_V)
 
@@ -364,12 +364,12 @@ function tokenize (ps, opt, cb) {
     return ps
   }
 
-  if (!opt.incremental && ps.pos === 'V') {
+  if (!opt.incremental && ps.pos === 86) {    // 'V' (in value)
       if (DECIMAL_ASCII[ps.src[ps.voff]] && ps.stack.length === 0 && ps.vlim === lim) {
         // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
         cb(ps.src, ps.koff, ps.klim, TOK.DEC, ps.voff, ps.vlim, null)
 
-        ps.pos = 'W'        // after value
+        ps.pos = 87        // 'W' (after value)
         ps.voff = ps.vlim
       } else {
         err('parsing ended on truncated value.  use option {incremental: true} to enable partial parsing', ps)
@@ -401,7 +401,7 @@ function parse_complete (ps) {
   return ps.stack.length === 0 &&
     ps.koff === ps.klim &&
     ps.voff === ps.vlim &&
-    (ps.pos === 'F' || ps.pos === 'W')
+    (ps.pos === 70 || ps.pos === 87)  // 'F' before first || 'W' after value
 }
 
 module.exports = {
