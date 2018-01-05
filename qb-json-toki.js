@@ -69,10 +69,6 @@ function finish_str (prev_src, ps, opt, cb) {
   ps.vlim = i
 }
 
-function skip_dec (ps, opt, cb) {
-
-}
-
 function finish_value (ps, opt, cb) {
   ps.next_src || err('missing next_src', ps)
   var len = ps.vlim - ps.voff

@@ -106,7 +106,7 @@ function pos_map () {
     })
   }
 
-  var val = '"ntf-0123456789' // all legal value starts (ascii)
+  var val = '"ntfd' // legal value starts plus 'd' for decimal token
 
   // 0 = no context (comma separated values)
   // (s0 ctxs +       s0 positions + tokens) -> s1
@@ -151,7 +151,7 @@ var VAL_TOKENS = ascii_to_code('sdtfn{}[]!XU', 1, [])       // tokens that use a
 // skip as many bytes of src that match bsrc, up to lim.
 // return
 //     i    the new index after all bytes are matched (past matched bytes)
-//    -i    (negative) the index of after first unmatched byte
+//    -i    (negative) the index of *after first unmatched byte*
 function skip_bytes (src, off, lim, bsrc) {
   var blen = bsrc.length
   if (blen > lim - off) { blen = lim - off }
@@ -175,6 +175,11 @@ function skip_str (src, off, lim) {
     }
   }
   return -1
+}
+
+function skip_dec (src, off, lim) {
+  while (off < lim && DECIMAL_ASCII[src[off]] === 1) { off++ }
+  return (off < lim && DELIM[src[off]] === 1) ? off : -off
 }
 
 function tokenize (ps, opt, cb) {
@@ -233,21 +238,6 @@ function tokenize (ps, opt, cb) {
           pos0 = pos1
           continue
 
-        case 102:                                         // f    false
-        case 110:                                         // n    null
-        case 116:                                         // t    true
-          voff = idx
-          idx = skip_bytes(src, idx, lim, tok_bytes[tok])
-          pos1 = pmap[pos0 | tok]
-          if (pos1 === 0) { idx = idx < 0 ? -idx : idx; tok = TOK.UNEXPECTED; break main_loop }
-          if (idx <= 0) {
-            idx = -idx
-            if (idx === lim) { trunc = true; break main_loop }
-            else { trunc = true; tok = TOK.BAD_BYT; break main_loop }  // include unexpected byte in value
-          }
-          vcount++
-          break
-
         case 34:                                          // "    QUOTE
           voff = idx
           pos1 = pmap[pos0 | tok]
@@ -266,35 +256,54 @@ function tokenize (ps, opt, cb) {
           vcount++
           break
 
+        case 102:                                         // f    false
+        case 110:                                         // n    null
+        case 116:                                         // t    true
+          voff = idx
+          pos1 = pmap[pos0 | tok]
+          idx = skip_bytes(src, idx, lim, tok_bytes[tok])
+          if (pos1 === 0) { idx = idx < 0 ? -idx : idx; tok = TOK.UNEXPECTED; break main_loop }
+          if (idx <= 0) {
+            idx = -idx
+            trunc = true
+            if (idx !== lim) { tok = TOK.BAD_BYT }
+            break main_loop
+          }
+          vcount++
+          break
+
         case 48:case 49:case 50:case 51:case 52:          // 0-4    digits
         case 53:case 54:case 55:case 56:case 57:          // 5-9    digits
         case 45:                                          // '-'    ('+' is not legal here)
+          tok = 100                                       // d   for decimal
           voff = idx
           pos1 = pmap[pos0 | tok]
-          tok = 100                                       // d   for decimal
-          while (decimal_ascii[src[++idx]] === 1 && idx < lim) {}     // d (100) here means decimal-type ascii
-
+          idx = skip_dec(src, idx + 1, lim)
           // for UNEXP_BYTE, the byte is included with the number to indicate it was encountered while parsing number.
           if (pos1 === 0)                       { tok = TOK.UNEXPECTED;  break main_loop }
-          else if (idx === lim)                 { trunc = true; break main_loop }                    // *might* be truncated - handle below
-          else if (delim[src[idx]] === 0)       { trunc = true; tok = TOK.BAD_BYT; break main_loop } // treat non-separating chars as bad byte
+          if (idx <= 0) {
+            idx = -idx
+            trunc = true
+            if (idx !== lim) { tok = TOK.BAD_BYT }
+            break main_loop
+          }
           vcount++
           break
 
         case 91:                                          // [    ARRAY START
         case 123:                                         // {    OBJECT START
           voff = idx
-          in_obj = tok === 123
-          pos1 = pmap[pos0 | tok]
           idx++
+          pos1 = pmap[pos0 | tok]
+          in_obj = tok === 123
           if (pos1 === 0) { tok = TOK.UNEXPECTED; break main_loop }
           stack.push(tok)
           break
 
         case 93:                                          // ]    ARRAY END
           voff = idx
-          in_obj = stack[stack.length - 2] === 123        // set before breaking loop
           idx++
+          in_obj = stack[stack.length - 2] === 123        // set before breaking loop
           if (pos0 !== arr_bfv && pos0 !== arr_a_v) { tok = TOK.UNEXPECTED; break main_loop }
           pcontext = stack.pop()
           pos1 = in_obj ? obj_a_v : arr_a_v
@@ -303,8 +312,8 @@ function tokenize (ps, opt, cb) {
 
         case 125:                                         // }    OBJECT END
           voff = idx
-          in_obj = stack[stack.length - 2] === 123        // set before breaking loop
           idx++
+          in_obj = stack[stack.length - 2] === 123        // set before breaking loop
           if (pos0 !== obj_bfk && pos0 !== obj_a_v) { tok = TOK.UNEXPECTED; break main_loop }
           pcontext = stack.pop()
           pos1 = in_obj ? obj_a_v : arr_a_v

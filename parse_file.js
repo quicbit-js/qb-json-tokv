@@ -22,7 +22,7 @@ TokTransform.prototype = {
     constructor: TokTransform,
     _transform: function (src, enc, cb) {
         if (src && src.length) {
-            jtok.tokenize(src, null, this.tokcb)
+            jtok.tokenize({src: src}, null, this.tokcb)
             this.state.bytes += src.length
             cb()
         }
@@ -48,10 +48,10 @@ var tok_count = 0
 var t0
 var tokcb = function (src, koff, klim, tok, voff, vlim, info) {
     switch (tok) {
-        case 40: //TOK.BEG:
+        case 66: //TOK.BEG:
             t0 = new Date()
             break
-        case 41: // TOK.END:
+        case 69: // TOK.END:
             console.log('callback end', (new Date() - t0)/1000, { tok_count: tok_count })
             break
         default:
