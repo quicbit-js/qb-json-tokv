@@ -210,9 +210,7 @@ function tokenize (ps, opt, cb) {
   var arr_bfv = ARR_BFV
   var arr_a_v = ARR_A_V
   var tok_bytes = TOK_BYTES
-  var decimal_ascii = DECIMAL_ASCII
   var whitespace = WHITESPACE
-  var delim = DELIM
   var trunc = false   // true for truncated (incomplete) key or value
   var pcontext = 0
 
