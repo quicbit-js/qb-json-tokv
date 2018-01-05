@@ -174,7 +174,7 @@ function skip_str (src, off, lim) {
       }
     }
   }
-  return -1
+  return -i
 }
 
 function skip_dec (src, off, lim) {
@@ -241,8 +241,13 @@ function tokenize (ps, opt, cb) {
           pos1 = pmap[pos0 | tok]
           tok = 115                                       // s for string
           idx = skip_str(src, idx + 1, lim)
-          if (pos1 === 0) { idx = idx === -1 ? lim : idx; tok = TOK.UNEXPECTED; break main_loop }
-          else if (idx === -1) { idx = lim; trunc = true; break main_loop }
+          if (pos1 === 0) { idx = idx < 0 ? -idx : idx; tok = TOK.UNEXPECTED; break main_loop }
+          if (idx <= 0) {
+            idx = -idx
+            trunc = true
+            if (idx !== lim) { tok = TOK.BAD_BYT }
+            break main_loop
+          }
 
           // key
           if (pos1 === obj_a_k) {
@@ -410,13 +415,13 @@ function parse_complete (ps) {
     (ps.pos === 70 || ps.pos === 87)  // 'F' before first || 'W' after value
 }
 
-function endof (ps, src, off, lim) {
+function value_end (src, off, lim, ps) {
 
 }
 
 module.exports = {
   tokenize: tokenize,
-  endof: endof,
+  value_end: value_end,
   TOK: TOK,
   DECIMAL_ASCII: DECIMAL_ASCII,
 }
