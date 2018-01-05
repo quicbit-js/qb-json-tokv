@@ -242,12 +242,7 @@ function tokenize (ps, opt, cb) {
           tok = 115                                       // s for string
           idx = skip_str(src, idx + 1, lim)
           if (pos1 === 0) { idx = idx < 0 ? -idx : idx; tok = TOK.UNEXPECTED; break main_loop }
-          if (idx <= 0) {
-            idx = -idx
-            trunc = true
-            if (idx !== lim) { tok = TOK.BAD_BYT }
-            break main_loop
-          }
+          if (idx <= 0) { idx = -idx; trunc = true; break main_loop }
 
           // key
           if (pos1 === obj_a_k) {
@@ -266,12 +261,7 @@ function tokenize (ps, opt, cb) {
           pos1 = pmap[pos0 | tok]
           idx = skip_bytes(src, idx, lim, tok_bytes[tok])
           if (pos1 === 0) { idx = idx < 0 ? -idx : idx; tok = TOK.UNEXPECTED; break main_loop }
-          if (idx <= 0) {
-            idx = -idx
-            trunc = true
-            if (idx !== lim) { tok = TOK.BAD_BYT }
-            break main_loop
-          }
+          if (idx <= 0) { idx = -idx; trunc = true; if (idx !== lim) { tok = TOK.BAD_BYT } break main_loop }
           vcount++
           break
 
@@ -283,12 +273,7 @@ function tokenize (ps, opt, cb) {
           pos1 = pmap[pos0 | tok]
           idx = skip_dec(src, idx + 1, lim)
           if (pos1 === 0) { idx = idx < 0 ? -idx : idx; tok = TOK.UNEXPECTED;  break main_loop }
-          if (idx <= 0) {
-            idx = -idx
-            trunc = true
-            if (idx !== lim) { tok = TOK.BAD_BYT }
-            break main_loop
-          }
+          if (idx <= 0) { idx = -idx; trunc = true; if (idx !== lim) { tok = TOK.BAD_BYT } break main_loop }
           vcount++
           break
 
