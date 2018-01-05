@@ -278,7 +278,7 @@ function tokenize (ps, opt, cb) {
           pos1 = pmap[pos0 | tok]
           idx = skip_dec(src, idx + 1, lim)
           // for UNEXP_BYTE, the byte is included with the number to indicate it was encountered while parsing number.
-          if (pos1 === 0)                       { tok = TOK.UNEXPECTED;  break main_loop }
+          if (pos1 === 0) { tok = TOK.UNEXPECTED;  break main_loop }
           if (idx <= 0) {
             idx = -idx
             trunc = true
