@@ -75,10 +75,9 @@ function pos2pcode (pos, in_obj) {
   switch (pos) {
     case 'F': return in_obj ? OBJ_BFK : ARR_BFV
     case 'J': return OBJ_B_K
-    case 'K': err('cannot convert truncated key to valid start state'); break
     case 'I': return OBJ_A_K
     case 'U': return in_obj ? OBJ_B_V : ARR_B_V
-    case 'V': return in_obj ? OBJ_A_V : ARR_A_V
+    case 'W': return in_obj ? OBJ_A_V : ARR_A_V
     default: err('cannot convert pos ' + pos + ' to start state')
   }
 }
@@ -171,25 +170,55 @@ function skip_str (src, off, lim) {
   return -1
 }
 
-function finish_string (ps, opt, cb) {
+function finish_str (prev_src, ps, opt, cb) {
   var i = skip_str(ps.src, ps.vlim, ps.lim)
   if (i === -1) {
     err('could not complete string', ps)
   }
   ps.vlim = i
+}
+
+function skip_dec (ps, opt, cb) {
+
+}
+
+function finish_value (ps, opt, cb) {
+  ps.next_src || err('missing next_src', ps)
+  var len = ps.vlim - ps.voff
+  len > 0 || err('beginning of value is missing')
+  var first = ps.src[ps.voff]
+  var vlim
+  if (first === 34) {
+    vlim = skip_str(ps, opt, cb)
+  } else if (TOK_BYTES[first]) {
+    var bsrc = TOK_BYTES[first].slice(len)
+    vlim = skip_bytes(ps, opt, cb, bsrc)
+  } else {
+    vlim = skip_dec(ps, opt, cb)
+  }
+  vlim >= 0 || err('could not complete value')
+
+  var off = (ps.pos === 'K') ? ps.koff : ps.voff
+
   if (ps.pos === 'K') {
     ps.pos = 'L'
   } else {
     ps.pos = 'W'
     if (ps.stack[ps.stack.length - 1] === 123) {
       // in object
-
+      concat()
       // cb(ps.src, ps.)
     }
   }
 }
 
-function finish_value (ps, opt, cb) {
+function concat (src1, off1, lim1, src2, off2, lim2) {
+  var len1 = lim1 - off1
+  var len2 = lim2 - off2
+  var ret = new Uint8Array(len1 + len2)
+  for (var i=0; i< len1; i++) { ret[i] = src1[i+off1] }
+  for (i=0; i<len2; i++) { ret[i+len1] = src2[i+off2] }
+  return ret
 }
 
 function tokenize (ps, opt, cb) {
@@ -203,7 +232,7 @@ function tokenize (ps, opt, cb) {
     voff:  ps.voff,
     vlim:  ps.vlim,
     stack: ps.stack || [],
-    pos:   ps.pos && pos2pcode(ps.pos) || ARR_BFV,
+    pos:   ps.pos,
     vcount: ps.vcount || 0,
   }
   // bump offsets (off <= koff <= klim <= voff <= vlim)
@@ -211,8 +240,7 @@ function tokenize (ps, opt, cb) {
   nps.klim = nps.klim || nps.koff
   nps.voff = nps.voff || nps.klim
   nps.vlim = nps.vlim || nps.voff
-  // if (nps.pos === 'K' && !finish_string(nps, opt, cb)) { return nps }
-  // if (nps.pos === 'V' && !finish_value(nps, opt, cb)) { return nps }
+  nps.pos = ps.pos && pos2pcode(ps.pos, nps.stack[nps.stack.length-1] === 123) || ARR_BFV
   return _tokenize(nps, opt, cb)
 }
 
@@ -232,9 +260,9 @@ function _tokenize (ps, opt, cb) {
 
   var in_obj =  stack[stack.length - 1] === 123
   var pos1 = pos0   // pos1 possibilities are:
-                        //    1. pos1 = 0;                    unsupported transition
-                        //    2. pos1 > 0, pos1 == pos0;      transition OK, value has been handled
-                        //    3. pos1 > 0, pos1 != pos0;      transition OK, value not yet handled
+                        //    pos1 == 0;                   unsupported transition
+                        //    pos1 > 0, pos1 == pos0;      transition OK, token has been handled
+                        //    pos1 > 0, pos1 != pos0;      transition OK, token not yet handled
 
   // localized constants for faster access
   var pmap = POS_MAP
@@ -360,7 +388,7 @@ function _tokenize (ps, opt, cb) {
       koff = klim
       voff = idx
       pos0 = pos1
-      if (cb_continue !== true && !cb_continue) {    // === check is slightly faster (node 6)
+      if (cb_continue !== true && !cb_continue) {    // (checking !== true is slightly faster in node 6)
         break
       }
     }  // end main_loop: while(vlim < lim) {...
@@ -403,18 +431,16 @@ function _tokenize (ps, opt, cb) {
     return ps
   }
 
-  if (ps.pos === 'V') {
-    if (DECIMAL_ASCII[ps.src[ps.voff]] && ps.stack.length === 0 && ps.vlim === lim) {
-      // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
-      // note - this means we won't be able to split no-context numbers outside of an array or object container,
-      // which seems an acceptable limitation (i.e. use an array or object container if you wish to split values at any point)
-      cb(ps.src, ps.koff, ps.klim, TOK.DEC, ps.voff, ps.vlim, null)
+  if (!opt.incremental && ps.pos === 'V') {
+      if (DECIMAL_ASCII[ps.src[ps.voff]] && ps.stack.length === 0 && ps.vlim === lim) {
+        // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
+        cb(ps.src, ps.koff, ps.klim, TOK.DEC, ps.voff, ps.vlim, null)
 
-      ps.pos = 'W'        // after value
-      ps.voff = ps.vlim
-    } else {
-      opt.incremental || err('parsing ended on truncated value.  use option {incremental: true} to enable partial parsing', ps)
-    }
+        ps.pos = 'W'        // after value
+        ps.voff = ps.vlim
+      } else {
+        err('parsing ended on truncated value.  use option {incremental: true} to enable partial parsing', ps)
+      }
   }
 
   if (ps.tok === TOK.BAD_BYT) {
