@@ -63,7 +63,14 @@ test('tokenize', function (t) {
   )
 })
 
-test('tokenize - errors', function (t) {
+test('errors', function (t) {
+  t.table_assert([
+    [ 'ps',                'opt',  'exp' ],
+    [ {},             null,        /missing src property/ ],
+  ], jtok.tokenize, {assert: 'throws'})
+})
+
+test('parse error state', function (t) {
   t.tableAssert(
     [
       [ 'input',            'exp' ],
@@ -152,7 +159,7 @@ test('callback stop', function (t) {
   )
 })
 
-function record_parse (ps_in, opt, t) {
+function capture_parse (ps_in, opt, t) {
   var hector = t.hector()
   var cb = function () { hector(pstate.args2str(arguments)); return true }
   var ps_out = jtok.tokenize(ps_in, opt, cb)
@@ -183,7 +190,7 @@ test('object - no spaces', function (t) {
       [ '{"a":71,"b":2}', [ 'B@0,{@0,k3@1:d2@5,k3@8:d1@12,}@13,E@14', '14/3/W' ] ],
     ],
     function (src) {
-      var r = record_parse({src: utf8.buffer(src)}, {incremental: true}, t)
+      var r = capture_parse({src: utf8.buffer(src)}, {incremental: true}, t)
       return [ r.args.join(','), pstate.encode(r.ps) ]
     }
   )
@@ -207,7 +214,7 @@ test('array - no spaces', function (t) {
       [ '[83,"a",2]', [ 'B@0,[@0,d2@1,s3@4,d1@8,]@9,E@10', '10/4/W' ] ],
     ],
     function (src) {
-      var r = record_parse({src: utf8.buffer(src)}, {incremental: true}, t)
+      var r = capture_parse({src: utf8.buffer(src)}, {incremental: true}, t)
       return [ r.args.join(','), pstate.encode(r.ps) ]
     }
   )
@@ -234,7 +241,7 @@ test('array - spaces', function (t) {
       [ '[ 83, "a" , 2 ',  [ 'B@0,[@0,d2@2,s3@6,d1@12,E@14', '14/3/[W' ] ],
       [ '[ 83, "a" , 2 ]', [ 'B@0,[@0,d2@2,s3@6,d1@12,]@14,E@15', '15/4/W' ] ],    ],
     function (src) {
-      var r = record_parse({src: utf8.buffer(src)}, {incremental: true}, t)
+      var r = capture_parse({src: utf8.buffer(src)}, {incremental: true}, t)
       return [ r.args.join(','), pstate.encode(r.ps) ]
     }
   )
@@ -265,7 +272,7 @@ test('object - spaces', function (t) {
       [ ' { "a" : "x" }', [ 'B@0,{@1,k3@3:s3@9,}@13,E@14', '14/2/W' ] ],
     ],
     function (src) {
-      var r = record_parse({src: utf8.buffer(src)}, {incremental: true}, t)
+      var r = capture_parse({src: utf8.buffer(src)}, {incremental: true}, t)
       return [ r.args.join(','), pstate.encode(r.ps) ]
     }
   )
@@ -334,17 +341,30 @@ test('incremental object', function (t) {
 })
 
 function parse_split (src1, src2, t) {
-  var r1 = record_parse({src: utf8.buffer(src1)}, {incremental: true}, t)
+  var r1 = capture_parse({src: utf8.buffer(src1)}, {incremental: true}, t)
   var ps1 = {
     src: utf8.buffer(src2),
     stack: r1.ps.stack,
     pos: r1.ps.pos,
     vcount: r1.ps.vcount,
   }
-  var r2 = record_parse(ps1, {incremental: true}, t)
+  var r2 = capture_parse(ps1, {incremental: true}, t)
   
   return [ r1.args.join(','), pstate.encode(r1.ps), r2.args.join(','), pstate.encode(r2.ps) ]
 }
 
+test('restore error', function (t) {
+  t.table_assert([
+    [ 'src1',                'src2',              'exp' ],
+    [ '1',                   ', "two"',           /cannot restore array position "V"/ ],
+    [ '1, "two',             '"',                 /cannot restore array position "V"/ ],
+    [ '1,{"a',               '":"one","b":[2]}',  /cannot restore object position "K"/ ],
+    [ '1,{"a"',              ':"one","b":[2]}',   /cannot restore object position "L"/ ],
+    [ '1,{"a":',             '"one","b":[2]}',    /cannot restore object position "U"/ ],
+    [ '1,{"a":"one',         '","b":[2]}',        /cannot restore object position "V"/ ],
+  ], function (src1, src2) {
+    parse_split(src1, src2, t)
+  }, {assert: 'throws'})
+})
 function err (msg) { throw Error(msg) }
 

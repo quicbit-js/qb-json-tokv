@@ -61,3 +61,53 @@ function init_from_prev(src, off, lim, prev, cb) {
 
 
 
+function finish_str (prev_src, ps, opt, cb) {
+  var i = skip_str(ps.src, ps.vlim, ps.lim)
+  if (i === -1) {
+    err('could not complete string', ps)
+  }
+  ps.vlim = i
+}
+
+function skip_dec (ps, opt, cb) {
+
+}
+
+function finish_value (ps, opt, cb) {
+  ps.next_src || err('missing next_src', ps)
+  var len = ps.vlim - ps.voff
+  len > 0 || err('beginning of value is missing')
+  var first = ps.src[ps.voff]
+  var vlim
+  if (first === 34) {
+    vlim = skip_str(ps, opt, cb)
+  } else if (TOK_BYTES[first]) {
+    var bsrc = TOK_BYTES[first].slice(len)
+    vlim = skip_bytes(ps, opt, cb, bsrc)
+  } else {
+    vlim = skip_dec(ps, opt, cb)
+  }
+  vlim >= 0 || err('could not complete value')
+
+  var off = (ps.pos === 'K') ? ps.koff : ps.voff
+
+  if (ps.pos === 'K') {
+    ps.pos = 'L'
+  } else {
+    ps.pos = 'W'
+    if (ps.stack[ps.stack.length - 1] === 123) {
+      // in object
+      concat()
+      // cb(ps.src, ps.)
+    }
+  }
+}
+
+function concat (src1, off1, lim1, src2, off2, lim2) {
+  var len1 = lim1 - off1
+  var len2 = lim2 - off2
+  var ret = new Uint8Array(len1 + len2)
+  for (var i=0; i< len1; i++) { ret[i] = src1[i+off1] }
+  for (i=0; i<len2; i++) { ret[i+len1] = src2[i+off2] }
+  return ret
+}

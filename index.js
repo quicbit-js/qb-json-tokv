@@ -72,13 +72,20 @@ function pcode2pos (pcode, trunc) {
 
 // convert public position ascii back to internal position code
 function pos2pcode (pos, in_obj) {
-  switch (pos) {
-    case 'F': return in_obj ? OBJ_BFK : ARR_BFV
-    case 'J': return OBJ_B_K
-    case 'I': return OBJ_A_K
-    case 'U': return in_obj ? OBJ_B_V : ARR_B_V
-    case 'W': return in_obj ? OBJ_A_V : ARR_A_V
-    default: err('cannot convert pos ' + pos + ' to start state')
+  if (in_obj) {
+    switch (pos) {
+      case 'F': return OBJ_BFK
+      case 'J': return OBJ_B_K
+      case 'W': return OBJ_A_V
+      default: err('cannot restore object position "' + pos + '"')
+    }
+  } else {
+    switch (pos) {
+      case 'F': return ARR_BFV
+      case 'U': return ARR_B_V
+      case 'W': return ARR_A_V
+      default: err('cannot restore array position "' + pos + '"')
+    }
   }
 }
 
@@ -170,95 +177,21 @@ function skip_str (src, off, lim) {
   return -1
 }
 
-function finish_str (prev_src, ps, opt, cb) {
-  var i = skip_str(ps.src, ps.vlim, ps.lim)
-  if (i === -1) {
-    err('could not complete string', ps)
-  }
-  ps.vlim = i
-}
-
-function skip_dec (ps, opt, cb) {
-
-}
-
-function finish_value (ps, opt, cb) {
-  ps.next_src || err('missing next_src', ps)
-  var len = ps.vlim - ps.voff
-  len > 0 || err('beginning of value is missing')
-  var first = ps.src[ps.voff]
-  var vlim
-  if (first === 34) {
-    vlim = skip_str(ps, opt, cb)
-  } else if (TOK_BYTES[first]) {
-    var bsrc = TOK_BYTES[first].slice(len)
-    vlim = skip_bytes(ps, opt, cb, bsrc)
-  } else {
-    vlim = skip_dec(ps, opt, cb)
-  }
-  vlim >= 0 || err('could not complete value')
-
-  var off = (ps.pos === 'K') ? ps.koff : ps.voff
-
-  if (ps.pos === 'K') {
-    ps.pos = 'L'
-  } else {
-    ps.pos = 'W'
-    if (ps.stack[ps.stack.length - 1] === 123) {
-      // in object
-      concat()
-      // cb(ps.src, ps.)
-    }
-  }
-}
-
-function concat (src1, off1, lim1, src2, off2, lim2) {
-  var len1 = lim1 - off1
-  var len2 = lim2 - off2
-  var ret = new Uint8Array(len1 + len2)
-  for (var i=0; i< len1; i++) { ret[i] = src1[i+off1] }
-  for (i=0; i<len2; i++) { ret[i+len1] = src2[i+off2] }
-  return ret
-}
-
 function tokenize (ps, opt, cb) {
-  var nps = {
-    src:   ps.src || err('missing src parameter', ps),
-    off:   ps.off || 0,
-    lim:   ps.lim == null ? ps.src.length : ps.lim,
-    tok:   ps.tok  || 0,
-    koff:  ps.koff,
-    klim:  ps.klim,
-    voff:  ps.voff,
-    vlim:  ps.vlim,
-    stack: ps.stack || [],
-    pos:   ps.pos,
-    vcount: ps.vcount || 0,
-  }
-  // bump offsets (off <= koff <= klim <= voff <= vlim)
-  nps.koff = nps.koff || nps.off
-  nps.klim = nps.klim || nps.koff
-  nps.voff = nps.voff || nps.klim
-  nps.vlim = nps.vlim || nps.voff
-  nps.pos = ps.pos && pos2pcode(ps.pos, nps.stack[nps.stack.length-1] === 123) || ARR_BFV
-  return _tokenize(nps, opt, cb)
-}
-
-function _tokenize (ps, opt, cb) {
   opt = opt || {}
 
-  var src =     ps.src
-  var lim =     ps.lim
-  var tok =     ps.tok          // current token/byte being handled
-  var koff =    ps.koff         // key offset
-  var klim =    ps.klim         // key limit (exclusive)
-  var voff =    ps.voff         // value start index
-  var idx =     ps.vlim         // current source offset
-  var stack =   ps.stack        // ascii codes 91 and 123 for array / object depth
-  var pos0 =    ps.pos          // container context and relative position encoded as an int
-  var vcount =  ps.vcount       // number of complete values parsed, such as STR, NUM or OBJ_END, but not counting OBJ_BEG or ARR_BEG.
+  var src =     ps.src || err('missing src property', ps)
+  var lim =     ps.lim == null ? ps.src.length : ps.lim
+  var tok =     ps.tok || 0                                         // token/byte being handled
+  var koff =    ps.koff || ps.off || 0                              // key offset
+  var klim =    ps.klim || koff                                     // key limit (exclusive)
+  var voff =    ps.voff || klim                                     // value start index
+  var idx =     ps.vlim || voff                                     // current source offset
 
+  var stack =   ps.stack || []  // ascii codes 91 and 123 for array / object depth
   var in_obj =  stack[stack.length - 1] === 123
+  var pos0 =    ps.pos && pos2pcode(ps.pos, in_obj) || ARR_BFV      // container context and relative position encoded as an int
+  var vcount =  ps.vcount || 0                                      // number of complete values parsed
   var pos1 = pos0   // pos1 possibilities are:
                         //    pos1 == 0;                   unsupported transition
                         //    pos1 > 0, pos1 == pos0;      transition OK, token has been handled
