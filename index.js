@@ -193,7 +193,7 @@ function tokenize (ps, opt, cb) {
   var voff =    ps.voff || klim                                     // value start index
   var idx =     ps.vlim || voff                                     // current source offset
 
-  var stack =   ps.stack || []  // ascii codes 91 and 123 for array / object depth
+  var stack =   ps.stack && ps.stack.slice() || []                  // ascii codes 91 and 123 for array / object depth
   var in_obj =  stack[stack.length - 1] === 123
   var pos0 =    ps.pos && pos2pcode(ps.pos, in_obj) || ARR_BFV      // container context and relative position encoded as an int
   var vcount =  ps.vcount || 0                                      // number of complete values parsed
