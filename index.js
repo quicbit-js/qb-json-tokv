@@ -148,13 +148,13 @@ function finish_fixed (ps) {
   else                    { ps.pos = pos1; return true }
 }
 
-function finish_str (ps) {
-  ps.vlim = skip_str(ps.src, ps.vlim, ps.lim)
-  var pos1 = POS_MAP[ps.pos | ps.tok]
-  if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED;  return false }
-  if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.trunc = true; if (ps.vlim !== ps.lim) { ps.tok = TOK.BAD_BYT } return false }
-  else                    { ps.pos = pos1; return true }
-}
+// function finish_str (ps) {
+//   ps.vlim = skip_str(ps.src, ps.vlim, ps.lim)
+//   var pos1 = POS_MAP[ps.pos | ps.tok]
+//   if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED;  return false }
+//   if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.trunc = true; if (ps.vlim !== ps.lim) { ps.tok = TOK.BAD_BYT } return false }
+//   else                    { ps.pos = pos1; return true }
+// }
 
 function skip_str (src, off, lim) {
   for (var i = off; i < lim; i++) {
@@ -177,6 +177,22 @@ function skip_dec (src, off, lim) {
   while (off < lim && DECIMAL_ASCII[src[off]] === 1) { off++ }
   return (off < lim && DELIM[src[off]] === 1) ? off : -off
 }
+
+// function finish (ps) {
+//   switch (ps.tok) {
+//     case 100:
+//       ps.vlim = skip_dec(ps.src, ps.vlim, ps.lim)
+//       break
+//     case 115:
+//       ps.vlim = skip_str(ps.src, ps.vlim, ps.lim)
+//       break
+//     case 102:
+//     case 110:
+//     case 116:
+//       ps.vlim = skip_str(ps.src, ps.vlim, ps.lim, TOK_BYTES[ps.tok])
+//       break
+//   }
+// }
 
 function tokenize (ps, opt, cb) {
   opt = opt || {}
@@ -235,12 +251,14 @@ function tokenize (ps, opt, cb) {
 
         case 34:                                          // "    QUOTE
           ps.tok = 115                                    // s for string
-          if (finish_str(ps)) {
+          ps.vlim = skip_str(ps.src, ps.vlim, ps.lim)
+          pos1 = POS_MAP[ps.pos | ps.tok]
+          if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED;  break main_loop }
+          if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.trunc = true; if (ps.vlim !== ps.lim) { ps.tok = TOK.BAD_BYT } break main_loop }
+          else                    {
+            ps.pos = pos1
             if (ps.pos === OBJ_A_K) { ps.koff = ps.voff; ps.klim = ps.vlim; continue }
             else { ps.vcount++; break }
-          }
-          else {
-            break main_loop
           }
 
         case 102:                                         // f    false
