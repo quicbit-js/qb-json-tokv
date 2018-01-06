@@ -132,6 +132,16 @@ function callback (ps, cb) {
   return cb_continue
 }
 
+function finish_dec (ps) {
+  ps.vlim = skip_dec(ps.src, ps.vlim, ps.lim)
+  var pos1 = POS_MAP[ps.pos | ps.tok]
+  if (pos1 === 0)        { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED;  return false }
+  else if (ps.vlim <= 0) { ps.vlim = -ps.vlim; ps.trunc = true; if (ps.vlim !== ps.lim) { ps.tok = TOK.BAD_BYT } return false }
+  ps.pos = pos1
+  ps.vcount++
+  return true
+}
+
 function finish_fixed (ps) {
   ps.vlim = skip_bytes(ps.src, ps.vlim, ps.lim, TOK_BYTES[ps.tok])
   var pos1 = POS_MAP[ps.pos | ps.tok]
@@ -227,7 +237,7 @@ function tokenize (ps, opt, cb) {
           continue
 
         case 34:                                          // "    QUOTE
-          ps.tok = 115                                    // s    string
+          ps.tok = 115                                    // s for string
           if (finish_str(ps)) {
             if (ps.pos === OBJ_A_K) { ps.koff = ps.voff; ps.klim = ps.vlim; continue }
             else { ps.vcount++; break }
@@ -245,14 +255,9 @@ function tokenize (ps, opt, cb) {
         case 48:case 49:case 50:case 51:case 52:          // 0-4    digits
         case 53:case 54:case 55:case 56:case 57:          // 5-9    digits
         case 45:                                          // '-'    ('+' is not legal here)
-          ps.tok = 100                                       // d   for decimal
-          ps.vlim = skip_dec(ps.src, ps.vlim, ps.lim)
-          pos1 = pmap[ps.pos | ps.tok]
-          if (pos1 === 0)        { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED;  break main_loop }
-          else if (ps.vlim <= 0) { ps.vlim = -ps.vlim; ps.trunc = true; if (ps.vlim !== ps.lim) { ps.tok = TOK.BAD_BYT } break main_loop }
-          ps.pos = pos1
-          ps.vcount++
-          break
+          ps.tok = 100                                    // d for decimal
+          if (finish_dec(ps)) { break }
+          else                { break main_loop }
 
         case 91:                                          // [    ARRAY START
         case 123:                                         // {    OBJECT START
