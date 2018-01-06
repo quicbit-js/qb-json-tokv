@@ -347,7 +347,7 @@ function parse_split (src1, src2, t) {
   var r1 = capture_parse({src: utf8.buffer(src1)}, {incremental: true}, t)
   var ps = {
     src: utf8.buffer(src2),
-    stack: r1.ps.stack,
+    stack: r1.ps.stack.slice(),
     pos: r1.ps.pos,
     vcount: r1.ps.vcount,
   }

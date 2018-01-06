@@ -149,18 +149,18 @@ function skip_dec (src, off, lim) {
 function tokenize (ps, opt, cb) {
   opt = opt || {}
 
-  var src =     ps.src || err('missing src property', ps)
+  ps.src = ps.src || err('missing src property', ps)
   ps.lim = ps.lim == null ? ps.src.length : ps.lim
   ps.tok =  ps.tok || 0                                // token/byte being handled
   ps.koff = ps.koff || ps.off || 0                     // key offset
   ps.klim = ps.klim || ps.koff                            // key limit (exclusive)
   ps.voff = ps.voff || ps.klim
   ps.vlim = ps.vlim || ps.voff
-
-  var stack =   ps.stack && ps.stack.slice() || []         // ascii codes 91 and 123 for array / object depth
-  var pos0 =    ps.pos || ARR_BFV                          // container context and relative position encoded as an int
-  var vcount =  ps.vcount || 0                             // number of complete values parsed
-  var pos1 = pos0   // pos1 possibilities are:
+  ps.stack = ps.stack || []                    // ascii codes 91 and 123 for array / object depth
+  ps.pos = ps.pos || ARR_BFV                          // container context and relative position encoded as an int
+  !ps.trunc || err('cannot handle truncated value')
+  ps.vcount = ps.vcount || 0                             // number of complete values parsed
+  var pos1 = ps.pos   // pos1 possibilities are:
                         //    pos1 == 0;                   unsupported transition
                         //    pos1 > 0, pos1 == pos0;      transition OK, token has been handled
                         //    pos1 > 0, pos1 != pos0;      transition OK, token not yet handled
@@ -174,19 +174,19 @@ function tokenize (ps, opt, cb) {
   var arr_a_v = ARR_A_V
   var tok_bytes = TOK_BYTES
   var whitespace = WHITESPACE
-  var trunc = false   // true for truncated (incomplete) key or value
+  ps.trunc = false   // true for truncated (incomplete) key or value
   var pcontext = 0
 
-  var cb_continue = cb(src, 0, 0, TOK.BEG, ps.vlim, ps.vlim, null)                      // 'B' - BEGIN parse
+  var cb_continue = cb(ps.src, 0, 0, TOK.BEG, ps.vlim, ps.vlim, null)                      // 'B' - BEGIN parse
   if (cb_continue) {
     // breaking main_loop before ps.vlim == lim means callback returned falsey or we have an error
     main_loop: while (ps.vlim < ps.lim) {
       ps.voff = ps.vlim
-      ps.tok = src[ps.vlim++]
+      ps.tok = ps.src[ps.vlim++]
       switch (ps.tok) {
         case 8: case 9: case 10: case 12: case 13: case 32:
-          if (whitespace[src[ps.vlim]] === 1 && ps.vlim < ps.lim) {             // 119 = 'w' whitespace
-            while (whitespace[src[++ps.vlim]] === 1 && ps.vlim < ps.lim) {}
+          if (whitespace[ps.src[ps.vlim]] === 1 && ps.vlim < ps.lim) {             // 119 = 'w' whitespace
+            while (whitespace[ps.src[++ps.vlim]] === 1 && ps.vlim < ps.lim) {}
           }
           continue
 
@@ -196,63 +196,63 @@ function tokenize (ps, opt, cb) {
 
         case 44:                                          // ,    COMMA
         case 58:                                          // :    COLON
-          pos1 = pmap[pos0 | ps.tok]
+          pos1 = pmap[ps.pos | ps.tok]
           if (pos1 === 0)             { ps.voff = ps.vlim-1; ps.tok = TOK.UNEXPECTED; break main_loop }
-          else                        { pos0 = pos1; continue }
+          else                        { ps.pos = pos1; continue }
 
         case 34:                                          // "    QUOTE
           ps.tok = 115                                       // s for string
-          ps.vlim = skip_str(src, ps.vlim, ps.lim)
-          pos1 = pmap[pos0 | ps.tok]
+          ps.vlim = skip_str(ps.src, ps.vlim, ps.lim)
+          pos1 = pmap[ps.pos | ps.tok]
           if (pos1 === 0)             { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED; break main_loop }
-          else if (ps.vlim <= 0)          { ps.vlim = -ps.vlim; trunc = true; break main_loop }
-          else if (pos1 === obj_a_k)  { ps.koff = ps.voff; ps.klim = ps.vlim; pos0 = pos1; continue }
-          else                        { vcount++; break }
+          else if (ps.vlim <= 0)          { ps.vlim = -ps.vlim; ps.trunc = true; break main_loop }
+          else if (pos1 === obj_a_k)  { ps.koff = ps.voff; ps.klim = ps.vlim; ps.pos = pos1; continue }
+          else                        { ps.vcount++; break }
 
         case 102:                                         // f    false
         case 110:                                         // n    null
         case 116:                                         // t    true
-          ps.vlim = skip_bytes(src, ps.vlim, ps.lim, tok_bytes[ps.tok])
-          pos1 = pmap[pos0 | ps.tok]
+          ps.vlim = skip_bytes(ps.src, ps.vlim, ps.lim, tok_bytes[ps.tok])
+          pos1 = pmap[ps.pos | ps.tok]
           if (pos1 === 0)             { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED; break main_loop }
-          else if (ps.vlim <= 0)          { ps.vlim = -ps.vlim; trunc = true; if (ps.vlim !== ps.lim) { ps.tok = TOK.BAD_BYT } break main_loop }
-          else                        { vcount++; break }
+          else if (ps.vlim <= 0)          { ps.vlim = -ps.vlim; ps.trunc = true; if (ps.vlim !== ps.lim) { ps.tok = TOK.BAD_BYT } break main_loop }
+          else                        { ps.vcount++; break }
 
         case 48:case 49:case 50:case 51:case 52:          // 0-4    digits
         case 53:case 54:case 55:case 56:case 57:          // 5-9    digits
         case 45:                                          // '-'    ('+' is not legal here)
           ps.tok = 100                                       // d   for decimal
-          ps.vlim = skip_dec(src, ps.vlim, ps.lim)
-          pos1 = pmap[pos0 | ps.tok]
+          ps.vlim = skip_dec(ps.src, ps.vlim, ps.lim)
+          pos1 = pmap[ps.pos | ps.tok]
           if (pos1 === 0)             { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED;  break main_loop }
-          else if (ps.vlim <= 0)          { ps.vlim = -ps.vlim; trunc = true; if (ps.vlim !== ps.lim) { ps.tok = TOK.BAD_BYT } break main_loop }
-          else                        { vcount++; break }
+          else if (ps.vlim <= 0)          { ps.vlim = -ps.vlim; ps.trunc = true; if (ps.vlim !== ps.lim) { ps.tok = TOK.BAD_BYT } break main_loop }
+          else                        { ps.vcount++; break }
 
         case 91:                                          // [    ARRAY START
         case 123:                                         // {    OBJECT START
-          pos1 = pmap[pos0 | ps.tok]
+          pos1 = pmap[ps.pos | ps.tok]
           if (pos1 === 0)             { ps.tok = TOK.UNEXPECTED; break main_loop }
-          else                        { stack.push(ps.tok); break }
+          else                        { ps.stack.push(ps.tok); break }
 
         case 93:                                          // ]    ARRAY END
-          if (pos0 !== arr_bfv && pos0 !== arr_a_v)
+          if (ps.pos !== arr_bfv && ps.pos !== arr_a_v)
                                       { ps.tok = TOK.UNEXPECTED; break main_loop }
-          else                        { pcontext = stack.pop(); pos1 = stack[stack.length - 1] === 123 ? obj_a_v : arr_a_v; vcount++; break }
+          else                        { pcontext = ps.stack.pop(); pos1 = ps.stack[ps.stack.length - 1] === 123 ? obj_a_v : arr_a_v; ps.vcount++; break }
 
         case 125:                                         // }    OBJECT END
-          if (pos0 !== obj_bfk && pos0 !== obj_a_v)
+          if (ps.pos !== obj_bfk && ps.pos !== obj_a_v)
                                       { ps.tok = TOK.UNEXPECTED; break main_loop }
-          else                        { pcontext = stack.pop(); pos1 = stack[stack.length - 1] === 123 ? obj_a_v : arr_a_v; vcount++; break }
+          else                        { pcontext = ps.stack.pop(); pos1 = ps.stack[ps.stack.length - 1] === 123 ? obj_a_v : arr_a_v; ps.vcount++; break }
 
         default:
           --ps.vlim;
                                       { ps.tok = TOK.BAD_BYT; break main_loop }
       }
-      // clean transition was made from pos0 to pos1
-      cb_continue = cb(src, ps.koff, ps.klim, ps.tok, ps.voff, ps.vlim, null)
+      // clean transition was made from ps.pos to pos1
+      cb_continue = cb(ps.src, ps.koff, ps.klim, ps.tok, ps.voff, ps.vlim, null)
       ps.koff = ps.klim
       ps.voff = ps.vlim
-      pos0 = pos1
+      ps.pos = pos1
       if (cb_continue !== true && !cb_continue) {    // (checking !== true is slightly faster in node 6)
         break
       }
@@ -266,7 +266,7 @@ function tokenize (ps, opt, cb) {
       // wipe out value ranges caused by whitespace, colon, comma etc.
       ps.voff = ps.vlim
     } else {
-      if (stack[stack.length - 1] === 123) {
+      if (ps.stack[ps.stack.length - 1] === 123) {
         // finish moving value to key range
         if (ps.koff === ps.klim) {
           ps.koff = ps.voff
@@ -281,16 +281,16 @@ function tokenize (ps, opt, cb) {
   var lim = ps.lim
   // capture parse state
   ps = {
-    src: src,
+    src: ps.src,
     koff: ps.koff,
     klim: ps.klim,
     tok: is_err ? ps.tok : TOK.END,
     voff: ps.voff,
     vlim: ps.vlim,
-    vcount: vcount,
-    stack: stack,
-    trunc: trunc,
-    pos: pos0,
+    vcount: ps.vcount,
+    stack: ps.stack,
+    trunc: ps.trunc,
+    pos: ps.pos,
   }
 
   if (!cb_continue) {
