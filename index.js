@@ -307,8 +307,6 @@ function tokenize (ps, opt, cb) {
     }  // end main_loop: while(ps.vlim < lim) {...
   }
 
-  var is_err = ps.tok === TOK.BAD_BYT || ps.tok === TOK.UNEXPECTED
-
   if (ps.vlim !== ps.voff) {
     if (!VAL_TOKENS[ps.tok]) {
       // wipe out value ranges caused by whitespace, colon, comma etc.
@@ -326,20 +324,9 @@ function tokenize (ps, opt, cb) {
     }
   }
 
+  ps.tok = ps.tok === TOK.BAD_BYT || ps.tok === TOK.UNEXPECTED ? ps.tok : TOK.END
+
   var lim = ps.lim
-  // capture parse state
-  ps = {
-    src: ps.src,
-    koff: ps.koff,
-    klim: ps.klim,
-    tok: is_err ? ps.tok : TOK.END,
-    voff: ps.voff,
-    vlim: ps.vlim,
-    vcount: ps.vcount,
-    stack: ps.stack,
-    trunc: ps.trunc,
-    pos: ps.pos,
-  }
 
   if (!cb_continue) {
     return ps
