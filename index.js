@@ -191,7 +191,7 @@ function tokenize (ps, opt, cb) {
   var koff =    ps.koff || ps.off || 0                              // key offset
   var klim =    ps.klim || koff                                     // key limit (exclusive)
   var voff =    ps.voff || klim                                     // value start index
-  var idx =     ps.vlim || voff                                     // current source offset
+  var vlim =    ps.vlim || voff                                    // current source offset
 
   var stack =   ps.stack && ps.stack.slice() || []                  // ascii codes 91 and 123 for array / object depth
   var pos0 =    ps.pos && pos2pcode(ps.pos, stack[stack.length - 1] === 123) || ARR_BFV      // container context and relative position encoded as an int
@@ -213,16 +213,16 @@ function tokenize (ps, opt, cb) {
   var trunc = false   // true for truncated (incomplete) key or value
   var pcontext = 0
 
-  var cb_continue = cb(src, 0, 0, TOK.BEG, idx, idx)                      // 'B' - BEGIN parse
+  var cb_continue = cb(src, 0, 0, TOK.BEG, vlim, vlim, null)                      // 'B' - BEGIN parse
   if (cb_continue) {
     // breaking main_loop before vlim == lim means callback returned falsey or we have an error
-    main_loop: while (idx < lim) {
-      voff = idx
-      tok = src[idx++]
+    main_loop: while (vlim < lim) {
+      voff = vlim
+      tok = src[vlim++]
       switch (tok) {
         case 8: case 9: case 10: case 12: case 13: case 32:
-          if (whitespace[src[idx]] === 1 && idx < lim) {             // 119 = 'w' whitespace
-            while (whitespace[src[++idx]] === 1 && idx < lim) {}
+          if (whitespace[src[vlim]] === 1 && vlim < lim) {             // 119 = 'w' whitespace
+            while (whitespace[src[++vlim]] === 1 && vlim < lim) {}
           }
           continue
 
@@ -233,35 +233,35 @@ function tokenize (ps, opt, cb) {
         case 44:                                          // ,    COMMA
         case 58:                                          // :    COLON
           pos1 = pmap[pos0 | tok]
-          if (pos1 === 0)             { voff = idx-1; tok = TOK.UNEXPECTED; break main_loop }
+          if (pos1 === 0)             { voff = vlim-1; tok = TOK.UNEXPECTED; break main_loop }
           else                        { pos0 = pos1; continue }
 
         case 34:                                          // "    QUOTE
           tok = 115                                       // s for string
-          idx = skip_str(src, idx, lim)
+          vlim = skip_str(src, vlim, lim)
           pos1 = pmap[pos0 | tok]
-          if (pos1 === 0)             { idx = idx < 0 ? -idx : idx; tok = TOK.UNEXPECTED; break main_loop }
-          else if (idx <= 0)          { idx = -idx; trunc = true; break main_loop }
-          else if (pos1 === obj_a_k)  { koff = voff; klim = idx; pos0 = pos1; continue }
+          if (pos1 === 0)             { vlim = vlim < 0 ? -vlim : vlim; tok = TOK.UNEXPECTED; break main_loop }
+          else if (vlim <= 0)          { vlim = -vlim; trunc = true; break main_loop }
+          else if (pos1 === obj_a_k)  { koff = voff; klim = vlim; pos0 = pos1; continue }
           else                        { vcount++; break }
 
         case 102:                                         // f    false
         case 110:                                         // n    null
         case 116:                                         // t    true
-          idx = skip_bytes(src, idx, lim, tok_bytes[tok])
+          vlim = skip_bytes(src, vlim, lim, tok_bytes[tok])
           pos1 = pmap[pos0 | tok]
-          if (pos1 === 0)             { idx = idx < 0 ? -idx : idx; tok = TOK.UNEXPECTED; break main_loop }
-          else if (idx <= 0)          { idx = -idx; trunc = true; if (idx !== lim) { tok = TOK.BAD_BYT } break main_loop }
+          if (pos1 === 0)             { vlim = vlim < 0 ? -vlim : vlim; tok = TOK.UNEXPECTED; break main_loop }
+          else if (vlim <= 0)          { vlim = -vlim; trunc = true; if (vlim !== lim) { tok = TOK.BAD_BYT } break main_loop }
           else                        { vcount++; break }
 
         case 48:case 49:case 50:case 51:case 52:          // 0-4    digits
         case 53:case 54:case 55:case 56:case 57:          // 5-9    digits
         case 45:                                          // '-'    ('+' is not legal here)
           tok = 100                                       // d   for decimal
-          idx = skip_dec(src, idx, lim)
+          vlim = skip_dec(src, vlim, lim)
           pos1 = pmap[pos0 | tok]
-          if (pos1 === 0)             { idx = idx < 0 ? -idx : idx; tok = TOK.UNEXPECTED;  break main_loop }
-          else if (idx <= 0)          { idx = -idx; trunc = true; if (idx !== lim) { tok = TOK.BAD_BYT } break main_loop }
+          if (pos1 === 0)             { vlim = vlim < 0 ? -vlim : vlim; tok = TOK.UNEXPECTED;  break main_loop }
+          else if (vlim <= 0)          { vlim = -vlim; trunc = true; if (vlim !== lim) { tok = TOK.BAD_BYT } break main_loop }
           else                        { vcount++; break }
 
         case 91:                                          // [    ARRAY START
@@ -281,13 +281,13 @@ function tokenize (ps, opt, cb) {
           else                        { pcontext = stack.pop(); pos1 = stack[stack.length - 1] === 123 ? obj_a_v : arr_a_v; vcount++; break }
 
         default:
-          --idx;
+          --vlim;
                                       { tok = TOK.BAD_BYT; break main_loop }
       }
       // clean transition was made from pos0 to pos1
-      cb_continue = cb(src, koff, klim, tok, voff, idx, null)
+      cb_continue = cb(src, koff, klim, tok, voff, vlim, null)
       koff = klim
-      voff = idx
+      voff = vlim
       pos0 = pos1
       if (cb_continue !== true && !cb_continue) {    // (checking !== true is slightly faster in node 6)
         break
@@ -298,18 +298,18 @@ function tokenize (ps, opt, cb) {
   var pcode = pcode2pos(pos0, trunc)
   var is_err = tok === TOK.BAD_BYT || tok === TOK.UNEXPECTED
 
-  if (idx !== voff) {
+  if (vlim !== voff) {
     if (!VAL_TOKENS[tok]) {
-      // wipe out value ranges cased by whitespace, colon, comma etc.
-      voff = idx
+      // wipe out value ranges caused by whitespace, colon, comma etc.
+      voff = vlim
     } else {
       if (stack[stack.length - 1] === 123) {
         // finish moving value to key range
         if (koff === klim) {
           koff = voff
-          klim = voff = idx
-        } else  if (klim === idx) {
-          voff =idx
+          klim = voff = vlim
+        } else  if (klim === vlim) {
+          voff =vlim
         }
       }
     }
@@ -322,7 +322,7 @@ function tokenize (ps, opt, cb) {
     klim: klim,
     tok: is_err ? tok : TOK.END,
     voff: voff,
-    vlim: idx,
+    vlim: vlim,
     vcount: vcount,
     stack: stack,
     pos: pcode,
