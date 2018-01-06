@@ -106,7 +106,7 @@ function pos_map () {
     })
   }
 
-  var val = '"ntfd' // legal value starts (string, null, true, false, decimal)
+  var val = 'ntfds' // legal value starts (null, true, false, decimal, string)
 
   // 0 = no context (comma separated values)
   // (s0 ctxs +       s0 positions + tokens) -> s1
@@ -117,7 +117,7 @@ function pos_map () {
   map([ARR_BFV, ARR_B_V, OBJ_B_V], '{',  OBJ_BFK)
 
   map([OBJ_A_V],            ',',  OBJ_B_K)
-  map([OBJ_BFK, OBJ_B_K],   '"',  OBJ_A_K)
+  map([OBJ_BFK, OBJ_B_K],   's',  OBJ_A_K)      // s = string
   map([OBJ_A_K],            ':',  OBJ_B_V)
   map([OBJ_B_V],            val,  OBJ_A_V)
 
@@ -145,7 +145,7 @@ function ascii_to_bytes (strings) {
 var WHITESPACE = ascii_to_code('\b\f\n\t\r ', 1)
 var DELIM = ascii_to_code('\b\f\n\t\r ,:{}[]', 1)
 var DECIMAL_ASCII = ascii_to_code('-0123456789+.eE', 1)
-var TOK_BYTES = ascii_to_bytes({ f: 'false', t: 'true', n: 'null' })
+var TOK_BYTES = ascii_to_bytes({ f: 'alse', t: 'rue', n: 'ull' })
 var VAL_TOKENS = ascii_to_code('sdtfn{}[]!XU', 1, [])       // tokens that use a value range (vlim > voff), including truncated values
 
 // skip as many bytes of src that match bsrc, up to lim.
@@ -238,9 +238,9 @@ function tokenize (ps, opt, cb) {
           else                        { pos0 = pos1; continue }
 
         case 34:                                          // "    QUOTE
+          tok = 115                                       // s for string
           voff = idx
           pos1 = pmap[pos0 | tok]
-          tok = 115                                       // s for string
           idx = skip_str(src, idx + 1, lim)
           if (pos1 === 0)             { idx = idx < 0 ? -idx : idx; tok = TOK.UNEXPECTED; break main_loop }
           else if (idx <= 0)          { idx = -idx; trunc = true; break main_loop }
@@ -252,7 +252,7 @@ function tokenize (ps, opt, cb) {
         case 116:                                         // t    true
           voff = idx
           pos1 = pmap[pos0 | tok]
-          idx = skip_bytes(src, idx, lim, tok_bytes[tok])
+          idx = skip_bytes(src, idx + 1, lim, tok_bytes[tok])
           if (pos1 === 0)             { idx = idx < 0 ? -idx : idx; tok = TOK.UNEXPECTED; break main_loop }
           else if (idx <= 0)          { idx = -idx; trunc = true; if (idx !== lim) { tok = TOK.BAD_BYT } break main_loop }
           else                        { vcount++; break }
@@ -385,13 +385,13 @@ function parse_complete (ps) {
     (ps.pos === 70 || ps.pos === 87)  // 'F' before first || 'W' after value
 }
 
-function value_end (src, off, lim, ps) {
+function next (src, off, lim, ps) {
 
 }
 
 module.exports = {
   tokenize: tokenize,
-  value_end: value_end,
+  next: next,
   TOK: TOK,
   DECIMAL_ASCII: DECIMAL_ASCII,
 }
