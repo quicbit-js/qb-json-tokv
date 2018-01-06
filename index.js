@@ -228,31 +228,24 @@ function tokenize (ps, opt, cb) {
 
         // placing (somewhat redundant) logic below this point allows fast skip of whitespace (above)
 
+        // the unconventional indention below aligns logic across case blocks to show similarities and highlight differences
+
         case 44:                                          // ,    COMMA
         case 58:                                          // :    COLON
           pos1 = pmap[pos0 | tok]
           idx++
-          if (pos1 === 0) { voff = idx-1; tok = TOK.UNEXPECTED; break main_loop }
-          pos0 = pos1
-          continue
+          if (pos1 === 0)             { voff = idx-1; tok = TOK.UNEXPECTED; break main_loop }
+          else                        { pos0 = pos1; continue }
 
         case 34:                                          // "    QUOTE
           voff = idx
           pos1 = pmap[pos0 | tok]
           tok = 115                                       // s for string
           idx = skip_str(src, idx + 1, lim)
-          if (pos1 === 0) { idx = idx < 0 ? -idx : idx; tok = TOK.UNEXPECTED; break main_loop }
-          if (idx <= 0) { idx = -idx; trunc = true; break main_loop }
-
-          // key
-          if (pos1 === obj_a_k) {
-            koff = voff
-            klim = idx
-            pos0 = pos1
-            continue
-          }
-          vcount++
-          break
+          if (pos1 === 0)             { idx = idx < 0 ? -idx : idx; tok = TOK.UNEXPECTED; break main_loop }
+          else if (idx <= 0)          { idx = -idx; trunc = true; break main_loop }
+          else if (pos1 === obj_a_k)  { koff = voff; klim = idx; pos0 = pos1; continue }
+          else                        { vcount++; break }
 
         case 102:                                         // f    false
         case 110:                                         // n    null
@@ -260,10 +253,9 @@ function tokenize (ps, opt, cb) {
           voff = idx
           pos1 = pmap[pos0 | tok]
           idx = skip_bytes(src, idx, lim, tok_bytes[tok])
-          if (pos1 === 0) { idx = idx < 0 ? -idx : idx; tok = TOK.UNEXPECTED; break main_loop }
-          if (idx <= 0) { idx = -idx; trunc = true; if (idx !== lim) { tok = TOK.BAD_BYT } break main_loop }
-          vcount++
-          break
+          if (pos1 === 0)             { idx = idx < 0 ? -idx : idx; tok = TOK.UNEXPECTED; break main_loop }
+          else if (idx <= 0)          { idx = -idx; trunc = true; if (idx !== lim) { tok = TOK.BAD_BYT } break main_loop }
+          else                        { vcount++; break }
 
         case 48:case 49:case 50:case 51:case 52:          // 0-4    digits
         case 53:case 54:case 55:case 56:case 57:          // 5-9    digits
@@ -272,10 +264,9 @@ function tokenize (ps, opt, cb) {
           voff = idx
           pos1 = pmap[pos0 | tok]
           idx = skip_dec(src, idx + 1, lim)
-          if (pos1 === 0) { idx = idx < 0 ? -idx : idx; tok = TOK.UNEXPECTED;  break main_loop }
-          if (idx <= 0) { idx = -idx; trunc = true; if (idx !== lim) { tok = TOK.BAD_BYT } break main_loop }
-          vcount++
-          break
+          if (pos1 === 0)             { idx = idx < 0 ? -idx : idx; tok = TOK.UNEXPECTED;  break main_loop }
+          else if (idx <= 0)          { idx = -idx; trunc = true; if (idx !== lim) { tok = TOK.BAD_BYT } break main_loop }
+          else                        { vcount++; break }
 
         case 91:                                          // [    ARRAY START
         case 123:                                         // {    OBJECT START
@@ -283,34 +274,28 @@ function tokenize (ps, opt, cb) {
           idx++
           pos1 = pmap[pos0 | tok]
           in_obj = tok === 123
-          if (pos1 === 0) { tok = TOK.UNEXPECTED; break main_loop }
-          stack.push(tok)
-          break
+          if (pos1 === 0)             { tok = TOK.UNEXPECTED; break main_loop }
+          else                        { stack.push(tok); break }
 
         case 93:                                          // ]    ARRAY END
           voff = idx
           idx++
           in_obj = stack[stack.length - 2] === 123        // set before breaking loop
-          if (pos0 !== arr_bfv && pos0 !== arr_a_v) { tok = TOK.UNEXPECTED; break main_loop }
-          pcontext = stack.pop()
-          pos1 = in_obj ? obj_a_v : arr_a_v
-          vcount++
-          break
+          if (pos0 !== arr_bfv && pos0 !== arr_a_v)
+                                      { tok = TOK.UNEXPECTED; break main_loop }
+          else                        { pcontext = stack.pop(); pos1 = in_obj ? obj_a_v : arr_a_v; vcount++; break }
 
         case 125:                                         // }    OBJECT END
           voff = idx
           idx++
           in_obj = stack[stack.length - 2] === 123        // set before breaking loop
-          if (pos0 !== obj_bfk && pos0 !== obj_a_v) { tok = TOK.UNEXPECTED; break main_loop }
-          pcontext = stack.pop()
-          pos1 = in_obj ? obj_a_v : arr_a_v
-          vcount++
-          break
+          if (pos0 !== obj_bfk && pos0 !== obj_a_v)
+                                      { tok = TOK.UNEXPECTED; break main_loop }
+          else                        { pcontext = stack.pop(); pos1 = in_obj ? obj_a_v : arr_a_v; vcount++; break }
 
         default:
-          voff = idx
-          tok = TOK.BAD_BYT                               // no value token starts with this byte
-          break main_loop
+          voff = idx;
+                                      { tok = TOK.BAD_BYT; break main_loop }
       }
       // clean transition was made from pos0 to pos1
       cb_continue = cb(src, koff, klim, tok, voff, idx, null)
