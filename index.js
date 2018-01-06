@@ -71,8 +71,11 @@ function pcode2pos (pcode, trunc) {
 }
 
 // convert public position ascii back to internal position code
-function pos2pcode (pos, in_obj) {
-  if (in_obj) {
+function pos2pcode (pos, stack) {
+  if (pos == null) {
+    return ARR_BFV
+  }
+  if (stack[stack.length - 1] === 123) {
     switch (pos) {
       case 70: return OBJ_BFK     // 'F'
       case 74: return OBJ_B_K     // 'J'
@@ -187,15 +190,15 @@ function tokenize (ps, opt, cb) {
 
   var src =     ps.src || err('missing src property', ps)
   var lim =     ps.lim == null ? ps.src.length : ps.lim
-  var tok =     ps.tok || 0                                         // token/byte being handled
-  var koff =    ps.koff || ps.off || 0                              // key offset
-  var klim =    ps.klim || koff                                     // key limit (exclusive)
-  var voff =    ps.voff || klim                                     // value start index
-  var vlim =    ps.vlim || voff                                    // current source offset
+  var tok =     ps.tok || 0                                // token/byte being handled
+  var koff =    ps.koff || ps.off || 0                     // key offset
+  var klim =    ps.klim || koff                            // key limit (exclusive)
+  var voff =    ps.voff || klim                            // value start index
+  var vlim =    ps.vlim || voff                            // current source offset
 
-  var stack =   ps.stack && ps.stack.slice() || []                  // ascii codes 91 and 123 for array / object depth
-  var pos0 =    ps.pos && pos2pcode(ps.pos, stack[stack.length - 1] === 123) || ARR_BFV      // container context and relative position encoded as an int
-  var vcount =  ps.vcount || 0                                      // number of complete values parsed
+  var stack =   ps.stack && ps.stack.slice() || []         // ascii codes 91 and 123 for array / object depth
+  var pos0 =    pos2pcode(ps.pos, ps.stack)                // container context and relative position encoded as an int
+  var vcount =  ps.vcount || 0                             // number of complete values parsed
   var pos1 = pos0   // pos1 possibilities are:
                         //    pos1 == 0;                   unsupported transition
                         //    pos1 > 0, pos1 == pos0;      transition OK, token has been handled
