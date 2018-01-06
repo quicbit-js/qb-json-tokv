@@ -217,6 +217,7 @@ function tokenize (ps, opt, cb) {
   if (cb_continue) {
     // breaking main_loop before vlim == lim means callback returned falsey or we have an error
     main_loop: while (idx < lim) {
+      voff = idx
       tok = src[idx++]
       switch (tok) {
         case 8: case 9: case 10: case 12: case 13: case 32:
@@ -237,7 +238,6 @@ function tokenize (ps, opt, cb) {
 
         case 34:                                          // "    QUOTE
           tok = 115                                       // s for string
-          voff = idx - 1
           idx = skip_str(src, idx, lim)
           pos1 = pmap[pos0 | tok]
           if (pos1 === 0)             { idx = idx < 0 ? -idx : idx; tok = TOK.UNEXPECTED; break main_loop }
@@ -248,7 +248,6 @@ function tokenize (ps, opt, cb) {
         case 102:                                         // f    false
         case 110:                                         // n    null
         case 116:                                         // t    true
-          voff = idx - 1
           idx = skip_bytes(src, idx, lim, tok_bytes[tok])
           pos1 = pmap[pos0 | tok]
           if (pos1 === 0)             { idx = idx < 0 ? -idx : idx; tok = TOK.UNEXPECTED; break main_loop }
@@ -259,7 +258,6 @@ function tokenize (ps, opt, cb) {
         case 53:case 54:case 55:case 56:case 57:          // 5-9    digits
         case 45:                                          // '-'    ('+' is not legal here)
           tok = 100                                       // d   for decimal
-          voff = idx - 1
           idx = skip_dec(src, idx, lim)
           pos1 = pmap[pos0 | tok]
           if (pos1 === 0)             { idx = idx < 0 ? -idx : idx; tok = TOK.UNEXPECTED;  break main_loop }
@@ -268,25 +266,22 @@ function tokenize (ps, opt, cb) {
 
         case 91:                                          // [    ARRAY START
         case 123:                                         // {    OBJECT START
-          voff = idx - 1
           pos1 = pmap[pos0 | tok]
           if (pos1 === 0)             { tok = TOK.UNEXPECTED; break main_loop }
           else                        { stack.push(tok); break }
 
         case 93:                                          // ]    ARRAY END
-          voff = idx - 1
           if (pos0 !== arr_bfv && pos0 !== arr_a_v)
                                       { tok = TOK.UNEXPECTED; break main_loop }
           else                        { pcontext = stack.pop(); pos1 = stack[stack.length - 1] === 123 ? obj_a_v : arr_a_v; vcount++; break }
 
         case 125:                                         // }    OBJECT END
-          voff = idx - 1
           if (pos0 !== obj_bfk && pos0 !== obj_a_v)
                                       { tok = TOK.UNEXPECTED; break main_loop }
           else                        { pcontext = stack.pop(); pos1 = stack[stack.length - 1] === 123 ? obj_a_v : arr_a_v; vcount++; break }
 
         default:
-          voff = --idx;
+          --idx;
                                       { tok = TOK.BAD_BYT; break main_loop }
       }
       // clean transition was made from pos0 to pos1
