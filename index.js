@@ -137,9 +137,7 @@ function finish_dec (ps) {
   var pos1 = POS_MAP[ps.pos | ps.tok]
   if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED;  return false }
   if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.trunc = true; if (ps.vlim !== ps.lim) { ps.tok = TOK.BAD_BYT } return false }
-  ps.pos = pos1
-  ps.vcount++
-  return true
+  else                    { ps.pos = pos1; ps.vcount++; return true }
 }
 
 function finish_fixed (ps) {
