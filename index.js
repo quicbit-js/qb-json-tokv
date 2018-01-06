@@ -231,16 +231,16 @@ function tokenize (ps, opt, cb) {
 
         case 44:                                          // ,    COMMA
         case 58:                                          // :    COLON
-          pos1 = pmap[pos0 | tok]
           idx++
+          pos1 = pmap[pos0 | tok]
           if (pos1 === 0)             { voff = idx-1; tok = TOK.UNEXPECTED; break main_loop }
           else                        { pos0 = pos1; continue }
 
         case 34:                                          // "    QUOTE
           tok = 115                                       // s for string
           voff = idx
-          pos1 = pmap[pos0 | tok]
           idx = skip_str(src, idx + 1, lim)
+          pos1 = pmap[pos0 | tok]
           if (pos1 === 0)             { idx = idx < 0 ? -idx : idx; tok = TOK.UNEXPECTED; break main_loop }
           else if (idx <= 0)          { idx = -idx; trunc = true; break main_loop }
           else if (pos1 === obj_a_k)  { koff = voff; klim = idx; pos0 = pos1; continue }
@@ -250,8 +250,8 @@ function tokenize (ps, opt, cb) {
         case 110:                                         // n    null
         case 116:                                         // t    true
           voff = idx
-          pos1 = pmap[pos0 | tok]
           idx = skip_bytes(src, idx + 1, lim, tok_bytes[tok])
+          pos1 = pmap[pos0 | tok]
           if (pos1 === 0)             { idx = idx < 0 ? -idx : idx; tok = TOK.UNEXPECTED; break main_loop }
           else if (idx <= 0)          { idx = -idx; trunc = true; if (idx !== lim) { tok = TOK.BAD_BYT } break main_loop }
           else                        { vcount++; break }
@@ -261,8 +261,8 @@ function tokenize (ps, opt, cb) {
         case 45:                                          // '-'    ('+' is not legal here)
           tok = 100                                       // d   for decimal
           voff = idx
-          pos1 = pmap[pos0 | tok]
           idx = skip_dec(src, idx + 1, lim)
+          pos1 = pmap[pos0 | tok]
           if (pos1 === 0)             { idx = idx < 0 ? -idx : idx; tok = TOK.UNEXPECTED;  break main_loop }
           else if (idx <= 0)          { idx = -idx; trunc = true; if (idx !== lim) { tok = TOK.BAD_BYT } break main_loop }
           else                        { vcount++; break }
