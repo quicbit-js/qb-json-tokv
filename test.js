@@ -356,18 +356,5 @@ function parse_split (src1, src2, t) {
   return [ r1.args.join(','), pstate.encode(r1.ps), r2.args.join(','), pstate.encode(r2.ps) ]
 }
 
-test('restore error', function (t) {
-  t.table_assert([
-    [ 'src1',                'src2',              'exp' ],
-    [ '1',                   ', "two"',           /cannot restore array position "V"/ ],
-    [ '1, "two',             '"',                 /cannot restore array position "V"/ ],
-    [ '1,{"a',               '":"one","b":[2]}',  /cannot restore object position "K"/ ],
-    [ '1,{"a"',              ':"one","b":[2]}',   /cannot restore object position "L"/ ],
-    [ '1,{"a":',             '"one","b":[2]}',    /cannot restore object position "U"/ ],
-    [ '1,{"a":"one',         '","b":[2]}',        /cannot restore object position "V"/ ],
-  ], function (src1, src2) {
-    parse_split(src1, src2, t)
-  }, {assert: 'throws'})
-})
 function err (msg) { throw Error(msg) }
 
