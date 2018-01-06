@@ -194,8 +194,7 @@ function tokenize (ps, opt, cb) {
   var idx =     ps.vlim || voff                                     // current source offset
 
   var stack =   ps.stack && ps.stack.slice() || []                  // ascii codes 91 and 123 for array / object depth
-  var in_obj =  stack[stack.length - 1] === 123
-  var pos0 =    ps.pos && pos2pcode(ps.pos, in_obj) || ARR_BFV      // container context and relative position encoded as an int
+  var pos0 =    ps.pos && pos2pcode(ps.pos, stack[stack.length - 1] === 123) || ARR_BFV      // container context and relative position encoded as an int
   var vcount =  ps.vcount || 0                                      // number of complete values parsed
   var pos1 = pos0   // pos1 possibilities are:
                         //    pos1 == 0;                   unsupported transition
@@ -273,25 +272,22 @@ function tokenize (ps, opt, cb) {
           voff = idx
           idx++
           pos1 = pmap[pos0 | tok]
-          in_obj = tok === 123
           if (pos1 === 0)             { tok = TOK.UNEXPECTED; break main_loop }
           else                        { stack.push(tok); break }
 
         case 93:                                          // ]    ARRAY END
           voff = idx
           idx++
-          in_obj = stack[stack.length - 2] === 123        // set before breaking loop
           if (pos0 !== arr_bfv && pos0 !== arr_a_v)
                                       { tok = TOK.UNEXPECTED; break main_loop }
-          else                        { pcontext = stack.pop(); pos1 = in_obj ? obj_a_v : arr_a_v; vcount++; break }
+          else                        { pcontext = stack.pop(); pos1 = stack[stack.length - 1] === 123 ? obj_a_v : arr_a_v; vcount++; break }
 
         case 125:                                         // }    OBJECT END
           voff = idx
           idx++
-          in_obj = stack[stack.length - 2] === 123        // set before breaking loop
           if (pos0 !== obj_bfk && pos0 !== obj_a_v)
                                       { tok = TOK.UNEXPECTED; break main_loop }
-          else                        { pcontext = stack.pop(); pos1 = in_obj ? obj_a_v : arr_a_v; vcount++; break }
+          else                        { pcontext = stack.pop(); pos1 = stack[stack.length - 1] === 123 ? obj_a_v : arr_a_v; vcount++; break }
 
         default:
           voff = idx;
@@ -316,7 +312,7 @@ function tokenize (ps, opt, cb) {
       // wipe out value ranges cased by whitespace, colon, comma etc.
       voff = idx
     } else {
-      if (in_obj) {
+      if (stack[stack.length - 1] === 123) {
         // finish moving value to key range
         if (koff === klim) {
           koff = voff
