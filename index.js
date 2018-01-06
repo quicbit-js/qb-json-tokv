@@ -324,9 +324,7 @@ function tokenize (ps, opt, cb) {
 
 function err (msg, ps) {
   var e = new Error(msg)
-  if (ps) {
-    e.parse_state = ps
-  }
+  e.parse_state = ps
   throw e
 }
 
