@@ -135,8 +135,8 @@ function callback (ps, cb) {
 function finish_dec (ps) {
   ps.vlim = skip_dec(ps.src, ps.vlim, ps.lim)
   var pos1 = POS_MAP[ps.pos | ps.tok]
-  if (pos1 === 0)        { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED;  return false }
-  else if (ps.vlim <= 0) { ps.vlim = -ps.vlim; ps.trunc = true; if (ps.vlim !== ps.lim) { ps.tok = TOK.BAD_BYT } return false }
+  if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED;  return false }
+  if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.trunc = true; if (ps.vlim !== ps.lim) { ps.tok = TOK.BAD_BYT } return false }
   ps.pos = pos1
   ps.vcount++
   return true
@@ -145,18 +145,17 @@ function finish_dec (ps) {
 function finish_fixed (ps) {
   ps.vlim = skip_bytes(ps.src, ps.vlim, ps.lim, TOK_BYTES[ps.tok])
   var pos1 = POS_MAP[ps.pos | ps.tok]
-  if (pos1 === 0)        { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED; return false }
-  else if (ps.vlim <= 0) { ps.vlim = -ps.vlim; ps.trunc = true; if (ps.vlim !== ps.lim) { ps.tok = TOK.BAD_BYT } return false }
-  else                   { ps.pos = pos1; ps.vcount++; return true }
+  if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED; return false }
+  if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.trunc = true; if (ps.vlim !== ps.lim) { ps.tok = TOK.BAD_BYT } return false }
+  else                    { ps.pos = pos1; ps.vcount++; return true }
 }
 
 function finish_str (ps) {
   ps.vlim = skip_str(ps.src, ps.vlim, ps.lim)
   var pos1 = POS_MAP[ps.pos | ps.tok]
-  if (pos1 === 0) { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED; return false }
-  if (ps.vlim <= 0)  { ps.vlim = -ps.vlim; ps.trunc = true; return false }
-  ps.pos = pos1
-  return true
+  if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED; return false }
+  if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.trunc = true; return false }
+  else                    { ps.pos = pos1; return true }
 }
 
 function skip_str (src, off, lim) {
