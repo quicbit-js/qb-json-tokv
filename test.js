@@ -24,7 +24,7 @@ test('tokenize', function (t) {
   t.tableAssert(
     [
       [ 'src',                                      'off', 'lim', 'exp' ],
-      // [ '',                                         0,     null,  [ 'B@0,E@0', '0/0/F' ] ],
+      [ '',                                         0,     null,  [ 'B@0,E@0', '0/0/F' ] ],
       [ '1',                                        0,     null,  [ 'B@0,d1@0,E@1', '1/0/W' ] ],
       [ '1,2,3',                                    0,     null,  [ 'd1@2,d1@4,E@5', '5/2/W' ] ],
       [ '[1, 2], 3',                                0,     null,  [ ']@5,d1@8,E@9', '9/3/W' ] ],
@@ -33,6 +33,7 @@ test('tokenize', function (t) {
       [ '-3.05',                                    1,     null,  [ 'B@1,d4@1,E@5', '5/0/W' ] ],
       [ '\b  true',                                 0,     null,  [ 'B@0,t@3,E@7', '7/1/W' ] ],
       [ '  true',                                   0,     null,  [ 'B@0,t@2,E@6', '6/1/W' ] ],
+      [ 'false',                                    0,     null,  [ 'B@0,f@0,E@5', '5/1/W' ] ],
       [ ' false  ',                                 0,     null,  [ 'B@0,f@1,E@8', '8/1/W' ] ],
       [ ' false   ',                                1,     null,  [ 'B@1,f@1,E@9', '9/1/W' ] ],
       [ '[1, 2, 3]',                                0,     null,  [ 'd1@7,]@8,E@9', '9/4/W' ] ],
@@ -52,13 +53,13 @@ test('tokenize', function (t) {
       [ '["a",1.3,\n\t{ "b" : ["v", "w"]\n}\t\n ]', null,  null,  [ '}@30,]@34,E@35', '35/7/W' ] ],
     ],
     function (input, off, lim) {
-      var hector = t.hector()
-      var cb = function (src, koff, klim, tok, voff, vlim, ps) {
-        hector(pstate.args2str(arguments))
+      var toks = []
+      var cb = function (ps) {
+        toks.push(pstate.tokstr(ps))
         return true
       }
       var ret_ps = jtok.tokenize({src: utf8.buffer(input), off: off, lim: lim}, null, cb)
-      return [ hector.arg(0).slice(-3).join(','), pstate.encode(ret_ps) ]
+      return [ toks.slice(-3).join(','), pstate.encode(ret_ps) ]
     }
   )
 })
@@ -122,16 +123,16 @@ test('parse error state', function (t) {
       [ '[ 1, 2 ] "c"',     [ 'd1@2,d1@5,]@7',      '12/3/W!U' ] ],
     ],
     function (src) {
-      var hector = t.hector()
-      var cb = function (src, koff, klim, tok, voff, vlim, ps) {
-        hector(pstate.args2str(arguments))
+      var toks = []
+      var cb = function (ps) {
+        toks.push(pstate.tokstr(ps))
         return true
       }
       // jtok.tokenize({src: utf8.buffer(src)}, null, cb)
       try {
         jtok.tokenize({src: utf8.buffer(src)}, null, cb)
       } catch (e) {
-        return [ hector.arg(0).slice(-3).join(','), pstate.encode(e.parse_state) ]
+        return [ toks.slice(-3).join(','), pstate.encode(e.parse_state) ]
       }
     }
   )
@@ -151,9 +152,8 @@ test('callback stop', function (t) {
     function (src, at_cb, ret) {
       var count = 0
       var hector = t.hector()
-      var cb = function (src, koff, klim, tok, voff, vlim, ps) {
-        hector(pstate.args2str(arguments))
-        if (ps && tok !== TOK.BEG) { err('stopped callback should not have an end/ps call') }
+      var cb = function (ps) {
+        hector(pstate.tokstr(ps))
         return (count++ === at_cb) ? ret : true
       }
       var ps = jtok.tokenize({src: utf8.buffer(src)}, {incremental: true}, cb)
@@ -164,7 +164,7 @@ test('callback stop', function (t) {
 
 function capture_parse (ps_in, opt, t) {
   var hector = t.hector()
-  var cb = function () { hector(pstate.args2str(arguments)); return true }
+  var cb = function (ps) { hector(pstate.tokstr(ps)); return true }
   var ps_out = jtok.tokenize(ps_in, opt, cb)
   return { args: hector.arg(0), ps: ps_out }
 }
