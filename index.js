@@ -205,7 +205,7 @@ function init (ps) {
 function next (ps) {
   ps.koff = ps.klim
   var pos1 = ps.pos
-  main_loop: while (ps.vlim < ps.lim) {
+  while (ps.vlim < ps.lim) {
     ps.voff = ps.vlim
     ps.tok = ps.src[ps.vlim++]
     switch (ps.tok) {
@@ -276,19 +276,13 @@ function tokenize (ps, opt, cb) {
   opt = opt || {}
 
   /*
-
-var pos1 = ps.pos   // pos1 possibilities are:
-                      //    pos1 == 0;                   unsupported transition
-                      //    pos1 > 0, pos1 == pos0;      transition OK, token has been handled
-                      //    pos1 > 0, pos1 != pos0;      transition OK, token not yet handled
-
-// localized constants for faster access
-var pmap = POS_MAP
-var obj_bfk = OBJ_BFK
-var obj_a_v = OBJ_A_V
-var arr_bfv = ARR_BFV
-var arr_a_v = ARR_A_V
-var whitespace = WHITESPACE
+  // localized constants for faster access
+  var pmap = POS_MAP
+  var obj_bfk = OBJ_BFK
+  var obj_a_v = OBJ_A_V
+  var arr_bfv = ARR_BFV
+  var arr_a_v = ARR_A_V
+  var whitespace = WHITESPACE
 
   // breaking main_loop before ps.vlim == lim means callback returned falsey or we have an error
   main_loop: while (ps.vlim < ps.lim) {
@@ -371,8 +365,8 @@ var whitespace = WHITESPACE
 }
 */
   var cb_continue = cb(ps)                      // 'B' - BEGIN parse
-  while (cb_continue && ps.vlim < ps.lim) {
-    if (next(ps)) {
+  while ((cb_continue === true || cb_continue) && ps.vlim < ps.lim) {
+    if (next(ps) === true) {
       cb_continue = cb(ps)
       ps.koff = ps.klim
       ps.voff = ps.vlim
