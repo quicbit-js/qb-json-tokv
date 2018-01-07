@@ -3,7 +3,6 @@ var util = require('util')
 var fs = require('fs')
 
 var jtok = require('.')
-var TOK = jtok.TOK
 
 function TokTransform(tokcb, stream_opt) {
     this.tokcb = tokcb
@@ -46,20 +45,23 @@ function parse_file (path, tokcb, stream_opt) {
 
 var tok_count = 0
 var t0
-var tokcb = function (src, koff, klim, tok, voff, vlim, info) {
-    switch (tok) {
+var tokcb = function (ps) {
+    switch (ps.tok) {
         case 66: //TOK.BEG:
             t0 = new Date()
             break
         case 69: // TOK.END:
             console.log('callback end', (new Date() - t0)/1000, { tok_count: tok_count })
             break
+        case 85: // U
+        case 88: // X
+            console.err('error: ' + JSON.stringify(ps))
+            break
         default:
             tok_count++
     }
     return true
 }
-
 // var tok_count = 0
 // var t0
 // var tokcb = function (src, rcount, results, info) {

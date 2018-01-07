@@ -124,14 +124,6 @@ function skip_bytes (src, off, lim, bsrc) {
   return blen === bsrc.length ? i + off : -(i + off)
 }
 
-function callback (ps, cb) {
-  // clean transition was made from ps.pos to pos1
-  var cb_continue = cb(ps.src, ps.koff, ps.klim, ps.tok, ps.voff, ps.vlim, null)
-  ps.koff = ps.klim
-  ps.voff = ps.vlim
-  return cb_continue
-}
-
 function finish_dec (ps) {
   ps.vlim = skip_dec(ps.src, ps.vlim, ps.lim)
   var pos1 = POS_MAP[ps.pos | ps.tok]
@@ -199,7 +191,7 @@ function tokenize (ps, opt, cb) {
 
   ps.src = ps.src || err('missing src property', ps)
   ps.lim = ps.lim == null ? ps.src.length : ps.lim
-  ps.tok =  ps.tok || 0                                // token/byte being handled
+  ps.tok =  ps.tok || TOK.BEG                                // token/byte being handled
   ps.koff = ps.koff || ps.off || 0                     // key offset
   ps.klim = ps.klim || ps.koff                            // key limit (exclusive)
   ps.voff = ps.voff || ps.klim
@@ -216,16 +208,14 @@ function tokenize (ps, opt, cb) {
   // localized constants for faster access
   var pmap = POS_MAP
   var obj_bfk = OBJ_BFK
-  var obj_a_k = OBJ_A_K
   var obj_a_v = OBJ_A_V
   var arr_bfv = ARR_BFV
   var arr_a_v = ARR_A_V
-  var tok_bytes = TOK_BYTES
   var whitespace = WHITESPACE
   ps.trunc = false   // true for truncated (incomplete) key or value
   var pcontext = 0
 
-  var cb_continue = cb(ps.src, 0, 0, TOK.BEG, ps.vlim, ps.vlim, null)                      // 'B' - BEGIN parse
+  var cb_continue = cb(ps)                      // 'B' - BEGIN parse
   if (cb_continue) {
     // breaking main_loop before ps.vlim == lim means callback returned falsey or we have an error
     main_loop: while (ps.vlim < ps.lim) {
@@ -298,7 +288,7 @@ function tokenize (ps, opt, cb) {
                                       { ps.tok = TOK.BAD_BYT; break main_loop }
       }
       // clean transition was made from ps.pos to pos1
-      cb_continue = cb(ps.src, ps.koff, ps.klim, ps.tok, ps.voff, ps.vlim, null)
+      cb_continue = cb(ps)
       ps.koff = ps.klim
       ps.voff = ps.vlim
       if (cb_continue !== true && !cb_continue) {    // (checking !== true is slightly faster in node 6)
@@ -326,22 +316,22 @@ function tokenize (ps, opt, cb) {
 
   ps.tok = ps.tok === TOK.BAD_BYT || ps.tok === TOK.UNEXPECTED ? ps.tok : TOK.END
 
-  var lim = ps.lim
-
   if (!cb_continue) {
     return ps
   }
 
   if (!opt.incremental && ps.trunc) {
-      if (DECIMAL_ASCII[ps.src[ps.voff]] && ps.stack.length === 0 && ps.vlim === lim) {
+      if (DECIMAL_ASCII[ps.src[ps.voff]] && ps.stack.length === 0 && ps.vlim === ps.lim) {
         // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
-        cb(ps.src, ps.koff, ps.klim, TOK.DEC, ps.voff, ps.vlim, null)
-
+        var prevtok = ps.tok
+        ps.tok = TOK.DEC
+        cb(ps)
+        ps.tok = prevtok
         ps.pos = ARR_A_V
         ps.trunc = false
         ps.voff = ps.vlim
       } else {
-        err('parsing ended on truncated value.  use option {incremental: true} to enable partial parsing', ps)
+        err('input was incomplete. use option {incremental: true} to enable partial parsing', ps)
       }
   }
 
@@ -354,7 +344,7 @@ function tokenize (ps, opt, cb) {
 
   }   // else reached limit with some other valid token
 
-  cb(ps.src, ps.koff, ps.klim, ps.tok, ps.voff, ps.vlim, ps)
+  cb(ps)
   return ps
 }
 
