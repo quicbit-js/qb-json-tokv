@@ -303,8 +303,6 @@ function tokenize (ps, opt, cb) {
 
   finish_ps(ps)
 
-  ps.tok = ps.tok === TOK.BAD_BYT || ps.tok === TOK.UNEXPECTED ? ps.tok : TOK.END
-
   if (cb_continue) {
     if (!opt.incremental && ps.trunc) {
       if (DECIMAL_ASCII[ps.src[ps.voff]] && ps.stack.length === 0 && ps.vlim === ps.lim) {
@@ -353,6 +351,7 @@ function finish_ps (ps) {
       }
     }
   }
+  ps.tok = ps.tok === TOK.BAD_BYT || ps.tok === TOK.UNEXPECTED ? ps.tok : TOK.END
 }
 
 function err (msg, ps) {
