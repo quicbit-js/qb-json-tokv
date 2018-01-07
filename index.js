@@ -301,22 +301,7 @@ function tokenize (ps, opt, cb) {
     }  // end main_loop: while(ps.vlim < lim) {...
   }
 
-  if (ps.vlim !== ps.voff) {
-    if (!VAL_TOKENS[ps.tok]) {
-      // wipe out value ranges caused by whitespace, colon, comma etc.
-      ps.voff = ps.vlim
-    } else {
-      if (ps.stack[ps.stack.length - 1] === 123) {
-        // finish moving value to key range
-        if (ps.koff === ps.klim) {
-          ps.koff = ps.voff
-          ps.klim = ps.voff = ps.vlim
-        } else  if (ps.klim === ps.vlim) {
-          ps.voff =ps.vlim
-        }
-      }
-    }
-  }
+  finish_ps(ps)
 
   ps.tok = ps.tok === TOK.BAD_BYT || ps.tok === TOK.UNEXPECTED ? ps.tok : TOK.END
 
@@ -349,6 +334,25 @@ function tokenize (ps, opt, cb) {
   }
 
   return ps
+}
+
+function finish_ps (ps) {
+  if (ps.vlim !== ps.voff) {
+    if (!VAL_TOKENS[ps.tok]) {
+      // wipe out value ranges caused by whitespace, colon, comma etc.
+      ps.voff = ps.vlim
+    } else {
+      if (ps.stack[ps.stack.length - 1] === 123) {
+        // finish moving value to key range
+        if (ps.koff === ps.klim) {
+          ps.koff = ps.voff
+          ps.klim = ps.voff = ps.vlim
+        } else  if (ps.klim === ps.vlim) {
+          ps.voff =ps.vlim
+        }
+      }
+    }
+  }
 }
 
 function err (msg, ps) {
