@@ -320,11 +320,8 @@ function tokenize (ps, opt, cb) {
 
   ps.tok = ps.tok === TOK.BAD_BYT || ps.tok === TOK.UNEXPECTED ? ps.tok : TOK.END
 
-  if (!cb_continue) {
-    return ps
-  }
-
-  if (!opt.incremental && ps.trunc) {
+  if (cb_continue) {
+    if (!opt.incremental && ps.trunc) {
       if (DECIMAL_ASCII[ps.src[ps.voff]] && ps.stack.length === 0 && ps.vlim === ps.lim) {
         // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
         var prevtok = ps.tok
@@ -337,18 +334,20 @@ function tokenize (ps, opt, cb) {
       } else {
         err('input was incomplete. use option {incremental: true} to enable partial parsing', ps)
       }
+    }
+
+    if (ps.tok === TOK.BAD_BYT) {
+      err('bad byte: ' + ps.src[ps.vlim], ps)
+    } else if (ps.tok === TOK.UNEXPECTED) {
+      err('unexpected token', ps)
+    } else if (!opt.incremental && !parse_complete(ps)) {
+      err('input was incomplete. use option {incremental: true} to enable partial parsing', ps)
+
+    }   // else reached limit with some other valid token
+
+    cb(ps)
   }
 
-  if (ps.tok === TOK.BAD_BYT) {
-    err('bad byte: ' + ps.src[ps.vlim], ps)
-  } else if (ps.tok === TOK.UNEXPECTED) {
-    err('unexpected token', ps)
-  } else if (!opt.incremental && !parse_complete(ps)) {
-    err('input was incomplete. use option {incremental: true} to enable partial parsing', ps)
-
-  }   // else reached limit with some other valid token
-
-  cb(ps)
   return ps
 }
 
