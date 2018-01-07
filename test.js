@@ -66,8 +66,9 @@ test('tokenize', function (t) {
 
 test('errors', function (t) {
   t.table_assert([
-    [ 'ps',                'opt',  'exp' ],
-    [ {},             null,        /missing src property/ ],
+    [ 'ps',                     'opt',    'exp' ],
+    [ {},                       null,        /missing src property/ ],
+    [ {src: [], trunc: true},   null,        /cannot handle truncated value/ ],
   ], jtok.tokenize, {assert: 'throws'})
 })
 
