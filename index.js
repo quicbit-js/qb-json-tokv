@@ -186,9 +186,7 @@ function skip_dec (src, off, lim) {
 //   }
 // }
 
-function tokenize (ps, opt, cb) {
-  opt = opt || {}
-
+function init (ps) {
   ps.src = ps.src || err('missing src property', ps)
   ps.lim = ps.lim == null ? ps.src.length : ps.lim
   ps.tok =  ps.tok || TOK.BEG                                // token/byte being handled
@@ -200,6 +198,12 @@ function tokenize (ps, opt, cb) {
   ps.pos = ps.pos || ARR_BFV                          // container context and relative position encoded as an int
   !ps.trunc || err('cannot handle truncated value')
   ps.vcount = ps.vcount || 0                             // number of complete values parsed
+}
+
+function tokenize (ps, opt, cb) {
+  init(ps)
+  opt = opt || {}
+
   var pos1 = ps.pos   // pos1 possibilities are:
                         //    pos1 == 0;                   unsupported transition
                         //    pos1 > 0, pos1 == pos0;      transition OK, token has been handled
