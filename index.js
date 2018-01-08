@@ -170,7 +170,7 @@ function skip_dec (src, off, lim) {
   return (off < lim && DELIM[src[off]] === 1) ? off : -off
 }
 
-function init (ps) {
+function begin (ps) {
   ps.src = ps.src || err('missing src property', ps)
   ps.lim = ps.lim == null ? ps.src.length : ps.lim
   ps.tok =  TOK.BEG                             // token/byte being handled
@@ -186,10 +186,6 @@ function init (ps) {
 }
 
 function next (ps) {
-  if (ps.tok === undefined) {
-    init(ps)
-    return true
-  }
   ps.koff = ps.klim
   ps.voff = ps.vlim
   var pos1 = ps.pos
@@ -263,7 +259,7 @@ function next (ps) {
 function tokenize (ps, opt, cb) {
   opt = opt || {}
   // while(next(ps) === true && cb(ps) === true)
-  next(ps)
+  begin(ps)
   var cb_continue = cb(ps)
   while ((cb_continue === true || cb_continue) && ps.vlim < ps.lim) {
     if (next(ps) === true) {
@@ -274,41 +270,43 @@ function tokenize (ps, opt, cb) {
       break
     }
   }
+  end(ps)
 
-  finish_ps(ps)
-
-  if (cb_continue) {
-    if (!opt.incremental && ps.trunc) {
-      if (DECIMAL_ASCII[ps.src[ps.voff]] && ps.stack.length === 0 && ps.vlim === ps.lim) {
-        // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
-        var prevtok = ps.tok
-        ps.tok = TOK.DEC
-        cb(ps)
-        ps.tok = prevtok
-        ps.pos = ARR_A_V
-        ps.trunc = false
-        ps.voff = ps.vlim
-      } else {
-        err('input was incomplete. use option {incremental: true} to enable partial parsing', ps)
-      }
-    }
-
-    if (ps.tok === TOK.BAD_BYT) {
-      err('bad byte: ' + ps.src[ps.vlim], ps)
-    } else if (ps.tok === TOK.UNEXPECTED) {
-      err('unexpected token', ps)
-    } else if (!opt.incremental && !parse_complete(ps)) {
-      err('input was incomplete. use option {incremental: true} to enable partial parsing', ps)
-
-    }   // else reached limit with some other valid token
-
-    cb(ps)
+  if (!cb_continue) {
+    return ps
   }
 
+  if (ps.tok === TOK.BAD_BYT) {
+    err('bad byte: ' + ps.src[ps.vlim], ps)
+  }
+  if (ps.tok === TOK.UNEXPECTED) {
+    err('unexpected token', ps)
+  }
+  if (ps.trunc && !opt.incremental) {
+    if (DECIMAL_ASCII[ps.src[ps.voff]] && ps.stack.length === 0 && ps.vlim === ps.lim) {
+      // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
+      var prevtok = ps.tok
+      ps.tok = TOK.DEC
+      cb(ps)
+      ps.tok = prevtok
+      ps.pos = ARR_A_V
+      ps.trunc = false
+      ps.voff = ps.vlim
+    } else {
+      err('input was incomplete. use option {incremental: true} to enable partial parsing', ps)
+    }
+  }
+
+  if (!opt.incremental && !parse_complete(ps)) {
+    err('input was incomplete. use option {incremental: true} to enable partial parsing', ps)
+  }
+  if (cb_continue) {
+    cb(ps)
+  }
   return ps
 }
 
-function finish_ps (ps) {
+function end (ps) {
   if (ps.vlim !== ps.voff) {
     if (!ps.trunc && !VAL_TOKENS[ps.tok]) {
       // wipe out value ranges caused by whitespace, colon, comma etc.
