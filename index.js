@@ -124,20 +124,6 @@ function skip_bytes (src, off, lim, bsrc) {
   return blen === bsrc.length ? i + off : -(i + off)
 }
 
-function finish_dec (ps) {
-}
-
-function finish_fixed (ps) {
-}
-
-function finish_str (ps) {
-  ps.vlim = skip_str(ps.src, ps.vlim, ps.lim)
-  var pos1 = POS_MAP[ps.pos | ps.tok]
-  if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED;  return false }
-  if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.trunc = true; ps.tok = TOK.END; return false }
-  else                    { ps.pos = pos1; return true }
-}
-
 function skip_str (src, off, lim) {
   for (var i = off; i < lim; i++) {
     if (src[i] === 34) {
@@ -298,7 +284,7 @@ function tokenize (ps, opt, cb) {
         err('input was incomplete. use option {incremental: true} to enable partial parsing', ps)
       }
     } else {
-      ps.pos === ARR_BFV || ps.pos === ARR_A_V || err('trailing comma', ps)
+      ps.pos !== ARR_B_V || err('trailing comma', ps)
     }
   }
 
