@@ -243,8 +243,8 @@ function next (ps) {
     }
   }
 
+  // reached src limit without error or truncation
   if (NON_TOKEN[ps.tok]) {
-    // ended with whitespace, colon, comma etc.
     ps.voff = ps.vlim
     ps.tok = TOK.END
   }
@@ -264,11 +264,11 @@ function tokenize (ps, opt, cb) {
     ps.voff = ps.vlim
   }
 
-  ps.tok = ps.tok === TOK.BAD_BYT || ps.tok === TOK.UNEXPECTED ? ps.tok : TOK.END
-
   if (!cb_continue) {
     return ps
   }
+
+  ps.tok = ps.tok === TOK.BAD_BYT || ps.tok === TOK.UNEXPECTED ? ps.tok : TOK.END
 
   if (ps.tok === TOK.BAD_BYT) {
     err('bad byte: ' + ps.src[ps.vlim], ps)
