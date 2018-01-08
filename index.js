@@ -252,6 +252,7 @@ function next (ps) {
         { ps.tok = TOK.BAD_BYT; return false }
     }
   }
+  ps.tok = TOK.END
   return false
 }
 
@@ -273,8 +274,6 @@ function tokenize (ps, opt, cb) {
   if (!cb_continue) {
     return ps
   }
-
-  end(ps)
 
   if (ps.tok === TOK.BAD_BYT) {
     err('bad byte: ' + ps.src[ps.vlim], ps)
