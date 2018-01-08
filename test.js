@@ -167,7 +167,7 @@ test('callback stop', function (t) {
   )
 })
 
-function capture_parse (ps_in, opt, t) {
+function capture_parse (ps_in, opt) {
   var toks = []
   var cb = function (ps) { toks.push(pstate.tokstr(ps)); return true }
   var ps_out = jtok.tokenize(ps_in, opt, cb)
