@@ -259,7 +259,8 @@ function tokenize (ps, opt, cb) {
       break
     }
   }
-  end(ps)
+  finish_obj(ps)
+  ps.tok = ps.tok === TOK.BAD_BYT || ps.tok === TOK.UNEXPECTED ? ps.tok : TOK.END
 
   if (!cb_continue) {
     return ps
@@ -297,20 +298,17 @@ function tokenize (ps, opt, cb) {
   return ps
 }
 
-function end (ps) {
-  if (ps.vlim !== ps.voff) {
-    if (ps.stack[ps.stack.length - 1] === 123) {
-      if (ps.koff === ps.klim) {
-        // value is a new key (and possibly truncated) that needs to be moved
-        ps.koff = ps.voff
-        ps.klim = ps.voff = ps.vlim
-      } else  if (ps.klim === ps.vlim) {
-        // value is old key - clear it
-        ps.voff = ps.vlim
-      }
+function finish_obj (ps) {
+  if (ps.stack[ps.stack.length - 1] === 123) {
+    if (ps.koff === ps.klim) {
+      // value is a new key (and possibly truncated) that needs to be moved
+      ps.koff = ps.voff
+      ps.klim = ps.voff = ps.vlim
+    } else  if (ps.klim === ps.vlim) {
+      // value is old key - clear it
+      ps.voff = ps.vlim
     }
   }
-  ps.tok = ps.tok === TOK.BAD_BYT || ps.tok === TOK.UNEXPECTED ? ps.tok : TOK.END
 }
 
 function err (msg, ps) {
@@ -323,7 +321,6 @@ module.exports = {
   tokenize: tokenize,
   begin: begin,
   next: next,
-  end: end,
   TOK: TOK,
   DECIMAL_ASCII: DECIMAL_ASCII,
 }
