@@ -252,13 +252,11 @@ function next (ps) {
         { ps.tok = TOK.BAD_BYT; return false }
     }
   }
-  // reached src limit
   return false
 }
 
 function tokenize (ps, opt, cb) {
   opt = opt || {}
-  // while(next(ps) === true && cb(ps) === true)
   begin(ps)
   var cb_continue = cb(ps)
   while ((cb_continue === true || cb_continue) && ps.vlim < ps.lim) {
@@ -275,6 +273,8 @@ function tokenize (ps, opt, cb) {
   if (!cb_continue) {
     return ps
   }
+
+  end(ps)
 
   if (ps.tok === TOK.BAD_BYT) {
     err('bad byte: ' + ps.src[ps.vlim], ps)
