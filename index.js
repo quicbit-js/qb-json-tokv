@@ -187,11 +187,11 @@ function next (ps) {
         ps.vlim = skip_str(ps.src, ps.vlim, ps.lim)
         pos1 = POS_MAP[ps.pos | ps.tok]
         if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED;  return false }
-        if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.trunc = true; ps.tok = TOK.END; return false }
+        if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.trunc = true; ps.tok = TOK.END; finish_obj(ps); return false }
         else {
           ps.pos = pos1
-          if (ps.pos === OBJ_A_K) { ps.koff = ps.voff; ps.klim = ps.vlim; continue }
-          else                    { ps.vcount++; return true }
+          if (pos1 === OBJ_A_K) { ps.koff = ps.voff; ps.klim = ps.voff = ps.vlim; continue }
+          else                  { ps.vcount++; return true }
         }
 
       case 102:                                         // f    false
@@ -259,7 +259,6 @@ function tokenize (ps, opt, cb) {
       break
     }
   }
-  finish_obj(ps)
   ps.tok = ps.tok === TOK.BAD_BYT || ps.tok === TOK.UNEXPECTED ? ps.tok : TOK.END
 
   if (!cb_continue) {
@@ -299,15 +298,10 @@ function tokenize (ps, opt, cb) {
 }
 
 function finish_obj (ps) {
-  if (ps.stack[ps.stack.length - 1] === 123) {
-    if (ps.koff === ps.klim) {
-      // value is a new key (and possibly truncated) that needs to be moved
-      ps.koff = ps.voff
-      ps.klim = ps.voff = ps.vlim
-    } else  if (ps.klim === ps.vlim) {
-      // value is old key - clear it
-      ps.voff = ps.vlim
-    }
+  if (ps.pos === OBJ_BFK || ps.pos === OBJ_B_K) {
+    // value is a new key (and possibly truncated) that needs to be moved
+    ps.koff = ps.voff
+    ps.klim = ps.voff = ps.vlim
   }
 }
 
