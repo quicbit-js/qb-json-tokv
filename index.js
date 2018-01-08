@@ -136,7 +136,7 @@ function finish_fixed (ps) {
   ps.vlim = skip_bytes(ps.src, ps.vlim, ps.lim, TOK_BYTES[ps.tok])
   var pos1 = POS_MAP[ps.pos | ps.tok]
   if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED;  return false }
-  if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.trunc = true; if (ps.vlim !== ps.lim) { ps.tok = TOK.BAD_BYT } return false }
+  if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.trunc = true; ps.tok = ps.vlim === ps.lim? TOK.END : TOK.BAD_BYT; return false }
   else                    { ps.pos = pos1; return true }
 }
 
@@ -144,7 +144,7 @@ function finish_str (ps) {
   ps.vlim = skip_str(ps.src, ps.vlim, ps.lim)
   var pos1 = POS_MAP[ps.pos | ps.tok]
   if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED;  return false }
-  if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.trunc = true; return false }
+  if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.trunc = true; ps.tok = TOK.END; return false }
   else                    { ps.pos = pos1; return true }
 }
 
@@ -256,6 +256,7 @@ function next (ps) {
         { ps.tok = TOK.BAD_BYT; return false }
     }
   }
+  // reached src limit
   return false
 }
 
@@ -309,7 +310,7 @@ function tokenize (ps, opt, cb) {
 
 function finish_ps (ps) {
   if (ps.vlim !== ps.voff) {
-    if (!VAL_TOKENS[ps.tok]) {
+    if (!ps.trunc && !VAL_TOKENS[ps.tok]) {
       // wipe out value ranges caused by whitespace, colon, comma etc.
       ps.voff = ps.vlim
     } else {
