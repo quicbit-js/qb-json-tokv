@@ -263,6 +263,7 @@ function tokenize (ps, opt, cb) {
     ps.koff = ps.klim
     ps.voff = ps.vlim
   }
+
   ps.tok = ps.tok === TOK.BAD_BYT || ps.tok === TOK.UNEXPECTED ? ps.tok : TOK.END
 
   if (!cb_continue) {

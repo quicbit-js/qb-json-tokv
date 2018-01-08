@@ -149,7 +149,7 @@ test('callback stop', function (t) {
       [ '{ "a": 7, "b": 4 }', true,  3,       false, [ 'B@0,{@0,k3@2:d1@7,k3@10:d1@15', '16/2/{W' ] ],
       // if callback returns false at the src limit, the parse state is returned from _tokenize, but no end callback is made
       [ '{ "a": 7, "b": 4 }', true,  4,       false, [ 'B@0,{@0,k3@2:d1@7,k3@10:d1@15,}@17', '18/3/W' ] ],
-      [ '1, 2, 3',            false, 3,       false, [ 'B@0,d1@0,d1@3,d1@6', '7/2/V1!d' ] ],
+      [ '1, 2, 3',            false, 3,       false, [ 'B@0,d1@0,d1@3,d1@6', '7/2/V1' ] ],
 
     ],
     function (src, inc, at_cb, ret) {
