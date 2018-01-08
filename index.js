@@ -187,11 +187,15 @@ function next (ps) {
         ps.vlim = skip_str(ps.src, ps.vlim, ps.lim)
         pos1 = POS_MAP[ps.pos | ps.tok]
         if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED;  return false }
-        if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.trunc = true; ps.tok = TOK.END; finish_obj(ps); return false }
-        else {
-          ps.pos = pos1
-          if (pos1 === OBJ_A_K) { ps.koff = ps.voff; ps.klim = ps.voff = ps.vlim; continue }
-          else                  { ps.vcount++; return true }
+        if (pos1 === OBJ_A_K) {
+          // key
+          ps.koff = ps.voff
+          if (ps.vlim <= 0)     { ps.klim = ps.voff = ps.vlim = -ps.vlim; ps.trunc = true; ps.tok = TOK.END; return false }
+          else                  { ps.pos = pos1; ps.klim = ps.voff = ps.vlim; continue }
+        } else {
+          // value
+          if (ps.vlim <= 0)     { ps.vlim = -ps.vlim; ps.trunc = true; ps.tok = TOK.END; return false }
+          else                  { ps.pos = pos1; ps.vcount++; return true }
         }
 
       case 102:                                         // f    false
