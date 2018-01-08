@@ -288,6 +288,9 @@ function tokenize (ps, opt, cb) {
       var prevtok = ps.tok
       ps.tok = TOK.DEC
       cb_continue = cb(ps)
+      if (!cb_continue) {
+        return ps
+      }
       ps.tok = prevtok
       ps.pos = ARR_A_V
       ps.trunc = false
@@ -301,9 +304,7 @@ function tokenize (ps, opt, cb) {
     err('input was incomplete. use option {incremental: true} to enable partial parsing', ps)
   }
 
-  if (cb_continue) {
-    cb(ps)
-  }
+  cb(ps)
   return ps
 }
 
