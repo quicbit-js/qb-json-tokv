@@ -181,7 +181,7 @@ function next (ps) {
       case 44:                                          // ,    COMMA
       case 58:                                          // :    COLON
         pos1 = POS_MAP[ps.pos | ps.tok]
-        if (pos1 === 0) { ps.voff = ps.vlim - 1; ps.ecode = ECODE.UNEXPECTED; return ps.tok = TOK.END }
+        if (pos1 === 0) { ps.voff = ps.vlim - 1; return handle_unexp(ps) }
         ps.pos = pos1
         continue
 
@@ -189,7 +189,7 @@ function next (ps) {
         ps.tok = 115                                    // s for string
         ps.vlim = skip_str(ps.src, ps.vlim, ps.lim)
         pos1 = POS_MAP[ps.pos | ps.tok]
-        if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.ecode = ECODE.UNEXPECTED;  return ps.tok = TOK.END }
+        if (pos1 === 0)         return handle_unexp(ps)
         if (pos1 === OBJ_A_K) {
           // key
           ps.koff = ps.voff
@@ -206,7 +206,7 @@ function next (ps) {
       case 116:                                         // t    true
         ps.vlim = skip_bytes(ps.src, ps.vlim, ps.lim, TOK_BYTES[ps.tok])
         pos1 = POS_MAP[ps.pos | ps.tok]
-        if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.ecode = ECODE.UNEXPECTED;  return ps.tok = TOK.END }
+        if (pos1 === 0)         return handle_unexp(ps)
         if (ps.vlim > 0)        { ps.pos = pos1; ps.vcount++; return true }
         else                    return handle_neg(ps)
 
@@ -216,26 +216,26 @@ function next (ps) {
         ps.tok = 100                                    // d for decimal
         ps.vlim = skip_dec(ps.src, ps.vlim, ps.lim)
         pos1 = POS_MAP[ps.pos | ps.tok]
-        if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.ecode = ECODE.UNEXPECTED;  return ps.tok = TOK.END }
+        if (pos1 === 0)         return handle_unexp(ps)
         if (ps.vlim > 0)        { ps.pos = pos1; ps.vcount++; return true }
         else                    return handle_neg(ps)
 
       case 91:                                          // [    ARRAY START
       case 123:                                         // {    OBJECT START
         pos1 = POS_MAP[ps.pos | ps.tok]
-        if (pos1 === 0)                               { ps.ecode = ECODE.UNEXPECTED; return ps.tok = TOK.END }
+        if (pos1 === 0)                               return handle_unexp(ps)
         ps.pos = pos1
         ps.stack.push(ps.tok)
         return true
 
       case 93:                                          // ]    ARRAY END
-        if (ps.pos !== ARR_BFV && ps.pos !== ARR_A_V) { ps.ecode = ECODE.UNEXPECTED; return ps.tok = TOK.END }
+        if (ps.pos !== ARR_BFV && ps.pos !== ARR_A_V) return handle_unexp(ps)
         ps.stack.pop()
         ps.pos = ps.stack[ps.stack.length - 1] === 123 ? OBJ_A_V : ARR_A_V;
         ps.vcount++; return true
 
       case 125:                                         // }    OBJECT END
-        if (ps.pos !== OBJ_BFK && ps.pos !== OBJ_A_V) { ps.ecode = ECODE.UNEXPECTED; return ps.tok = TOK.END }
+        if (ps.pos !== OBJ_BFK && ps.pos !== OBJ_A_V) return handle_unexp(ps)
         ps.stack.pop()
         ps.pos = ps.stack[ps.stack.length - 1] === 123 ? OBJ_A_V : ARR_A_V
         ps.vcount++; return true
@@ -256,6 +256,11 @@ function next (ps) {
 
 function handle_neg (ps) {
   { ps.vlim = -ps.vlim; ps.ecode = ps.vlim === ps.lim ? ECODE.TRUNCATED : ECODE.BAD_VALUE; return ps.tok = TOK.END }
+}
+
+function handle_unexp (ps) {
+  if (ps.vlim < 0) { ps.vlim = -ps.vlim }
+  ps.ecode = ECODE.UNEXPECTED; return ps.tok = TOK.END
 }
 
 function tokenize (ps, opt, cb) {
