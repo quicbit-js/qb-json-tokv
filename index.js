@@ -178,7 +178,7 @@ function next (ps) {
       case 44:                                          // ,    COMMA
       case 58:                                          // :    COLON
         pos1 = POS_MAP[ps.pos | ps.tok]
-        if (pos1 === 0) { ps.voff = ps.vlim - 1; ps.tok = TOK.UNEXPECTED; return false }
+        if (pos1 === 0) { ps.voff = ps.vlim - 1; ps.tok = TOK.UNEXPECTED; return TOK.END }
         ps.pos = pos1
         continue
 
@@ -186,15 +186,15 @@ function next (ps) {
         ps.tok = 115                                    // s for string
         ps.vlim = skip_str(ps.src, ps.vlim, ps.lim)
         pos1 = POS_MAP[ps.pos | ps.tok]
-        if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED;  return false }
+        if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED;  return TOK.END }
         if (pos1 === OBJ_A_K) {
           // key
           ps.koff = ps.voff
-          if (ps.vlim <= 0)     { ps.klim = ps.voff = ps.vlim = -ps.vlim; ps.trunc = true; return false }
+          if (ps.vlim <= 0)     { ps.klim = ps.voff = ps.vlim = -ps.vlim; ps.trunc = true; return TOK.END }
           else                  { ps.pos = pos1; ps.klim = ps.voff = ps.vlim; continue }
         } else {
           // value
-          if (ps.vlim <= 0)     { ps.vlim = -ps.vlim; ps.trunc = true; return false }
+          if (ps.vlim <= 0)     { ps.vlim = -ps.vlim; ps.trunc = true; return TOK.END }
           else                  { ps.pos = pos1; ps.vcount++; return true }
         }
 
@@ -203,8 +203,8 @@ function next (ps) {
       case 116:                                         // t    true
         ps.vlim = skip_bytes(ps.src, ps.vlim, ps.lim, TOK_BYTES[ps.tok])
         pos1 = POS_MAP[ps.pos | ps.tok]
-        if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED;  return false }
-        if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.trunc = true; if (ps.vlim !== ps.lim) ps.tok = TOK.BAD_BYT; return false }
+        if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED;  return TOK.END }
+        if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.trunc = true; if (ps.vlim !== ps.lim) ps.tok = TOK.BAD_BYT; return TOK.END }
         else                    { ps.pos = pos1; ps.vcount++; return true }
 
       case 48:case 49:case 50:case 51:case 52:          // 0-4    digits
@@ -213,33 +213,33 @@ function next (ps) {
         ps.tok = 100                                    // d for decimal
         ps.vlim = skip_dec(ps.src, ps.vlim, ps.lim)
         pos1 = POS_MAP[ps.pos | ps.tok]
-        if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED;  return false }
-        if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.trunc = true; if (ps.vlim !== ps.lim) ps.tok = TOK.BAD_BYT; return false }
+        if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED;  return TOK.END }
+        if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.trunc = true; if (ps.vlim !== ps.lim) ps.tok = TOK.BAD_BYT; return TOK.END }
         else                    { ps.pos = pos1; ps.vcount++; return true }
 
       case 91:                                          // [    ARRAY START
       case 123:                                         // {    OBJECT START
         pos1 = POS_MAP[ps.pos | ps.tok]
-        if (pos1 === 0)           { ps.tok = TOK.UNEXPECTED; return false }
+        if (pos1 === 0)           { ps.tok = TOK.UNEXPECTED; return TOK.END }
         ps.pos = pos1
         ps.stack.push(ps.tok)
         return true
 
       case 93:                                          // ]    ARRAY END
-        if (ps.pos !== ARR_BFV && ps.pos !== ARR_A_V) { ps.tok = TOK.UNEXPECTED; return false }
+        if (ps.pos !== ARR_BFV && ps.pos !== ARR_A_V) { ps.tok = TOK.UNEXPECTED; return TOK.END }
         ps.stack.pop()
         ps.pos = ps.stack[ps.stack.length - 1] === 123 ? OBJ_A_V : ARR_A_V;
         ps.vcount++; return true
 
       case 125:                                         // }    OBJECT END
-        if (ps.pos !== OBJ_BFK && ps.pos !== OBJ_A_V) { ps.tok = TOK.UNEXPECTED; return false }
+        if (ps.pos !== OBJ_BFK && ps.pos !== OBJ_A_V) { ps.tok = TOK.UNEXPECTED; return TOK.END }
         ps.stack.pop()
         ps.pos = ps.stack[ps.stack.length - 1] === 123 ? OBJ_A_V : ARR_A_V
         ps.vcount++; return true
 
       default:
         --ps.vlim;
-        { ps.tok = TOK.BAD_BYT; return false }
+        { ps.tok = TOK.BAD_BYT; return TOK.END }
     }
   }
 
@@ -248,14 +248,14 @@ function next (ps) {
     ps.voff = ps.vlim
     ps.tok = TOK.END
   }
-  return false
+  return TOK.END
 }
 
 function tokenize (ps, opt, cb) {
   opt = opt || {}
   init(ps)
   var cb_continue = cb(ps)
-  while (cb_continue && next(ps) === true) {
+  while (cb_continue && next(ps) !== TOK.END) {
     cb_continue = cb(ps)
   }
   if (!cb_continue) {
