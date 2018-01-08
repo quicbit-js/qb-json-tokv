@@ -287,7 +287,7 @@ function tokenize (ps, opt, cb) {
       // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
       var prevtok = ps.tok
       ps.tok = TOK.DEC
-      cb(ps)
+      cb_continue = cb(ps)
       ps.tok = prevtok
       ps.pos = ARR_A_V
       ps.trunc = false
@@ -300,6 +300,7 @@ function tokenize (ps, opt, cb) {
   if (!opt.incremental && !parse_complete(ps)) {
     err('input was incomplete. use option {incremental: true} to enable partial parsing', ps)
   }
+
   if (cb_continue) {
     cb(ps)
   }
