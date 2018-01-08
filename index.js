@@ -254,14 +254,13 @@ function tokenize (ps, opt, cb) {
   opt = opt || {}
   init(ps)
   var cb_continue = cb(ps)
-  while ((cb_continue === true || cb_continue) && ps.vlim < ps.lim) {
-    if (next(ps) === true) {
-      cb_continue = cb(ps)
-      ps.koff = ps.klim
-      ps.voff = ps.vlim
-    } else {
-      break
-    }
+  while (cb_continue && next(ps) === true) {
+    cb_continue = cb(ps)
+  }
+  if (!cb_continue) {
+    // clear key and value
+    ps.koff = ps.klim
+    ps.voff = ps.vlim
   }
   ps.tok = ps.tok === TOK.BAD_BYT || ps.tok === TOK.UNEXPECTED ? ps.tok : TOK.END
 
