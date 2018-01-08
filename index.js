@@ -306,13 +306,6 @@ function tokenize (ps, opt, cb) {
   return ps
 }
 
-function parse_complete (ps) {
-  return ps.stack.length === 0 &&
-    ps.koff === ps.klim &&
-    ps.voff === ps.vlim &&
-    (ps.pos === ARR_BFV || ps.pos === ARR_A_V)
-}
-
 function end (ps) {
   if (ps.vlim !== ps.voff) {
     if (!ps.trunc && !VAL_TOKENS[ps.tok]) {
