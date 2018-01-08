@@ -268,7 +268,8 @@ function handle_unexp (ps) {
 function tokenize (ps, opt, cb) {
   opt = opt || {}
   init(ps)
-  var cb_continue = cb(ps)
+  if (!cb(ps)) { return ps }
+  var cb_continue = true
   while (cb_continue && next(ps) !== TOK.END) {
     cb_continue = cb(ps)
   }
@@ -276,9 +277,6 @@ function tokenize (ps, opt, cb) {
     // clear key and value
     ps.koff = ps.klim
     ps.voff = ps.vlim
-  }
-
-  if (!cb_continue) {
     return ps
   }
 
