@@ -79,7 +79,7 @@ test('parse error state', function (t) {
       // incomplete input
       [ '{"a": ',           [ 'B@0,{@0', '6/0/{U3.1' ] ],
       [ '1, 2,',            [ 'B@0,d1@0,d1@3', '5/2/U' ] ],
-      [ '[1, 2, ',          [ '[@0,d1@1,d1@4', '7/2/[U' ] ],
+      [ '[1, 2, ',          [ 'B@0,[@0,d1@1,d1@4', '7/2/[U' ] ],
       [ 'fal',              [ 'B@0', '3/0/V3' ] ],
       [ '"ab',              [ 'B@0', '3/0/V3' ] ],
       [ '{"ab":',           [ 'B@0,{@0', '6/0/{U4' ] ],
@@ -108,7 +108,7 @@ test('parse error state', function (t) {
       [ '{"a"]',            [ 'B@0,{@0',            '5/0/{L3!U' ] ],
       [ '{"a""b"}',         [ 'B@0,{@0',            '7/0/{L3!U' ] ],   // unexpected value has length 3
       [ '{"a": "b"]',       [ 'B@0,{@0,k3@1:s3@6',  '10/1/{W!U' ] ],
-      [ '["a", "b"}',       [ '[@0,s3@1,s3@6',      '10/2/[W!U' ] ],
+      [ '["a", "b"}',       [ 'B@0,[@0,s3@1,s3@6',  '10/2/[W!U' ] ],
       [ '0{',               [ 'B@0,d1@0',           '2/1/W!U' ] ],
       [ '{"a"::',           [ 'B@0,{@0',            '6/0/{U3!U' ] ],
       [ '{ false:',         [ 'B@0,{@0',            '7/0/{F!U' ] ],
@@ -120,8 +120,8 @@ test('parse error state', function (t) {
       [ '{ "a":]',          [ 'B@0,{@0',            '7/0/{U3!U' ] ],
       [ '{ "a": ]',         [ 'B@0,{@0',            '8/0/{U3.1!U' ] ],
       [ '{ 2.4',            [ 'B@0,{@0',            '5/0/{F!U' ] ],
-      [ '[ 1, 2 ] "c',      [ 'd1@2,d1@5,]@7',      '11/3/W!U' ] ],
-      [ '[ 1, 2 ] "c"',     [ 'd1@2,d1@5,]@7',      '12/3/W!U' ] ],
+      [ '[ 1, 2 ] "c',      [ 'B@0,[@0,d1@2,d1@5,]@7', '11/3/W!U' ] ],
+      [ '[ 1, 2 ] "c"',     [ 'B@0,[@0,d1@2,d1@5,]@7', '12/3/W!U' ] ],
     ],
     function (src) {
       var toks = []
@@ -133,7 +133,7 @@ test('parse error state', function (t) {
       try {
         jtok.tokenize({src: utf8.buffer(src)}, null, cb)
       } catch (e) {
-        return [ toks.slice(-3).join(','), pstate.encode(e.parse_state) ]
+        return [ toks.join(','), pstate.encode(e.parse_state) ]
       }
     }
   )
@@ -146,28 +146,28 @@ test('callback stop', function (t) {
       [ '{ "a": 7, "b": 4 }', 0,       false, [ 'B@0', '0/0/F' ] ],
       [ '{ "a": 7, "b": 4 }', 1,       false, [ 'B@0,{@0', '1/0/{F' ] ],
       [ '{ "a": 7, "b": 4 }', 2,       false, [ 'B@0,{@0,k3@2:d1@7', '8/1/{W' ] ],
-      [ '{ "a": 7, "b": 4 }', 3,       false, [ '{@0,k3@2:d1@7,k3@10:d1@15', '16/2/{W' ] ],
+      [ '{ "a": 7, "b": 4 }', 3,       false, [ 'B@0,{@0,k3@2:d1@7,k3@10:d1@15', '16/2/{W' ] ],
       // if callback returns false at the src limit, the parse state is returned from _tokenize, but no end callback is made
-      [ '{ "a": 7, "b": 4 }', 4,       false, [ 'k3@2:d1@7,k3@10:d1@15,}@17', '18/3/W' ] ],
+      [ '{ "a": 7, "b": 4 }', 4,       false, [ 'B@0,{@0,k3@2:d1@7,k3@10:d1@15,}@17', '18/3/W' ] ],
     ],
     function (src, at_cb, ret) {
       var count = 0
-      var hector = t.hector()
+      var toks = []
       var cb = function (ps) {
-        hector(pstate.tokstr(ps))
+        toks.push(pstate.tokstr(ps))
         return (count++ === at_cb) ? ret : true
       }
       var ps = jtok.tokenize({src: utf8.buffer(src)}, {incremental: true}, cb)
-      return [ hector.arg(0).slice(-3).join(','), pstate.encode(ps) ]
+      return [ toks.join(','), pstate.encode(ps) ]
     }
   )
 })
 
 function capture_parse (ps_in, opt, t) {
-  var hector = t.hector()
-  var cb = function (ps) { hector(pstate.tokstr(ps)); return true }
+  var toks = []
+  var cb = function (ps) { toks.push(pstate.tokstr(ps)); return true }
   var ps_out = jtok.tokenize(ps_in, opt, cb)
-  return { args: hector.arg(0), ps: ps_out }
+  return { toks: toks, ps: ps_out }
 }
 
 test('object - no spaces', function (t) {
@@ -195,7 +195,7 @@ test('object - no spaces', function (t) {
     ],
     function (src) {
       var r = capture_parse({src: utf8.buffer(src)}, {incremental: true}, t)
-      return [ r.args.join(','), pstate.encode(r.ps) ]
+      return [ r.toks.join(','), pstate.encode(r.ps) ]
     }
   )
 })
@@ -219,7 +219,7 @@ test('array - no spaces', function (t) {
     ],
     function (src) {
       var r = capture_parse({src: utf8.buffer(src)}, {incremental: true}, t)
-      return [ r.args.join(','), pstate.encode(r.ps) ]
+      return [ r.toks.join(','), pstate.encode(r.ps) ]
     }
   )
 })
@@ -246,7 +246,7 @@ test('array - spaces', function (t) {
       [ '[ 83, "a" , 2 ]', [ 'B@0,[@0,d2@2,s3@6,d1@12,]@14,E@15', '15/4/W' ] ],    ],
     function (src) {
       var r = capture_parse({src: utf8.buffer(src)}, {incremental: true}, t)
-      return [ r.args.join(','), pstate.encode(r.ps) ]
+      return [ r.toks.join(','), pstate.encode(r.ps) ]
     }
   )
 })
@@ -277,7 +277,7 @@ test('object - spaces', function (t) {
     ],
     function (src) {
       var r = capture_parse({src: utf8.buffer(src)}, {incremental: true}, t)
-      return [ r.args.join(','), pstate.encode(r.ps) ]
+      return [ r.toks.join(','), pstate.encode(r.ps) ]
     }
   )
 })
@@ -354,7 +354,7 @@ function parse_split (src1, src2, t) {
   }
   var r2 = capture_parse(ps, {incremental: true}, t)
   
-  return [ r1.args.join(','), pstate.encode(r1.ps), r2.args.join(','), pstate.encode(r2.ps) ]
+  return [ r1.toks.join(','), pstate.encode(r1.ps), r2.toks.join(','), pstate.encode(r2.ps) ]
 }
 
 function err (msg) { throw Error(msg) }
