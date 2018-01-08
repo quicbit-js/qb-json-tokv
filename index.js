@@ -252,7 +252,6 @@ function next (ps) {
         { ps.tok = TOK.BAD_BYT; return false }
     }
   }
-  ps.tok = TOK.END
   return false
 }
 
@@ -281,30 +280,37 @@ function tokenize (ps, opt, cb) {
   if (ps.tok === TOK.UNEXPECTED) {
     err('unexpected token', ps)
   }
-  if (ps.trunc && !opt.incremental) {
-    if (DECIMAL_ASCII[ps.src[ps.voff]] && ps.stack.length === 0 && ps.vlim === ps.lim) {
-      // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
-      var prevtok = ps.tok
-      ps.tok = TOK.DEC
-      cb_continue = cb(ps)
-      if (!cb_continue) {
-        return ps
+  if (!opt.incremental) {
+    ps.stack.length === 0 || err('input was incomplete. use option {incremental: true} to enable partial parsing', ps)
+    if (ps.trunc) {
+      if (DECIMAL_ASCII[ps.src[ps.voff]]) {
+        // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
+        ps.tok = TOK.DEC
+        cb_continue = cb(ps)
+        if (!cb_continue) {
+          return ps
+        }
+        ps.voff = ps.vlim
+        ps.tok = TOK.END
+        ps.pos = ARR_A_V
+        ps.trunc = false
+      } else {
+        err('input was incomplete. use option {incremental: true} to enable partial parsing', ps)
       }
-      ps.tok = prevtok
-      ps.pos = ARR_A_V
-      ps.trunc = false
-      ps.voff = ps.vlim
     } else {
-      err('input was incomplete. use option {incremental: true} to enable partial parsing', ps)
+      ps.pos === ARR_BFV || ps.pos === ARR_A_V || err('trailing comma', ps)
     }
-  }
-
-  if (!opt.incremental && !parse_complete(ps)) {
-    err('input was incomplete. use option {incremental: true} to enable partial parsing', ps)
   }
 
   cb(ps)
   return ps
+}
+
+function parse_complete (ps) {
+  return ps.stack.length === 0 &&
+    ps.koff === ps.klim &&
+    ps.voff === ps.vlim &&
+    (ps.pos === ARR_BFV || ps.pos === ARR_A_V)
 }
 
 function end (ps) {
@@ -334,17 +340,11 @@ function err (msg, ps) {
   throw e
 }
 
-function parse_complete (ps) {
-  return ps.stack.length === 0 &&
-    ps.koff === ps.klim &&
-    ps.voff === ps.vlim &&
-    (ps.pos === ARR_BFV || ps.pos === ARR_A_V) &&
-    !ps.trunc
-}
-
 module.exports = {
   tokenize: tokenize,
+  begin: begin,
   next: next,
+  end: end,
   TOK: TOK,
   DECIMAL_ASCII: DECIMAL_ASCII,
 }

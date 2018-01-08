@@ -17,7 +17,6 @@
 var test = require('test-kit').tape()
 var utf8 = require('qb-utf8-ez')
 var jtok = require('.')
-var TOK = jtok.TOK
 var pstate = require('qb-json-state')
 
 test('tokenize', function (t) {
@@ -79,6 +78,7 @@ test('parse error state', function (t) {
 
       // incomplete input
       [ '{"a": ',           [ 'B@0,{@0', '6/0/{U3.1' ] ],
+      [ '1, 2,',            [ 'B@0,d1@0,d1@3', '5/2/U' ] ],
       [ '[1, 2, ',          [ '[@0,d1@1,d1@4', '7/2/[U' ] ],
       [ 'fal',              [ 'B@0', '3/0/V3' ] ],
       [ '"ab',              [ 'B@0', '3/0/V3' ] ],
