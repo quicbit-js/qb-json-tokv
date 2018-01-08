@@ -181,7 +181,7 @@ function next (ps) {
       case 44:                                          // ,    COMMA
       case 58:                                          // :    COLON
         pos1 = POS_MAP[ps.pos | ps.tok]
-        if (pos1 === 0) { ps.voff = ps.vlim - 1; return handle_unexp(ps) }
+        if (pos1 === 0)       { ps.voff = ps.vlim - 1; return handle_unexp(ps) }
         ps.pos = pos1
         continue
 
