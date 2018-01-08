@@ -238,6 +238,11 @@ function next (ps) {
         { ps.tok = TOK.BAD_BYT; return false }
     }
   }
+
+  if (!ps.trunc && !VAL_TOKENS[ps.tok]) {
+    // wipe out value ranges caused by whitespace, colon, comma etc.
+    ps.voff = ps.vlim
+  }
   return false
 }
 
@@ -294,19 +299,14 @@ function tokenize (ps, opt, cb) {
 
 function end (ps) {
   if (ps.vlim !== ps.voff) {
-    if (!ps.trunc && !VAL_TOKENS[ps.tok]) {
-      // wipe out value ranges caused by whitespace, colon, comma etc.
-      ps.voff = ps.vlim
-    } else {
-      if (ps.stack[ps.stack.length - 1] === 123) {
-        if (ps.koff === ps.klim) {
-          // value is a new key that needs to be moved
-          ps.koff = ps.voff
-          ps.klim = ps.voff = ps.vlim
-        } else  if (ps.klim === ps.vlim) {
-          // value is old key - clear it
-          ps.voff = ps.vlim
-        }
+    if (ps.stack[ps.stack.length - 1] === 123) {
+      if (ps.koff === ps.klim) {
+        // value is a new key (and possibly truncated) that needs to be moved
+        ps.koff = ps.voff
+        ps.klim = ps.voff = ps.vlim
+      } else  if (ps.klim === ps.vlim) {
+        // value is old key - clear it
+        ps.voff = ps.vlim
       }
     }
   }
