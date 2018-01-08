@@ -47,8 +47,10 @@ var TOK = {
   END: 69,          // 'E'  (End) of buffer (parsed to limit without error)
                     //      if the 'incremental' option is set, then voff != vlim means that there is an unfinished
                     //      value, and koff != klim means that there is an unfinished key.
+}
 
-  // when there is an error, these tokens are returned parse-state (never as callback arguments)
+var ECODE = {
+  // when there is an error, ecode is set to one of these
   UNEXPECTED: 85,   // 'U'  if encountered token in wrong place/context
   BAD_BYT: 88,      // 'X'  encountered invalid byte.  if voff != vlim, then the byte is considered part of a value
 }
@@ -149,7 +151,7 @@ function skip_dec (src, off, lim) {
 function init (ps) {
   ps.src = ps.src || err('missing src property', ps)
   ps.lim = ps.lim == null ? ps.src.length : ps.lim
-  ps.tok =  TOK.BEG                             // token/byte being handled
+  ps.tok = TOK.BEG                             // token/byte being handled
   ps.koff = ps.koff || ps.off || 0                        // key offset
   ps.klim = ps.klim || ps.koff                            // key limit (exclusive)
   ps.voff = ps.voff || ps.klim
@@ -158,6 +160,7 @@ function init (ps) {
   ps.pos = ps.pos || ARR_BFV                          // container context and relative position encoded as an int
   !ps.trunc || err('cannot handle truncated value')
   ps.trunc = false
+  ps.ecode = 0
   ps.vcount = ps.vcount || 0                             // number of complete values parsed
 }
 
@@ -178,7 +181,7 @@ function next (ps) {
       case 44:                                          // ,    COMMA
       case 58:                                          // :    COLON
         pos1 = POS_MAP[ps.pos | ps.tok]
-        if (pos1 === 0) { ps.voff = ps.vlim - 1; ps.tok = TOK.UNEXPECTED; return TOK.END }
+        if (pos1 === 0) { ps.voff = ps.vlim - 1; ps.ecode = ECODE.UNEXPECTED; return ps.tok = TOK.END }
         ps.pos = pos1
         continue
 
@@ -186,15 +189,15 @@ function next (ps) {
         ps.tok = 115                                    // s for string
         ps.vlim = skip_str(ps.src, ps.vlim, ps.lim)
         pos1 = POS_MAP[ps.pos | ps.tok]
-        if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED;  return TOK.END }
+        if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.ecode = ECODE.UNEXPECTED;  return ps.tok = TOK.END }
         if (pos1 === OBJ_A_K) {
           // key
           ps.koff = ps.voff
-          if (ps.vlim <= 0)     { ps.klim = ps.voff = ps.vlim = -ps.vlim; ps.trunc = true; return TOK.END }
+          if (ps.vlim <= 0)     { ps.klim = ps.voff = ps.vlim = -ps.vlim; ps.trunc = true; return ps.tok = TOK.END }
           else                  { ps.pos = pos1; ps.klim = ps.voff = ps.vlim; continue }
         } else {
           // value
-          if (ps.vlim <= 0)     { ps.vlim = -ps.vlim; ps.trunc = true; return TOK.END }
+          if (ps.vlim <= 0)     { ps.vlim = -ps.vlim; ps.trunc = true; return ps.tok = TOK.END }
           else                  { ps.pos = pos1; ps.vcount++; return true }
         }
 
@@ -203,8 +206,8 @@ function next (ps) {
       case 116:                                         // t    true
         ps.vlim = skip_bytes(ps.src, ps.vlim, ps.lim, TOK_BYTES[ps.tok])
         pos1 = POS_MAP[ps.pos | ps.tok]
-        if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED;  return TOK.END }
-        if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.trunc = true; if (ps.vlim !== ps.lim) ps.tok = TOK.BAD_BYT; return TOK.END }
+        if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.ecode = ECODE.UNEXPECTED;  return ps.tok = TOK.END }
+        if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.trunc = true; if (ps.vlim !== ps.lim) ps.ecode = ECODE.BAD_BYT; return ps.tok = TOK.END }
         else                    { ps.pos = pos1; ps.vcount++; return true }
 
       case 48:case 49:case 50:case 51:case 52:          // 0-4    digits
@@ -213,42 +216,42 @@ function next (ps) {
         ps.tok = 100                                    // d for decimal
         ps.vlim = skip_dec(ps.src, ps.vlim, ps.lim)
         pos1 = POS_MAP[ps.pos | ps.tok]
-        if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED;  return TOK.END }
-        if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.trunc = true; if (ps.vlim !== ps.lim) ps.tok = TOK.BAD_BYT; return TOK.END }
+        if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.ecode = ECODE.UNEXPECTED;  return ps.tok = TOK.END }
+        if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.trunc = true; if (ps.vlim !== ps.lim) ps.ecode = ECODE.BAD_BYT; return ps.tok = TOK.END }
         else                    { ps.pos = pos1; ps.vcount++; return true }
 
       case 91:                                          // [    ARRAY START
       case 123:                                         // {    OBJECT START
         pos1 = POS_MAP[ps.pos | ps.tok]
-        if (pos1 === 0)           { ps.tok = TOK.UNEXPECTED; return TOK.END }
+        if (pos1 === 0)           { ps.ecode = ECODE.UNEXPECTED; return ps.tok = TOK.END }
         ps.pos = pos1
         ps.stack.push(ps.tok)
         return true
 
       case 93:                                          // ]    ARRAY END
-        if (ps.pos !== ARR_BFV && ps.pos !== ARR_A_V) { ps.tok = TOK.UNEXPECTED; return TOK.END }
+        if (ps.pos !== ARR_BFV && ps.pos !== ARR_A_V) { ps.ecode = ECODE.UNEXPECTED; return ps.tok = TOK.END }
         ps.stack.pop()
         ps.pos = ps.stack[ps.stack.length - 1] === 123 ? OBJ_A_V : ARR_A_V;
         ps.vcount++; return true
 
       case 125:                                         // }    OBJECT END
-        if (ps.pos !== OBJ_BFK && ps.pos !== OBJ_A_V) { ps.tok = TOK.UNEXPECTED; return TOK.END }
+        if (ps.pos !== OBJ_BFK && ps.pos !== OBJ_A_V) { ps.ecode = ECODE.UNEXPECTED; return ps.tok = TOK.END }
         ps.stack.pop()
         ps.pos = ps.stack[ps.stack.length - 1] === 123 ? OBJ_A_V : ARR_A_V
         ps.vcount++; return true
 
       default:
         --ps.vlim;
-        { ps.tok = TOK.BAD_BYT; return TOK.END }
+        { ps.ecode = ECODE.BAD_BYT; return ps.tok = TOK.END }
     }
   }
 
   // reached src limit without error or truncation
+  ps.ecode = 0
   if (NON_TOKEN[ps.tok]) {
     ps.voff = ps.vlim
-    ps.tok = TOK.END
   }
-  return TOK.END
+  return ps.tok = TOK.END
 }
 
 function tokenize (ps, opt, cb) {
@@ -268,14 +271,13 @@ function tokenize (ps, opt, cb) {
     return ps
   }
 
-  ps.tok = ps.tok === TOK.BAD_BYT || ps.tok === TOK.UNEXPECTED ? ps.tok : TOK.END
-
-  if (ps.tok === TOK.BAD_BYT) {
+  if (ps.ecode === ECODE.BAD_BYT) {
     err('bad byte: ' + ps.src[ps.vlim], ps)
   }
-  if (ps.tok === TOK.UNEXPECTED) {
+  if (ps.ecode === ECODE.UNEXPECTED) {
     err('unexpected token', ps)
   }
+  ps.tok = TOK.END
   if (!opt.incremental) {
     ps.stack.length === 0 || err('input was incomplete. use option {incremental: true} to enable partial parsing', ps)
     if (ps.trunc) {
@@ -313,5 +315,5 @@ module.exports = {
   init: init,
   next: next,
   TOK: TOK,
-  DECIMAL_ASCII: DECIMAL_ASCII,
+  ECODE: ECODE,
 }

@@ -53,10 +53,6 @@ var tokcb = function (ps) {
         case 69: // TOK.END:
             console.log('callback end', (new Date() - t0)/1000, { tok_count: tok_count })
             break
-        case 85: // U
-        case 88: // X
-            console.err('error: ' + JSON.stringify(ps))
-            break
         default:
             tok_count++
     }
