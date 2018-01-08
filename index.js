@@ -146,7 +146,7 @@ function skip_dec (src, off, lim) {
   return (off < lim && DELIM[src[off]] === 1) ? off : -off
 }
 
-function begin (ps) {
+function init (ps) {
   ps.src = ps.src || err('missing src property', ps)
   ps.lim = ps.lim == null ? ps.src.length : ps.lim
   ps.tok =  TOK.BEG                             // token/byte being handled
@@ -252,7 +252,7 @@ function next (ps) {
 
 function tokenize (ps, opt, cb) {
   opt = opt || {}
-  begin(ps)
+  init(ps)
   var cb_continue = cb(ps)
   while ((cb_continue === true || cb_continue) && ps.vlim < ps.lim) {
     if (next(ps) === true) {
@@ -301,14 +301,6 @@ function tokenize (ps, opt, cb) {
   return ps
 }
 
-function finish_obj (ps) {
-  if (ps.pos === OBJ_BFK || ps.pos === OBJ_B_K) {
-    // value is a new key (and possibly truncated) that needs to be moved
-    ps.koff = ps.voff
-    ps.klim = ps.voff = ps.vlim
-  }
-}
-
 function err (msg, ps) {
   var e = new Error(msg)
   e.parse_state = ps
@@ -317,7 +309,7 @@ function err (msg, ps) {
 
 module.exports = {
   tokenize: tokenize,
-  begin: begin,
+  init: init,
   next: next,
   TOK: TOK,
   DECIMAL_ASCII: DECIMAL_ASCII,
