@@ -170,27 +170,11 @@ function skip_dec (src, off, lim) {
   return (off < lim && DELIM[src[off]] === 1) ? off : -off
 }
 
-// function finish (ps) {
-//   switch (ps.tok) {
-//     case 100:
-//       ps.vlim = skip_dec(ps.src, ps.vlim, ps.lim)
-//       break
-//     case 115:
-//       ps.vlim = skip_str(ps.src, ps.vlim, ps.lim)
-//       break
-//     case 102:
-//     case 110:
-//     case 116:
-//       ps.vlim = skip_str(ps.src, ps.vlim, ps.lim, TOK_BYTES[ps.tok])
-//       break
-//   }
-// }
-
 function init (ps) {
   ps.src = ps.src || err('missing src property', ps)
   ps.lim = ps.lim == null ? ps.src.length : ps.lim
-  ps.tok =  ps.tok || TOK.BEG                                // token/byte being handled
-  ps.koff = ps.koff || ps.off || 0                     // key offset
+  ps.tok =  TOK.BEG                             // token/byte being handled
+  ps.koff = ps.koff || ps.off || 0                        // key offset
   ps.klim = ps.klim || ps.koff                            // key limit (exclusive)
   ps.voff = ps.voff || ps.klim
   ps.vlim = ps.vlim || ps.voff
@@ -201,9 +185,13 @@ function init (ps) {
   ps.vcount = ps.vcount || 0                             // number of complete values parsed
 }
 
-
 function next (ps) {
+  if (ps.tok === undefined) {
+    init(ps)
+    return true
+  }
   ps.koff = ps.klim
+  ps.voff = ps.vlim
   var pos1 = ps.pos
   while (ps.vlim < ps.lim) {
     ps.voff = ps.vlim
@@ -218,7 +206,7 @@ function next (ps) {
       case 44:                                          // ,    COMMA
       case 58:                                          // :    COLON
         pos1 = POS_MAP[ps.pos | ps.tok]
-        if (pos1 === 0) { ps.voff = ps.vlim-1; ps.tok = TOK.UNEXPECTED; return false }
+        if (pos1 === 0) { ps.voff = ps.vlim - 1; ps.tok = TOK.UNEXPECTED; return false }
         ps.pos = pos1
         continue
 
@@ -272,9 +260,10 @@ function next (ps) {
 }
 
 function tokenize (ps, opt, cb) {
-  init(ps)
   opt = opt || {}
-  var cb_continue = cb(ps)                      // 'B' - BEGIN parse
+  // while(next(ps) === true && cb(ps) === true)
+  next(ps)
+  var cb_continue = cb(ps)
   while ((cb_continue === true || cb_continue) && ps.vlim < ps.lim) {
     if (next(ps) === true) {
       cb_continue = cb(ps)
