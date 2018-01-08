@@ -361,5 +361,3 @@ function parse_split (src1, src2, t) {
   return [ r1.toks.join(','), pstate.encode(r1.ps), r2.toks.join(','), pstate.encode(r2.ps) ]
 }
 
-function err (msg) { throw Error(msg) }
-
