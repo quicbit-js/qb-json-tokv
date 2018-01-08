@@ -190,11 +190,11 @@ function next (ps) {
         if (pos1 === OBJ_A_K) {
           // key
           ps.koff = ps.voff
-          if (ps.vlim <= 0)     { ps.klim = ps.voff = ps.vlim = -ps.vlim; ps.trunc = true; ps.tok = TOK.END; return false }
+          if (ps.vlim <= 0)     { ps.klim = ps.voff = ps.vlim = -ps.vlim; ps.trunc = true; return false }
           else                  { ps.pos = pos1; ps.klim = ps.voff = ps.vlim; continue }
         } else {
           // value
-          if (ps.vlim <= 0)     { ps.vlim = -ps.vlim; ps.trunc = true; ps.tok = TOK.END; return false }
+          if (ps.vlim <= 0)     { ps.vlim = -ps.vlim; ps.trunc = true; return false }
           else                  { ps.pos = pos1; ps.vcount++; return true }
         }
 
@@ -204,7 +204,7 @@ function next (ps) {
         ps.vlim = skip_bytes(ps.src, ps.vlim, ps.lim, TOK_BYTES[ps.tok])
         pos1 = POS_MAP[ps.pos | ps.tok]
         if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED;  return false }
-        if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.trunc = true; ps.tok = ps.vlim === ps.lim? TOK.END : TOK.BAD_BYT; return false }
+        if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.trunc = true; if (ps.vlim !== ps.lim) ps.tok = TOK.BAD_BYT; return false }
         else                    { ps.pos = pos1; ps.vcount++; return true }
 
       case 48:case 49:case 50:case 51:case 52:          // 0-4    digits
@@ -214,7 +214,7 @@ function next (ps) {
         ps.vlim = skip_dec(ps.src, ps.vlim, ps.lim)
         pos1 = POS_MAP[ps.pos | ps.tok]
         if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED;  return false }
-        if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.trunc = true; if (ps.vlim !== ps.lim) { ps.tok = TOK.BAD_BYT } return false }
+        if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.trunc = true; if (ps.vlim !== ps.lim) ps.tok = TOK.BAD_BYT; return false }
         else                    { ps.pos = pos1; ps.vcount++; return true }
 
       case 91:                                          // [    ARRAY START
