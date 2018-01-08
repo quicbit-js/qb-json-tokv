@@ -270,14 +270,13 @@ function tokenize (ps, opt, cb) {
   init(ps)
   if (!cb(ps)) { return ps }
   var cb_continue = true
-  while (cb_continue && next(ps) !== TOK.END) {
-    cb_continue = cb(ps)
-  }
-  if (!cb_continue) {
-    // clear key and value
-    ps.koff = ps.klim
-    ps.voff = ps.vlim
-    return ps
+  while (next(ps) !== TOK.END) {
+    if(cb(ps) !== true) {
+      // clear key and value
+      ps.koff = ps.klim
+      ps.voff = ps.vlim
+      return ps
+    }
   }
 
   if (ps.ecode === ECODE.BAD_VALUE) {
@@ -294,8 +293,7 @@ function tokenize (ps, opt, cb) {
         // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
         ps.tok = TOK.DEC
         ps.ecode = 0
-        cb_continue = cb(ps)
-        if (!cb_continue) {
+        if (!cb(ps)) {
           return ps
         }
         ps.voff = ps.vlim
