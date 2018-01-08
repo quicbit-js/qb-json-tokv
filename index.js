@@ -255,7 +255,9 @@ function next (ps) {
 }
 
 function handle_neg (ps) {
-  { ps.vlim = -ps.vlim; ps.ecode = ps.vlim === ps.lim ? ECODE.TRUNCATED : ECODE.BAD_VALUE; return ps.tok = TOK.END }
+  ps.vlim = -ps.vlim
+  ps.ecode = ps.vlim === ps.lim ? ECODE.TRUNCATED : ECODE.BAD_VALUE
+  return ps.tok = TOK.END
 }
 
 function handle_unexp (ps) {
