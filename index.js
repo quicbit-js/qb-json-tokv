@@ -51,8 +51,9 @@ var TOK = {
 
 var ECODE = {
   // when there is an error, ecode is set to one of these
-  UNEXPECTED: 85,   // 'U'  if encountered token in wrong place/context
-  BAD_BYT: 88,      // 'X'  encountered invalid byte.  if voff != vlim, then the byte is considered part of a value
+  BAD_VALUE: 66,    // 'B'  encountered invalid byte or series of bytes
+  TRUNCATED: 84,    // 'T'  key or value was unfinished at end of buffer
+  UNEXPECTED: 85,   // 'U'  encountered a recognized token in wrong place/context
 }
 
 // create an int-int map from (pos + tok) -- to --> (new pos)
@@ -158,8 +159,7 @@ function init (ps) {
   ps.vlim = ps.vlim || ps.voff
   ps.stack = ps.stack || []                    // ascii codes 91 and 123 for array / object depth
   ps.pos = ps.pos || ARR_BFV                          // container context and relative position encoded as an int
-  !ps.trunc || err('cannot handle truncated value')
-  ps.trunc = false
+  ps.ecode !== ECODE.TRUNCATED || err('cannot handle truncated value')
   ps.ecode = 0
   ps.vcount = ps.vcount || 0                             // number of complete values parsed
 }
@@ -193,11 +193,11 @@ function next (ps) {
         if (pos1 === OBJ_A_K) {
           // key
           ps.koff = ps.voff
-          if (ps.vlim <= 0)     { ps.klim = ps.voff = ps.vlim = -ps.vlim; ps.trunc = true; return ps.tok = TOK.END }
+          if (ps.vlim <= 0)     { ps.klim = ps.voff = ps.vlim = -ps.vlim; ps.ecode = ECODE.TRUNCATED; return ps.tok = TOK.END }
           else                  { ps.pos = pos1; ps.klim = ps.voff = ps.vlim; continue }
         } else {
           // value
-          if (ps.vlim <= 0)     { ps.vlim = -ps.vlim; ps.trunc = true; return ps.tok = TOK.END }
+          if (ps.vlim <= 0)     { ps.vlim = -ps.vlim; ps.ecode = ECODE.TRUNCATED; return ps.tok = TOK.END }
           else                  { ps.pos = pos1; ps.vcount++; return true }
         }
 
@@ -207,7 +207,7 @@ function next (ps) {
         ps.vlim = skip_bytes(ps.src, ps.vlim, ps.lim, TOK_BYTES[ps.tok])
         pos1 = POS_MAP[ps.pos | ps.tok]
         if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.ecode = ECODE.UNEXPECTED;  return ps.tok = TOK.END }
-        if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.trunc = true; if (ps.vlim !== ps.lim) ps.ecode = ECODE.BAD_BYT; return ps.tok = TOK.END }
+        if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.ecode = ps.vlim === ps.lim ? ECODE.TRUNCATED : ECODE.BAD_VALUE; return ps.tok = TOK.END }
         else                    { ps.pos = pos1; ps.vcount++; return true }
 
       case 48:case 49:case 50:case 51:case 52:          // 0-4    digits
@@ -217,7 +217,7 @@ function next (ps) {
         ps.vlim = skip_dec(ps.src, ps.vlim, ps.lim)
         pos1 = POS_MAP[ps.pos | ps.tok]
         if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.ecode = ECODE.UNEXPECTED;  return ps.tok = TOK.END }
-        if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.trunc = true; if (ps.vlim !== ps.lim) ps.ecode = ECODE.BAD_BYT; return ps.tok = TOK.END }
+        if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.ecode = ps.vlim === ps.lim ? ECODE.TRUNCATED : ECODE.BAD_VALUE; return ps.tok = TOK.END }
         else                    { ps.pos = pos1; ps.vcount++; return true }
 
       case 91:                                          // [    ARRAY START
@@ -242,7 +242,7 @@ function next (ps) {
 
       default:
         --ps.vlim;
-        { ps.ecode = ECODE.BAD_BYT; return ps.tok = TOK.END }
+        { ps.ecode = ECODE.BAD_VALUE; return ps.tok = TOK.END }
     }
   }
 
@@ -271,7 +271,7 @@ function tokenize (ps, opt, cb) {
     return ps
   }
 
-  if (ps.ecode === ECODE.BAD_BYT) {
+  if (ps.ecode === ECODE.BAD_VALUE) {
     err('bad byte: ' + ps.src[ps.vlim], ps)
   }
   if (ps.ecode === ECODE.UNEXPECTED) {
@@ -280,10 +280,11 @@ function tokenize (ps, opt, cb) {
   ps.tok = TOK.END
   if (!opt.incremental) {
     ps.stack.length === 0 || err('input was incomplete. use option {incremental: true} to enable partial parsing', ps)
-    if (ps.trunc) {
+    if (ps.ecode === ECODE.TRUNCATED) {
       if (DECIMAL_ASCII[ps.src[ps.voff]]) {
         // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
         ps.tok = TOK.DEC
+        ps.ecode = 0
         cb_continue = cb(ps)
         if (!cb_continue) {
           return ps
@@ -291,7 +292,6 @@ function tokenize (ps, opt, cb) {
         ps.voff = ps.vlim
         ps.tok = TOK.END
         ps.pos = ARR_A_V
-        ps.trunc = false
       } else {
         err('input was truncated. use option {incremental: true} to enable partial parsing', ps)
       }
