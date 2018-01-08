@@ -284,7 +284,7 @@ function tokenize (ps, opt, cb) {
         err('input was truncated. use option {incremental: true} to enable partial parsing', ps)
       }
     } else {
-      ps.pos !== ARR_B_V || err('trailing comma', ps)
+      ps.pos !== ARR_B_V || err('trailing comma. use option {incremental: true} to enable partial parsing', ps)
     }
   }
 
