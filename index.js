@@ -107,10 +107,10 @@ function ascii_to_bytes (strings) {
 }
 
 var WHITESPACE = ascii_to_code('\b\f\n\t\r ', 1)
+var NON_TOKEN = ascii_to_code('\b\f\n\t\r ,:', 1)     // token values used internally (and not returned)
 var DELIM = ascii_to_code('\b\f\n\t\r ,:{}[]', 1)
 var DECIMAL_ASCII = ascii_to_code('-0123456789+.eE', 1)
 var TOK_BYTES = ascii_to_bytes({ f: 'alse', t: 'rue', n: 'ull' })
-var VAL_TOKENS = ascii_to_code('sdtfn{}[]!XU', 1, [])       // tokens that use a value range (vlim > voff), including truncated values
 
 // skip as many bytes of src that match bsrc, up to lim.
 // return
@@ -243,9 +243,10 @@ function next (ps) {
     }
   }
 
-  if (!ps.trunc && !VAL_TOKENS[ps.tok]) {
-    // wipe out value ranges caused by whitespace, colon, comma etc.
+  if (NON_TOKEN[ps.tok]) {
+    // ended with whitespace, colon, comma etc.
     ps.voff = ps.vlim
+    ps.tok = TOK.END
   }
   return false
 }
