@@ -143,22 +143,23 @@ test('parse error state', function (t) {
 test('callback stop', function (t) {
   t.table_assert(
     [
-      [ 'src',                'inc', 'at_cb', 'ret', 'exp' ],
-      [ '{ "a": 7, "b": 4 }', true,  0,       false, [ 'B@0', '0/0/F' ] ],
-      [ '{ "a": 7, "b": 4 }', true,  1,       false, [ 'B@0,{@0', '1/0/{F' ] ],
-      [ '{ "a": 7, "b": 4 }', true,  2,       false, [ 'B@0,{@0,k3@2:d1@7', '8/1/{W' ] ],
-      [ '{ "a": 7, "b": 4 }', true,  3,       false, [ 'B@0,{@0,k3@2:d1@7,k3@10:d1@15', '16/2/{W' ] ],
+      [ 'src',                'inc', 'at_cb', 'exp' ],
+      [ '1, 2, 3',            false, 3,       [ 'B@0,d1@0,d1@3,d1@6', '7/2/U1' ] ],
+      [ '[1, 2, 3',            true, 4,       [ 'B@0,[@0,d1@1,d1@4,E1@7!T', '8/2/[V1' ] ],
+      [ '{ "a": 7, "b": 4 }', true,  0,       [ 'B@0', '0/0/F' ] ],
+      [ '{ "a": 7, "b": 4 }', true,  1,       [ 'B@0,{@0', '1/0/{F' ] ],
+      [ '{ "a": 7, "b": 4 }', true,  2,       [ 'B@0,{@0,k3@2:d1@7', '8/1/{W' ] ],
+      [ '{ "a": 7, "b": 4 }', true,  3,       [ 'B@0,{@0,k3@2:d1@7,k3@10:d1@15', '16/2/{W' ] ],
       // if callback returns false at the src limit, the parse state is returned from _tokenize, but no end callback is made
-      [ '{ "a": 7, "b": 4 }', true,  4,       false, [ 'B@0,{@0,k3@2:d1@7,k3@10:d1@15,}@17', '18/3/W' ] ],
-      [ '1, 2, 3',            false, 3,       false, [ 'B@0,d1@0,d1@3,d1@6', '7/2/V1' ] ],
+      [ '{ "a": 7, "b": 4 }', true,  4,       [ 'B@0,{@0,k3@2:d1@7,k3@10:d1@15,}@17', '18/3/W' ] ],
 
     ],
-    function (src, inc, at_cb, ret) {
+    function (src, inc, at_cb) {
       var count = 0
       var toks = []
       var cb = function (ps) {
         toks.push(pstate.tokstr(ps))
-        return (count++ === at_cb) ? ret : true
+        return count++ !== at_cb
       }
       var ps = jtok.tokenize({src: utf8.buffer(src)}, {incremental: inc}, cb)
       return [ toks.join(','), pstate.encode(ps) ]
