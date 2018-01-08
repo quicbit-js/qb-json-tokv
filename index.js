@@ -198,11 +198,15 @@ function next (ps) {
 
       case 34:                                          // "    QUOTE
         ps.tok = 115                                    // s for string
-        if (finish_str(ps)) {
+        ps.vlim = skip_str(ps.src, ps.vlim, ps.lim)
+        pos1 = POS_MAP[ps.pos | ps.tok]
+        if (pos1 === 0)         { ps.vlim = ps.vlim < 0 ? -ps.vlim : ps.vlim; ps.tok = TOK.UNEXPECTED;  return false }
+        if (ps.vlim <= 0)       { ps.vlim = -ps.vlim; ps.trunc = true; ps.tok = TOK.END; return false }
+        else {
+          ps.pos = pos1
           if (ps.pos === OBJ_A_K) { ps.koff = ps.voff; ps.klim = ps.vlim; continue }
           else                    { ps.vcount++; return true }
         }
-        else                      { return false }
 
       case 102:                                         // f    false
       case 110:                                         // n    null
