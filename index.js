@@ -269,7 +269,6 @@ function tokenize (ps, opt, cb) {
   opt = opt || {}
   init(ps)
   if (!cb(ps)) { return ps }
-  var cb_continue = true
   while (next(ps) !== TOK.END) {
     if(cb(ps) !== true) {
       // clear key and value
