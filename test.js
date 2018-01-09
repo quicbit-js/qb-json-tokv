@@ -17,11 +17,12 @@
 var test = require('test-kit').tape()
 var utf8 = require('qb-utf8-ez')
 var jtok = require('.')
+var TOK = jtok.TOK
 var ECODE = jtok.ECODE
-var pstate = require('qb-json-state')
+var jstate = require('qb-json-state')
 
 test('tokenize', function (t) {
-  t.tableAssert(
+  t.table_assert(
     [
       [ 'src',                                      'off', 'lim', 'exp' ],
       [ '',                                         0,     null,  [ 'B@0,E@0', '0/0/F' ] ],
@@ -55,13 +56,30 @@ test('tokenize', function (t) {
     function (input, off, lim) {
       var toks = []
       var cb = function (ps) {
-        toks.push(pstate.tokstr(ps))
+        toks.push(jstate.tokstr(ps))
         return true
       }
       var ret_ps = jtok.tokenize({src: utf8.buffer(input), off: off, lim: lim}, null, cb)
-      return [ toks.join(','), pstate.encode(ret_ps) ]
+      return [ toks.join(','), jstate.encode(ret_ps) ]
     }
   )
+})
+
+test('next', function (t) {
+  t.table_assert([
+    [ 'ps',          'iterations',     'exp' ],
+    [ {src: '"a"'},  3,                 [ 's:3/1/W3', 'E:3/1/W', 'E:3/1/W' ] ],
+    [ {src: '"a",3'},  4,               [ 's:3/1/W3', 'E:5/1/V1', 'E:5/1/U', 'E:5/1/U' ] ],
+  ], function (ps, iterations) {
+    ps = jstate.obj2ps(ps)
+    jtok.init(ps)
+
+    var results = []
+    for (var i=0; i<iterations; i++) {
+      results.push(String.fromCharCode(jtok.next(ps)) + ':' + jstate.encode(ps))
+    }
+    return results
+  })
 })
 
 test('errors', function (t) {
@@ -127,14 +145,14 @@ test('parse error state', function (t) {
     function (src) {
       var toks = []
       var cb = function (ps) {
-        toks.push(pstate.tokstr(ps))
+        toks.push(jstate.tokstr(ps))
         return true
       }
       // jtok.tokenize({src: utf8.buffer(src)}, null, cb)
       try {
         jtok.tokenize({src: utf8.buffer(src)}, null, cb)
       } catch (e) {
-        return [ toks.join(','), pstate.encode(e.parse_state) ]
+        return [ toks.join(','), jstate.encode(e.parse_state) ]
       }
     }
   )
@@ -158,18 +176,18 @@ test('callback stop', function (t) {
       var count = 0
       var toks = []
       var cb = function (ps) {
-        toks.push(pstate.tokstr(ps))
+        toks.push(jstate.tokstr(ps))
         return count++ !== at_cb
       }
       var ps = jtok.tokenize({src: utf8.buffer(src)}, {incremental: inc}, cb)
-      return [ toks.join(','), pstate.encode(ps) ]
+      return [ toks.join(','), jstate.encode(ps) ]
     }
   )
 })
 
 function capture_parse (ps_in, opt) {
   var toks = []
-  var cb = function (ps) { toks.push(pstate.tokstr(ps)); return true }
+  var cb = function (ps) { toks.push(jstate.tokstr(ps)); return true }
   var ps_out = jtok.tokenize(ps_in, opt, cb)
   return { toks: toks, ps: ps_out }
 }
@@ -199,7 +217,7 @@ test('object - no spaces', function (t) {
     ],
     function (src) {
       var r = capture_parse({src: utf8.buffer(src)}, {incremental: true}, t)
-      return [ r.toks.join(','), pstate.encode(r.ps) ]
+      return [ r.toks.join(','), jstate.encode(r.ps) ]
     }
   )
 })
@@ -223,7 +241,7 @@ test('array - no spaces', function (t) {
     ],
     function (src) {
       var r = capture_parse({src: utf8.buffer(src)}, {incremental: true}, t)
-      return [ r.toks.join(','), pstate.encode(r.ps) ]
+      return [ r.toks.join(','), jstate.encode(r.ps) ]
     }
   )
 })
@@ -250,7 +268,7 @@ test('array - spaces', function (t) {
       [ '[ 83, "a" , 2 ]', [ 'B@0,[@0,d2@2,s3@6,d1@12,]@14,E@15', '15/4/W' ] ],    ],
     function (src) {
       var r = capture_parse({src: utf8.buffer(src)}, {incremental: true}, t)
-      return [ r.toks.join(','), pstate.encode(r.ps) ]
+      return [ r.toks.join(','), jstate.encode(r.ps) ]
     }
   )
 })
@@ -281,7 +299,7 @@ test('object - spaces', function (t) {
     ],
     function (src) {
       var r = capture_parse({src: utf8.buffer(src)}, {incremental: true}, t)
-      return [ r.toks.join(','), pstate.encode(r.ps) ]
+      return [ r.toks.join(','), jstate.encode(r.ps) ]
     }
   )
 })
@@ -358,6 +376,6 @@ function parse_split (src1, src2, t) {
   }
   var r2 = capture_parse(ps, {incremental: true}, t)
   
-  return [ r1.toks.join(','), pstate.encode(r1.ps), r2.toks.join(','), pstate.encode(r2.ps) ]
+  return [ r1.toks.join(','), jstate.encode(r1.ps), r2.toks.join(','), jstate.encode(r2.ps) ]
 }
 

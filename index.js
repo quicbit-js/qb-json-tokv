@@ -197,7 +197,7 @@ function next (ps) {
           else                  { ps.klim = ps.voff = -ps.vlim; return handle_neg(ps) }
         } else {
           // value
-          if (ps.vlim > 0)      { ps.pos = pos1; ps.vcount++; return true }
+          if (ps.vlim > 0)      { ps.pos = pos1; ps.vcount++; return ps.tok }
           else                  return handle_neg(ps)
         }
 
@@ -207,7 +207,7 @@ function next (ps) {
         ps.vlim = skip_bytes(ps.src, ps.vlim, ps.lim, TOK_BYTES[ps.tok])
         pos1 = POS_MAP[ps.pos | ps.tok]
         if (pos1 === 0)         return handle_unexp(ps)
-        if (ps.vlim > 0)        { ps.pos = pos1; ps.vcount++; return true }
+        if (ps.vlim > 0)        { ps.pos = pos1; ps.vcount++; return ps.tok }
         else                    return handle_neg(ps)
 
       case 48:case 49:case 50:case 51:case 52:          // 0-4    digits
@@ -217,7 +217,7 @@ function next (ps) {
         ps.vlim = skip_dec(ps.src, ps.vlim, ps.lim)
         pos1 = POS_MAP[ps.pos | ps.tok]
         if (pos1 === 0)         return handle_unexp(ps)
-        if (ps.vlim > 0)        { ps.pos = pos1; ps.vcount++; return true }
+        if (ps.vlim > 0)        { ps.pos = pos1; ps.vcount++; return ps.tok }
         else                    return handle_neg(ps)
 
       case 91:                                          // [    ARRAY START
@@ -226,19 +226,19 @@ function next (ps) {
         if (pos1 === 0)                               return handle_unexp(ps)
         ps.pos = pos1
         ps.stack.push(ps.tok)
-        return true
+        return ps.tok
 
       case 93:                                          // ]    ARRAY END
         if (ps.pos !== ARR_BFV && ps.pos !== ARR_A_V) return handle_unexp(ps)
         ps.stack.pop()
         ps.pos = ps.stack[ps.stack.length - 1] === 123 ? OBJ_A_V : ARR_A_V;
-        ps.vcount++; return true
+        ps.vcount++; return ps.tok
 
       case 125:                                         // }    OBJECT END
         if (ps.pos !== OBJ_BFK && ps.pos !== OBJ_A_V) return handle_unexp(ps)
         ps.stack.pop()
         ps.pos = ps.stack[ps.stack.length - 1] === 123 ? OBJ_A_V : ARR_A_V
-        ps.vcount++; return true
+        ps.vcount++; return ps.tok
 
       default:
         --ps.vlim;
@@ -307,6 +307,56 @@ function tokenize (ps, opt, cb) {
 
   cb(ps)
   return ps
+}
+// next_src() supports smooth transition between split buffers.
+//
+//
+// if ps1 ends with a partial state that does not fit within ps1.src such as truncated key,
+// truncated, value, or key with no value,
+// next_src() will set ps1.src and other properties to hold a single and entire key/value or value as well
+// as update ps2 properties to continue exactly where ps1 finishes.  In these cases, next_src
+// returns 2, meaning parsing should continue with ps1 followed by ps2.
+//
+// if there is nothing to make whole (no partial key, key/value or value), then next_src() will  just set
+// ps2 properties to continue parsing the next value where ps1 leaves off.  In this case, next_src()
+// will return 1 to indicate that parsing should just continue with the ps2 state.
+//
+// if ps2.src does not complete a partial ps1.value, such as a very large string, then ps2 will
+// be modified to hold ps1 and ps2 sources and next_src() returns zero to indicate that there
+// is no complete data (and more calls to next_src() should be made to create a whole value).
+//
+// For most data where the created single-item src is tiny compared
+// with large ps1.src and ps2.src buffers and so is more efficient than extending large ps1 or ps2 sources.
+// However, for values that do not fit within a buffer, whole will create larger
+// buffers - which may be expensive for very large buffers.
+//
+function next_src (ps1, ps2) {
+  ps1.vlim === ps.lim || err('ps1 is not yet finished')
+  switch (ps1.ecode) {
+    case ECODE.UNEXPECTED: case ECODE.BAD_VALUE:
+    err('cannot complete an error state ' + ps1.ecode)
+    break
+    case ECODE.TRUNCATED:
+      return concat_ps(ps1, ps2)
+    default:
+      switch (ps1.pos) {
+        case OBJ_BFK: case OBJ_B_K:
+        case ARR_BFV: case ARR_B_V:
+        case OBJ_A_V: case ARR_A_V:
+        // nothing straddles ps1.src and ps2.src
+
+      }
+      return continue_ps(ps1, ps2)
+  }
+}
+
+function concat_src (src1, off1, lim1, src2, off2, lim2) {
+  var len1 = lim1 - off1
+  var len2 = lim2 - off2
+  var ret = new Uint8Array(len1 + len2)
+  for (var i=0; i< len1; i++) { ret[i] = src1[i+off1] }
+  for (i=0; i<len2; i++) { ret[i+len1] = src2[i+off2] }
+  return ret
 }
 
 function err (msg, ps) {
