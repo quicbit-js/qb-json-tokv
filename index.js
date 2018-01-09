@@ -159,7 +159,7 @@ function init (ps) {
   ps.vlim = ps.vlim || ps.voff
   ps.stack = ps.stack || []                    // ascii codes 91 and 123 for array / object depth
   ps.pos = ps.pos || ARR_BFV                          // container context and relative position encoded as an int
-  ps.ecode !== ECODE.TRUNCATED || err('cannot handle truncated value')
+  !ps.ecode || err('cannot handle truncated value')
   ps.ecode = 0
   ps.vcount = ps.vcount || 0                             // number of complete values parsed
 }
@@ -271,7 +271,6 @@ function tokenize (ps, opt, cb) {
   if (!cb(ps)) { return ps }
   while (next(ps) !== TOK.END) {
     if(cb(ps) !== true) {
-      // clear key and value
       ps.koff = ps.klim
       ps.voff = ps.vlim
       return ps

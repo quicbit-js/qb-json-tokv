@@ -99,11 +99,3 @@ function finish_value (ps, opt, cb) {
   }
 }
 
-function concat (src1, off1, lim1, src2, off2, lim2) {
-  var len1 = lim1 - off1
-  var len2 = lim2 - off2
-  var ret = new Uint8Array(len1 + len2)
-  for (var i=0; i< len1; i++) { ret[i] = src1[i+off1] }
-  for (i=0; i<len2; i++) { ret[i+len1] = src2[i+off2] }
-  return ret
-}
