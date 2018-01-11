@@ -150,7 +150,7 @@ function skip_dec (src, off, lim) {
 }
 
 function init (ps) {
-  ps.src = ps.src || err('missing src property', ps)
+  ps.src || err('missing src property', ps)
   ps.lim = ps.lim == null ? ps.src.length : ps.lim
   ps.tok = TOK.BEG                             // token/byte being handled
   ps.koff = ps.koff || ps.off || 0                        // key offset
@@ -159,8 +159,7 @@ function init (ps) {
   ps.vlim = ps.vlim || ps.voff
   ps.stack = ps.stack || []                    // ascii codes 91 and 123 for array / object depth
   ps.pos = ps.pos || ARR_BFV                          // container context and relative position encoded as an int
-  !ps.ecode || err('cannot handle truncated value')
-  ps.ecode = 0
+  ps.ecode = ps.ecode || 0
   ps.vcount = ps.vcount || 0                             // number of complete values parsed
 }
 
@@ -267,6 +266,7 @@ function handle_unexp (ps) {
 
 function tokenize (ps, opt, cb) {
   opt = opt || {}
+  !ps.ecode || err('cannot tokenize state with ecode "' + String.fromCharCode(ps.ecode) + '"')
   init(ps)
   if (!cb(ps)) { return ps }
   while (next(ps) !== TOK.END) {
@@ -331,23 +331,80 @@ function tokenize (ps, opt, cb) {
 // buffers - which may be expensive for very large buffers.
 //
 function next_src (ps1, ps2) {
-  ps1.vlim === ps.lim || err('ps1 is not yet finished')
-  switch (ps1.ecode) {
-    case ECODE.UNEXPECTED: case ECODE.BAD_VALUE:
-    err('cannot complete an error state ' + ps1.ecode)
-    break
-    case ECODE.TRUNCATED:
-      return concat_ps(ps1, ps2)
-    default:
-      switch (ps1.pos) {
-        case OBJ_BFK: case OBJ_B_K:
-        case ARR_BFV: case ARR_B_V:
-        case OBJ_A_V: case ARR_A_V:
-        // nothing straddles ps1.src and ps2.src
+  ps1.vlim === ps1.lim || err('ps1 is not yet finished')
+  ps1.tok === TOK.END || err('ps1 is not completed')
+  ps1.ecode !== ECODE.BAD_VALUE && ps1.ecode !== ECODE.UNEXPECTED || err('ps1 has unresolved errors')
+  var trunc = ps1.ecode === ECODE.TRUNCATED
 
+  // start ps2 with its own offsets, but same stack, pos, vcount
+  init(ps2)
+  ps2.stack = ps1.stack
+  ps2.pos = ps1.pos
+  ps2.vcount = ps1.vcount
+
+  var idx
+  switch (ps1.pos) {
+    case OBJ_B_K: case OBJ_BFK:
+      if (!trunc) { return TOK.END }      // no merge needed
+      // else - truncated key
+      idx = skip_str(ps2.src, ps2.voff, ps2.lim)
+      if (idx < 0) {
+        // still truncated
+        ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim)
+        ps1.koff = 0
+        ps1.klim = ps1.voff = ps1.vlim = ps1.src.length
+        // ps1.tok = END
+        // ps2.tok, stack, pos, ecode, vcount are unchanged
+      } else {
+        // finished key
+        var off2 = ps2.vlim   // remember offset
+
+        // advance ps2
+        ps2.pos = OBJ_A_K
+        ps2.klim = ps2.voff = ps2.vlim = idx
+        next(ps2)
+
+        // capture ps1.koff .. ps2.vlim in ps1.src
+        ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, off2, ps2.vlim)
+        ps1.off = ps1.koff = ps1.klim = ps1.voff = ps1.vlim = ps1.tok = 0
+        next(ps1)
       }
-      return continue_ps(ps1, ps2)
+      return ps1.tok
+    default: err('pos not handled: ' + ps1.pos)
   }
+
+  // ps1.src - later
+  // ps1.lim = ps2.lim
+  // ps1.tok - later
+  // ps.koff
+  // ps.klim
+  // ps.voff
+  // ps.vlim
+  // ps1.stack (same)
+  // ps.pos - later
+  // ps.ecode (checked = 0)
+  // ps.vcount (same)
+
+  // switch (ps1.pos) {
+  //   case OBJ_BFK:
+  //   case OBJ_B_K:
+  //     if (trunc) {
+  //
+  //     }
+  //     break
+  //   case ARR_BFV:
+  //   case ARR_B_V:
+  //   case OBJ_A_V:
+  //   case ARR_A_V:
+  //     // no key
+  //     break
+  //   case OBJ_A_K:
+  //   case OBJ_B_V:
+  //     // include key
+  //     concat_src(ps1.src, ps1.koff, ps1.klim)
+  //     break
+  // }
+  // return continue_ps(ps1, ps2)
 }
 
 function concat_src (src1, off1, lim1, src2, off2, lim2) {
@@ -369,6 +426,7 @@ module.exports = {
   tokenize: tokenize,
   init: init,
   next: next,
+  next_src: next_src,
   TOK: TOK,
   ECODE: ECODE,
 }

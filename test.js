@@ -67,11 +67,14 @@ test('tokenize', function (t) {
 
 test('next', function (t) {
   t.table_assert([
-    [ 'ps',          'iterations',     'exp' ],
-    [ {src: '"a"'},  3,                 [ 's:3/1/W3', 'E:3/1/W', 'E:3/1/W' ] ],
-    [ {src: '"a",3'},  4,               [ 's:3/1/W3', 'E:5/1/V1', 'E:5/1/U', 'E:5/1/U' ] ],
-  ], function (ps, iterations) {
-    ps = jstate.obj2ps(ps)
+    [ 'src',            'iterations',     'exp' ],
+    [ '"a"',     3,                [ 's:3/1/W3', 'E:3/1/W', 'E:3/1/W' ] ],
+    [ '"a",',    3,                [ 's:3/1/W3', 'E:4/1/U', 'E:4/1/U' ] ],
+    [ '"a",3',   4,                [ 's:3/1/W3', 'E:5/1/V1', 'E:5/1/U', 'E:5/1/U' ] ],
+    [ '"a",3,',  4,                [ 's:3/1/W3', 'd:5/2/W1', 'E:6/2/U', 'E:6/2/U' ] ],
+    [ '"a",3,t',  5,               [ 's:3/1/W3', 'd:5/2/W1', 'E:7/2/V1', 'E:7/2/U', 'E:7/2/U' ] ],
+  ], function (src, iterations) {
+    var ps = jstate.obj2ps({src: src})
     jtok.init(ps)
 
     var results = []
@@ -82,11 +85,38 @@ test('next', function (t) {
   })
 })
 
+function capture_next_src (src1, src2, t) {
+  var ps1 = {src: utf8.buffer(src1)}
+  var ps2 = {src: utf8.buffer(src2)}
+  var r1 = capture_parse(ps1, {incremental: true}, t)
+  var toks1 = r1.toks.join(',')
+  var enc1 = jstate.encode(r1.ps)
+  jtok.next_src(ps1, ps2)
+  var enc2 = jstate.encode(ps1)
+  var enc3 = jstate.encode(ps2)
+  var r2 = capture_parse(ps2, null, t)
+  return [ toks1, enc1, enc2, enc3, r2.toks.join(','), jstate.encode(r2.ps)]
+}
+
+test('next_src', function (t) {
+  t.table_assert([
+    [ 'src1',               'src2',               'exp' ],
+    //                                                                     call next_src
+    //                                                                           |
+    //                                              src1-tokenize,        ps1,       ps1,       ps2,      src2-tokenize,               ps2
+    [ '{"',                 'a":3,"b":4}',        [ 'B@0,{@0,k1@1:E@2!T', '2/0/{K1', '2/0/{K2', '4/1/{W1', 'B1@3,k3@5:d1@9,}@10,E@11', '11/3/W' ] ],
+    [ '{"a',                '":3,"b":4}',         [ 'B@0,{@0,k2@1:E@3!T', '3/0/{K2', '3/0/{L3', '3/1/{W1', 'B1@2,k3@4:d1@8,}@9,E@10', '10/3/W' ] ],
+    // [ '{"a"',               '"3,"b":4}',          [ 'B@0,{@0,k2@1:E@3!T', '3/0/{K2', '3/0/{L3', '3/1/{W1', 'B1@2,k3@4:d1@8,}@9,E@10', '10/3/W' ] ],
+  ], function (src1, src2) {
+    return capture_next_src(src1, src2, t)
+  })
+})
+
 test('errors', function (t) {
   t.table_assert([
     [ 'ps',                                 'opt',        'exp' ],
     [ {},                                   null,        /missing src property/ ],
-    [ {src: [], ecode: ECODE.TRUNCATED},    null,        /cannot handle truncated value/ ],
+    [ {src: [], ecode: ECODE.TRUNCATED},    null,        /cannot tokenize state with ecode "T"/ ],
   ], jtok.tokenize, {assert: 'throws'})
 })
 
