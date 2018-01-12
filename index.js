@@ -152,13 +152,13 @@ function skip_dec (src, off, lim) {
 function init (ps) {
   ps.src || err('missing src property', ps)
   ps.lim = ps.lim == null ? ps.src.length : ps.lim
-  ps.tok = TOK.BEG                             // token/byte being handled
+  ps.tok = ps.tok || 0                             // token/byte being handled
   ps.koff = ps.koff || ps.off || 0                        // key offset
   ps.klim = ps.klim || ps.koff                            // key limit (exclusive)
   ps.voff = ps.voff || ps.klim
   ps.vlim = ps.vlim || ps.voff
-  ps.stack = ps.stack || []                    // ascii codes 91 and 123 for array / object depth
-  ps.pos = ps.pos || ARR_BFV                          // container context and relative position encoded as an int
+  ps.stack = ps.stack || err('ps has no stack')                    // ascii codes 91 and 123 for array / object depth
+  ps.pos = ps.pos || err('ps has no position')                          // container context and relative position encoded as an int
   ps.ecode = ps.ecode || 0
   ps.vcount = ps.vcount || 0                             // number of complete values parsed
 }
@@ -264,9 +264,13 @@ function handle_unexp (ps) {
   ps.ecode = ECODE.UNEXPECTED; return ps.tok = TOK.END
 }
 
-function tokenize (ps, opt, cb) {
+function tokenize (ps, opt, cb, nsrc) {
   opt = opt || {}
+  ps.tok = TOK.BEG
   !ps.ecode || err('cannot tokenize state with ecode "' + String.fromCharCode(ps.ecode) + '"')
+  ps.stack = ps.stack || []
+  ps.pos = ps.pos || ARR_BFV
+  ps.vcount = ps.vcount || 0
   init(ps)
   if (!cb(ps)) { return ps }
   while (next(ps) !== TOK.END) {
@@ -281,9 +285,22 @@ function tokenize (ps, opt, cb) {
     err('bad byte: ' + ps.src[ps.vlim], ps)
   }
   if (ps.ecode === ECODE.UNEXPECTED) {
-    err('unexpected token', ps)
+    err('unexpected value', ps)
   }
+
   ps.tok = TOK.END
+  if (nsrc) {
+    var nps = {src: nsrc}
+    next_src(ps, nps)
+    cb(ps)
+    return ps.tok === TOK.END ? ps : tokenize(nps, opt, cb)
+  } else {
+    return end_tokenize(ps, opt, cb)
+  }
+}
+
+// complete tokenize callbacks, checking end state.
+function end_tokenize (ps, opt, cb) {
   if (!opt.incremental) {
     ps.stack.length === 0 || err('input was incomplete. use option {incremental: true} to enable partial parsing', ps)
     if (ps.ecode === ECODE.TRUNCATED) {
@@ -308,8 +325,8 @@ function tokenize (ps, opt, cb) {
   cb(ps)
   return ps
 }
-// next_src() supports smooth transition between split buffers.
-//
+
+// next_src() supports smooth transitions between data across 2 buffers.
 //
 // if ps1 ends with a partial state that does not fit within ps1.src such as truncated key,
 // truncated, value, or key with no value,
@@ -337,39 +354,56 @@ function next_src (ps1, ps2) {
   var trunc = ps1.ecode === ECODE.TRUNCATED
 
   // start ps2 with its own offsets, but same stack, pos, vcount
-  init(ps2)
   ps2.stack = ps1.stack
   ps2.pos = ps1.pos
   ps2.vcount = ps1.vcount
+  init(ps2)
 
   var idx
+  var ps2_off = ps2.vlim // saved ps2 offset
   switch (ps1.pos) {
     case OBJ_B_K: case OBJ_BFK:
-      if (!trunc) { return TOK.END }      // no merge needed
+      if (!trunc) { return ps1.tok }      // no merge needed
       // else - truncated key
       idx = skip_str(ps2.src, ps2.voff, ps2.lim)
+      var add_space = 0
       if (idx < 0) {
-        // still truncated
+        // still truncated, just expand ps1.src
         ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim)
         ps1.koff = 0
         ps1.klim = ps1.voff = ps1.vlim = ps1.src.length
-        // ps1.tok = END
-        // ps2.tok, stack, pos, ecode, vcount are unchanged
+        // other ps1 values are unchanged (tok == END)
       } else {
-        // finished key
-        var off2 = ps2.vlim   // remember offset
-
-        // advance ps2
+        // finished key - advance ps2 past value
         ps2.pos = OBJ_A_K
         ps2.klim = ps2.voff = ps2.vlim = idx
         next(ps2)
+        if (ps2.tok === TOK.DEC && ps2.vlim < ps2.lim) {
+          add_space = 1  // eliminate pseudo truncation (ending src with a number)
+        }
 
-        // capture ps1.koff .. ps2.vlim in ps1.src
-        ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, off2, ps2.vlim)
-        ps1.off = ps1.koff = ps1.klim = ps1.voff = ps1.vlim = ps1.tok = 0
-        next(ps1)
+        // ps1.src gets ps1.koff .. ps2.vlim
+        ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2_off, ps2.vlim + add_space)
+        if (add_space) { ps1.src[ps1.src.length-1] = 32 }
+        ps1.off = ps1.koff = ps1.klim = ps1.voff = ps1.vlim = ps1.tok = ps1.ecode = 0
+        ps1.lim = ps1.src.length
       }
-      return ps1.tok
+      return ps2.tok
+    case OBJ_A_K:
+      ps2.pos = OBJ_A_K
+      next(ps2)
+      if (ps2.tok === TOK.DEC && ps2.vlim < ps2.lim) {
+        add_space = 1  // eliminates pseudo truncation (ending src with a number)
+      }
+
+      // ps1.src gets ps1.koff .. ps2.vlim
+      ps1.pos = OBJ_B_K // back up
+      ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2_off, ps2.vlim + add_space)
+      if (add_space) { ps1.src[ps1.src.length-1] = 32 }
+      ps1.off = ps1.koff = ps1.klim = ps1.voff = ps1.vlim = ps1.tok = ps1.ecode = 0
+      ps1.lim = ps1.src.length
+      return ps2.tok
+
     default: err('pos not handled: ' + ps1.pos)
   }
 
@@ -417,6 +451,13 @@ function concat_src (src1, off1, lim1, src2, off2, lim2) {
 }
 
 function err (msg, ps) {
+  if (ps) {
+    var pobj = Object.keys(ps).reduce(function (m,k) {m[k] = ps[k]; return m}, {})
+    if (pobj.src) {
+      pobj.src = Array.from(pobj.src).map(function(c){return String.fromCharCode(c)}).join('')
+      msg += ': ' + JSON.stringify(pobj)
+    }
+  }
   var e = new Error(msg)
   e.parse_state = ps
   throw e

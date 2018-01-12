@@ -88,29 +88,47 @@ test('next', function (t) {
 function capture_next_src (src1, src2, t) {
   var ps1 = {src: utf8.buffer(src1)}
   var ps2 = {src: utf8.buffer(src2)}
-  var r1 = capture_parse(ps1, {incremental: true}, t)
-  var toks1 = r1.toks.join(',')
-  var enc1 = jstate.encode(r1.ps)
-  jtok.next_src(ps1, ps2)
-  var enc2 = jstate.encode(ps1)
-  var enc3 = jstate.encode(ps2)
-  var r2 = capture_parse(ps2, null, t)
-  return [ toks1, enc1, enc2, enc3, r2.toks.join(','), jstate.encode(r2.ps)]
+  var r1 = tokenize(ps1, {incremental: true}, t)
+  var r2, r3
+  if (jtok.next_src(ps1, ps2) === TOK.END) {
+    r2 = tokenize(ps1, {incremental: true})
+  } else {
+    r2 = tokenize(ps1, {incremental: true}, t)
+    r3 = tokenize(ps2, null, t)
+  }
+  return [ r1.toks.join(','), r2.toks.join(','), r3 && r3.toks.join(',')]
 }
 
 test('next_src', function (t) {
   t.table_assert([
-    [ 'src1',               'src2',               'exp' ],
+    [ 'src1',          'src2',               'exp' ],
     //                                                                     call next_src
     //                                                                           |
-    //                                              src1-tokenize,        ps1,       ps1,       ps2,      src2-tokenize,               ps2
-    [ '{"',                 'a":3,"b":4}',        [ 'B@0,{@0,k1@1:E@2!T', '2/0/{K1', '2/0/{K2', '4/1/{W1', 'B1@3,k3@5:d1@9,}@10,E@11', '11/3/W' ] ],
-    [ '{"a',                '":3,"b":4}',         [ 'B@0,{@0,k2@1:E@3!T', '3/0/{K2', '3/0/{L3', '3/1/{W1', 'B1@2,k3@4:d1@8,}@9,E@10', '10/3/W' ] ],
-    // [ '{"a"',               '"3,"b":4}',          [ 'B@0,{@0,k2@1:E@3!T', '3/0/{K2', '3/0/{L3', '3/1/{W1', 'B1@2,k3@4:d1@8,}@9,E@10', '10/3/W' ] ],
+    //                                         src1_toks,             ps1_1,     ps1_2,     ps2_1,     src2_toks,               ps2_2
+    [ '{"',            'a":3,"bc":44}',        [ 'B@0,{@0,k1@1:E@2!T', 'B@0,k3@0:d1@4,E@6', 'B1@3,k4@5:d2@10,}@12,E@13' ] ],
+    [ '{"a',           '":3,"bc":44}',         [ 'B@0,{@0,k2@1:E@3!T', 'B@0,k3@0:d1@4,E@6', 'B1@2,k4@4:d2@9,}@11,E@12' ] ],
+    [ '{"a"',          ':3,"bc":44}',          [ 'B@0,{@0,k3@1:E@4', 'B@0,k3@0:d1@4,E@6', 'B1@1,k4@3:d2@8,}@10,E@11' ] ],
+    // [ '{"a":',         '3,"bc":44}',         [ 'B@0,{@0,k2@1:E@3!T', 'B@0,k3@0:d1@4,E@6', 'B1@2,k4@4:d2@9,}@11,E@12' ] ],
+    // [ '{"a":3',        ',"bc":44}',         [ 'B@0,{@0,k2@1:E@3!T', 'B@0,k3@0:d1@4,E@6', 'B1@2,k4@4:d2@9,}@11,E@12' ] ],
   ], function (src1, src2) {
     return capture_next_src(src1, src2, t)
   })
 })
+
+// test('next_src - incomplete', function (t) {
+//   t.table_assert([
+//     [ 'src1',               'src2',               'exp' ],
+//     //                                                                     call next_src
+//     //                                                                           |
+//     //                                              src1_toks,             ps1_1,     ps1_2,     ps2_1,      src2_toks,               ps2_2
+//     [ '{"',                 'a',                  [ 'B@0,{@0,k1@1:E@2!T', '2/0/{K1', '2/0/{K2', '', '', '' ] ],
+//     [ '{"',                 'a"',                 [ 'B@0,{@0,k1@1:E@2!T', '2/0/{K1', '2/0/{K2', '', '', '' ] ],
+//     [ '{"',                 'a":',                [ 'B@0,{@0,k1@1:E@2!T', '2/0/{K1', '2/0/{K2', '', '', '' ] ],
+//     [ '{"',                 'a":',                [ 'B@0,{@0,k1@1:E@2!T', '2/0/{K1', '2/0/{K2', '', '', '' ] ],
+//   ], function (src1, src2) {
+//     return capture_next_src(src1, src2, t)
+//   })
+// })
 
 test('errors', function (t) {
   t.table_assert([
@@ -215,7 +233,7 @@ test('callback stop', function (t) {
   )
 })
 
-function capture_parse (ps_in, opt) {
+function tokenize (ps_in, opt) {
   var toks = []
   var cb = function (ps) { toks.push(jstate.tokstr(ps)); return true }
   var ps_out = jtok.tokenize(ps_in, opt, cb)
@@ -246,7 +264,7 @@ test('object - no spaces', function (t) {
       [ '{"a":71,"b":2}', [ 'B@0,{@0,k3@1:d2@5,k3@8:d1@12,}@13,E@14', '14/3/W' ] ],
     ],
     function (src) {
-      var r = capture_parse({src: utf8.buffer(src)}, {incremental: true}, t)
+      var r = tokenize({src: utf8.buffer(src)}, {incremental: true}, t)
       return [ r.toks.join(','), jstate.encode(r.ps) ]
     }
   )
@@ -270,7 +288,7 @@ test('array - no spaces', function (t) {
       [ '[83,"a",2]', [ 'B@0,[@0,d2@1,s3@4,d1@8,]@9,E@10', '10/4/W' ] ],
     ],
     function (src) {
-      var r = capture_parse({src: utf8.buffer(src)}, {incremental: true}, t)
+      var r = tokenize({src: utf8.buffer(src)}, {incremental: true}, t)
       return [ r.toks.join(','), jstate.encode(r.ps) ]
     }
   )
@@ -297,7 +315,7 @@ test('array - spaces', function (t) {
       [ '[ 83, "a" , 2 ',  [ 'B@0,[@0,d2@2,s3@6,d1@12,E@14', '14/3/[W' ] ],
       [ '[ 83, "a" , 2 ]', [ 'B@0,[@0,d2@2,s3@6,d1@12,]@14,E@15', '15/4/W' ] ],    ],
     function (src) {
-      var r = capture_parse({src: utf8.buffer(src)}, {incremental: true}, t)
+      var r = tokenize({src: utf8.buffer(src)}, {incremental: true}, t)
       return [ r.toks.join(','), jstate.encode(r.ps) ]
     }
   )
@@ -328,7 +346,7 @@ test('object - spaces', function (t) {
       [ ' { "a" : "x" }', [ 'B@0,{@1,k3@3:s3@9,}@13,E@14', '14/2/W' ] ],
     ],
     function (src) {
-      var r = capture_parse({src: utf8.buffer(src)}, {incremental: true}, t)
+      var r = tokenize({src: utf8.buffer(src)}, {incremental: true}, t)
       return [ r.toks.join(','), jstate.encode(r.ps) ]
     }
   )
@@ -397,14 +415,14 @@ test('incremental object', function (t) {
 })
 
 function parse_split (src1, src2, t) {
-  var r1 = capture_parse({src: utf8.buffer(src1)}, {incremental: true}, t)
+  var r1 = tokenize({src: utf8.buffer(src1)}, {incremental: true}, t)
   var ps = {
     src: utf8.buffer(src2),
     stack: r1.ps.stack.slice(),
     pos: r1.ps.pos,
     vcount: r1.ps.vcount,
   }
-  var r2 = capture_parse(ps, {incremental: true}, t)
+  var r2 = tokenize(ps, {incremental: true}, t)
   
   return [ r1.toks.join(','), jstate.encode(r1.ps), r2.toks.join(','), jstate.encode(r2.ps) ]
 }
