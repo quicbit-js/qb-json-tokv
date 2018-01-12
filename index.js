@@ -360,32 +360,45 @@ function next_src (ps1, ps2) {
   init(ps2)
 
   var idx
+  var ps2_off = ps2.vlim
   switch (ps1.pos) {
     case OBJ_B_K: case OBJ_BFK:
-      var ps2_off = ps2.vlim
-      if (!trunc) { return TOK.END }      // no merge needed
-      // else - truncated key
-      idx = skip_str(ps2.src, ps2.voff, ps2.lim)
-      var add_space = 0
-      if (idx < 0) {
-        // still truncated, just expand ps1.src
-        ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim)
-        ps1.koff = 0
-        ps1.klim = ps1.voff = ps1.vlim = ps1.src.length
-        // other ps1 values are unchanged (tok == END)
+      if (trunc) {
+        idx = skip_str(ps2.src, ps2.voff, ps2.lim)
+        if (idx < 0) {
+          // still truncated, just expand ps1.src
+          ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim)
+          ps1.koff = 0
+          ps1.klim = ps1.voff = ps1.vlim = ps1.src.length
+          // other ps1 values are unchanged (tok == END)
+          return TOK.END
+        }
+        // finished key
+        ps2.klim = ps2.voff = ps2.vlim = idx
+        ps2.pos = OBJ_A_K
+        return merge_key_val(ps1, ps2, ps2_off)
+      } else {
         return TOK.END
       }
-      // finished key - advance ps2 past value
-      ps2.klim = ps2.voff = ps2.vlim = idx
-      ps2.pos = OBJ_A_K
-      return merge_key_val(ps1, ps2, ps2_off)
     case OBJ_A_K:
     case OBJ_B_V:
-      return merge_key_val(ps1, ps2, ps2.vlim)
-    case OBJ_A_V: case ARR_A_V:
-      return TOK.END
-
-
+      if (trunc) {
+        idx = skip_dec(ps2.src, ps2.voff, ps2_off)
+        if (idx < 0) {
+          // still truncated, just expand ps1.src
+          ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim)
+          ps1.koff = 0
+          ps1.klim = ps1.voff = ps1.vlim = ps1.src.length
+          // other ps1 values are unchanged (tok == END)
+          return TOK.END
+        }
+        // finished val
+        ps2.vlim = idx
+        ps2.pos = OBJ_A_V
+        return merge_key_val(ps1, ps2, ps2.vlim)
+      } else {
+        return merge_key_val(ps1, ps2, ps2.vlim)
+      }
 
     default: err('pos not handled: ' + ps1.pos)
   }
