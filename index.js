@@ -351,7 +351,6 @@ function next_src (ps1, ps2) {
   ps1.vlim === ps1.lim || err('ps1 is not yet finished')
   ps1.tok === TOK.END || err('ps1 is not completed')
   ps1.ecode !== ECODE.BAD_VALUE && ps1.ecode !== ECODE.UNEXPECTED || err('ps1 has unresolved errors')
-  var trunc = ps1.ecode === ECODE.TRUNCATED
 
   // start ps2 with its own offsets, but same stack, pos, vcount
   ps2.stack = ps1.stack
@@ -363,40 +362,61 @@ function next_src (ps1, ps2) {
   var ps2_off = ps2.vlim
   switch (ps1.pos) {
     case OBJ_B_K: case OBJ_BFK:
-      if (trunc) {
-        idx = skip_str(ps2.src, ps2.voff, ps2.lim)
-        if (idx < 0) {
-          // still truncated, just expand ps1.src
-          ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim)
-          ps1.koff = 0
-          ps1.klim = ps1.voff = ps1.vlim = ps1.src.length
-          // other ps1 values are unchanged (tok == END)
-          return TOK.END
-        }
+      if (ps1.ecode !== ECODE.TRUNCATED) { return TOK.END }  // clean break between buffers
+      idx = skip_str(ps2.src, ps2.vlim, ps2.lim)
+      if (idx < 0) {
+        // still truncated, expand ps1.src with all of ps2.src
+        ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim)
+        ps1.koff = 0
+        ps1.klim = ps1.voff = ps1.vlim = ps1.src.length
+        ps2.off = ps2.koff = ps2.klim = ps2.voff = ps2.vlim = ps2.lim
+        return TOK.END
+      } else {
         // finished key
         ps2.klim = ps2.voff = ps2.vlim = idx
         ps2.pos = OBJ_A_K
         return merge_key_val(ps1, ps2, ps2_off)
-      } else {
-        return TOK.END
       }
     case OBJ_A_K:
+      return merge_key_val(ps1, ps2, ps2.vlim)
     case OBJ_B_V:
-      if (trunc) {
-        idx = skip_dec(ps2.src, ps2.voff, ps2_off)
-        if (idx < 0) {
-          // still truncated, just expand ps1.src
-          ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim)
-          ps1.koff = 0
-          ps1.klim = ps1.voff = ps1.vlim = ps1.src.length
-          // other ps1 values are unchanged (tok == END)
-          return TOK.END
-        }
+      if (ps1.ecode !== ECODE.TRUNCATED) { return merge_key_val(ps1, ps2, ps2.vlim) }
+      ps1.tok = ps1.src[ps1.voff]
+      switch (ps1.tok) {
+        case 102: case 110: case 116:
+          idx = skip_bytes(ps2.src, ps2.vlim, ps2.lim, TOK_BYTES[ps1.tok])
+          break
+        case 34:
+          idx = skip_str(ps2.src, ps2.vlim, ps2.lim)
+          break
+        default:
+          // decimal
+          if (ps2.vlim < ps2.lim && !DECIMAL_ASCII[ps2.src[ps2.vlim]]) {
+            // not really truncated, add a space to show not-truncated
+            ps1.pos = OBJ_B_K
+            ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, [32], 0, 1)
+            ps1.off = ps1.koff = ps1.klim = ps1.voff = ps1.vlim = ps1.tok = ps1.ecode = 0
+            ps1.lim = ps1.src.length
+
+            ps2.pos = OBJ_A_V
+            return TOK.DEC
+          }
+          idx = skip_dec(ps2.src, ps2.vlim, ps2.lim)
+      }
+      if (idx < 0) {
+        // still truncated, expand ps1.src with all of ps2.src
+        ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim)
+        var adj = ps1.koff
+        ps1.koff -= adj
+        ps1.klim -= adj
+        ps1.voff -= adj
+        ps1.vlim = ps1.src.length
+        ps2.off = ps2.koff = ps2.klim = ps2.voff = ps2.vlim = ps2.lim
+        return TOK.END
+      } else {
         // finished val
         ps2.vlim = idx
         ps2.pos = OBJ_A_V
-        return merge_key_val(ps1, ps2, ps2.vlim)
-      } else {
         return merge_key_val(ps1, ps2, ps2.vlim)
       }
 
@@ -415,30 +435,11 @@ function next_src (ps1, ps2) {
   // ps.ecode (checked = 0)
   // ps.vcount (same)
 
-  // switch (ps1.pos) {
-  //   case OBJ_BFK:
-  //   case OBJ_B_K:
-  //     if (trunc) {
-  //
-  //     }
-  //     break
-  //   case ARR_BFV:
-  //   case ARR_B_V:
-  //   case OBJ_A_V:
-  //   case ARR_A_V:
-  //     // no key
-  //     break
-  //   case OBJ_A_K:
-  //   case OBJ_B_V:
-  //     // include key
-  //     concat_src(ps1.src, ps1.koff, ps1.klim)
-  //     break
-  // }
-  // return continue_ps(ps1, ps2)
 }
 
-function merge_key_val(ps1, ps2, ps2_off) {
+function merge_key_val (ps1, ps2, ps2_off) {
   next(ps2)
+  ps2.koff = ps2.klim =  ps2.voff = ps2.vlim
   var add_space = ps2.tok === TOK.DEC && ps2.vlim < ps2.lim ? 1 : 0  // eliminates pseudo truncation
 
   // ps1.src gets ps1.koff .. ps2.vlim
