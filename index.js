@@ -383,7 +383,7 @@ function next_src (ps1, ps2) {
       ps1.tok = ps1.src[ps1.voff]
       switch (ps1.tok) {
         case 102: case 110: case 116:
-          idx = skip_bytes(ps2.src, ps2.vlim, ps2.lim, TOK_BYTES[ps1.tok])
+          idx = skip_bytes(ps2.src, ps2.vlim, ps2.lim, TOK_BYTES[ps1.tok].slice(ps1.vlim - ps1.voff - 1))
           break
         case 34:
           idx = skip_str(ps2.src, ps2.vlim, ps2.lim)
