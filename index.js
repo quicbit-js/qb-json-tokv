@@ -360,10 +360,10 @@ function next_src (ps1, ps2) {
   init(ps2)
 
   var idx
-  var ps2_off = ps2.vlim // saved ps2 offset
   switch (ps1.pos) {
     case OBJ_B_K: case OBJ_BFK:
-      if (!trunc) { return ps1.tok }      // no merge needed
+      var ps2_off = ps2.vlim
+      if (!trunc) { return TOK.END }      // no merge needed
       // else - truncated key
       idx = skip_str(ps2.src, ps2.voff, ps2.lim)
       var add_space = 0
@@ -373,36 +373,19 @@ function next_src (ps1, ps2) {
         ps1.koff = 0
         ps1.klim = ps1.voff = ps1.vlim = ps1.src.length
         // other ps1 values are unchanged (tok == END)
-      } else {
-        // finished key - advance ps2 past value
-        ps2.pos = OBJ_A_K
-        ps2.klim = ps2.voff = ps2.vlim = idx
-        next(ps2)
-        if (ps2.tok === TOK.DEC && ps2.vlim < ps2.lim) {
-          add_space = 1  // eliminate pseudo truncation (ending src with a number)
-        }
-
-        // ps1.src gets ps1.koff .. ps2.vlim
-        ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2_off, ps2.vlim + add_space)
-        if (add_space) { ps1.src[ps1.src.length-1] = 32 }
-        ps1.off = ps1.koff = ps1.klim = ps1.voff = ps1.vlim = ps1.tok = ps1.ecode = 0
-        ps1.lim = ps1.src.length
+        return TOK.END
       }
-      return ps2.tok
-    case OBJ_A_K:
+      // finished key - advance ps2 past value
+      ps2.klim = ps2.voff = ps2.vlim = idx
       ps2.pos = OBJ_A_K
-      next(ps2)
-      if (ps2.tok === TOK.DEC && ps2.vlim < ps2.lim) {
-        add_space = 1  // eliminates pseudo truncation (ending src with a number)
-      }
+      return merge_key_val(ps1, ps2, ps2_off)
+    case OBJ_A_K:
+    case OBJ_B_V:
+      return merge_key_val(ps1, ps2, ps2.vlim)
+    case OBJ_A_V: case ARR_A_V:
+      return TOK.END
 
-      // ps1.src gets ps1.koff .. ps2.vlim
-      ps1.pos = OBJ_B_K // back up
-      ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2_off, ps2.vlim + add_space)
-      if (add_space) { ps1.src[ps1.src.length-1] = 32 }
-      ps1.off = ps1.koff = ps1.klim = ps1.voff = ps1.vlim = ps1.tok = ps1.ecode = 0
-      ps1.lim = ps1.src.length
-      return ps2.tok
+
 
     default: err('pos not handled: ' + ps1.pos)
   }
@@ -439,6 +422,19 @@ function next_src (ps1, ps2) {
   //     break
   // }
   // return continue_ps(ps1, ps2)
+}
+
+function merge_key_val(ps1, ps2, ps2_off) {
+  next(ps2)
+  var add_space = ps2.tok === TOK.DEC && ps2.vlim < ps2.lim ? 1 : 0  // eliminates pseudo truncation
+
+  // ps1.src gets ps1.koff .. ps2.vlim
+  ps1.pos = OBJ_B_K
+  ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2_off, ps2.vlim + add_space)
+  if (add_space) { ps1.src[ps1.src.length-1] = 32 }
+  ps1.off = ps1.koff = ps1.klim = ps1.voff = ps1.vlim = ps1.tok = ps1.ecode = 0
+  ps1.lim = ps1.src.length
+  return ps2.tok
 }
 
 function concat_src (src1, off1, lim1, src2, off2, lim2) {
