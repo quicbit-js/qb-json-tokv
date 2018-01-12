@@ -405,18 +405,21 @@ function next_src (ps1, ps2) {
       if (idx < 0) {
         // still truncated, expand ps1.src with all of ps2.src
         ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim)
-        var adj = ps1.koff
-        ps1.koff -= adj
-        ps1.klim -= adj
-        ps1.voff -= adj
-        ps1.vlim = ps1.src.length
+        ps1.off = ps1.koff = ps1.klim = ps1.voff = ps1.vlim = ps1.tok = ps1.ecode = 0
+
+        // var adj = ps1.koff
+        // ps1.koff -= adj
+        // ps1.klim -= adj
+        // ps1.voff -= adj
+        // ps1.vlim = ps1.src.length
         ps2.off = ps2.koff = ps2.klim = ps2.voff = ps2.vlim = ps2.lim
         return TOK.END
       } else {
         // finished val
+        ps2_off = ps2.vlim
         ps2.vlim = idx
         ps2.pos = OBJ_A_V
-        return merge_key_val(ps1, ps2, ps2.vlim)
+        return merge_key_val(ps1, ps2, ps2_off)
       }
     case OBJ_A_V:
       return TOK.END
