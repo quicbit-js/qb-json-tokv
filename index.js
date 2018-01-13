@@ -371,7 +371,8 @@ function next_src (ps1, ps2) {
       if (idx < 0) {
         // still truncated, expand ps1.src with all of ps2.src
         ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim)
-        ps1.koff = ps1.klim = ps1.voff = ps1.vlim = ps1.src.length
+        ps1.koff = ps1.klim = ps1.voff = ps1.vlim = 0
+        ps1.lim = ps1.src.length
         ps2.off = ps2.koff = ps2.klim = ps2.voff = ps2.vlim = ps2.lim
         return TOK.END
       } else {
