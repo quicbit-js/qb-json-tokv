@@ -399,16 +399,15 @@ function finish_trunc (ps1, ps2) {
     idx = skip_str(ps2.src, ps2.vlim, ps2.lim)
     if (idx < 0) {
       // still truncated, expand ps1.src with all of ps2.src
-      ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim)
-      ps1.off = ps1.koff = ps1.klim = ps1.voff = ps1.vlim = ps1.ecode = 0
-      ps1.lim = ps1.src.length
+      reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim))
       ps2.off = ps2.koff = ps2.klim = ps2.voff = ps2.vlim = ps2.lim
       return TOK.END
     } else {
       // finished key
       ps2_off = ps2.vlim
-      ps2.klim = ps2.voff = ps2.vlim = idx
+      ps2.koff = ps2.klim = ps2.voff = ps2.vlim = idx
       ps2.pos = OBJ_A_K
+
       return merge_key_val(ps1, ps2, ps2_off)
     }
   } else if (ps1.pos === OBJ_B_V) {
@@ -452,6 +451,12 @@ function finish_trunc (ps1, ps2) {
   } else {
     err('unexpected position for truncation: ' + ps1.pos)
   }
+}
+
+function reset_src (ps, src) {
+  ps.src = src
+  ps.off = ps.koff = ps.klim = ps.tok = ps.voff = ps.vlim = ps.ecode = 0
+  ps.lim = ps.src.length
 }
 
 function merge_key_val (ps1, ps2, ps2_off) {
