@@ -362,85 +362,96 @@ function next_src (ps1, ps2) {
   ps2.vcount = ps1.vcount
   init(ps2)
 
+  if (ps1.ecode === ECODE.TRUNCATED) {
+    return finish_trunc(ps1, ps2)
+  } else {
+    return next_src_no_trunc(ps1, ps2)
+  }
+}
+
+function next_src_no_trunc(ps1, ps2) {
+  switch (ps1.pos) {
+    case OBJ_B_K: case OBJ_BFK: case OBJ_A_V:
+    return TOK.END
+    case OBJ_A_K: case OBJ_B_V:
+    return merge_key_val(ps1, ps2, ps2.vlim)
+    default:
+      err('pos not handled: ' + ps1.pos)
+  }
+}
+
+// ps1.src - later
+// ps1.lim = ps2.lim
+// ps1.tok - later
+// ps.koff
+// ps.klim
+// ps.voff
+// ps.vlim
+// ps1.stack (same)
+// ps.pos - later
+// ps.ecode (checked = 0)
+// ps.vcount (same)
+
+function finish_trunc (ps1, ps2) {
   var idx
   var ps2_off
-  switch (ps1.pos) {
-    case OBJ_B_K: case OBJ_BFK:
-      if (ps1.ecode !== ECODE.TRUNCATED) { return TOK.END }  // clean break between buffers
-      idx = skip_str(ps2.src, ps2.vlim, ps2.lim)
-      if (idx < 0) {
-        // still truncated, expand ps1.src with all of ps2.src
-        ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim)
-        ps1.off = ps1.koff = ps1.klim = ps1.voff = ps1.vlim = ps1.ecode = 0
-        ps1.lim = ps1.src.length
-        ps2.off = ps2.koff = ps2.klim = ps2.voff = ps2.vlim = ps2.lim
-        return TOK.END
-      } else {
-        // finished key
-        ps2_off = ps2.vlim
-        ps2.klim = ps2.voff = ps2.vlim = idx
-        ps2.pos = OBJ_A_K
-        return merge_key_val(ps1, ps2, ps2_off)
-      }
-    case OBJ_A_K:
-      return merge_key_val(ps1, ps2, ps2.vlim)
-    case OBJ_B_V:
-      if (ps1.ecode !== ECODE.TRUNCATED) { return merge_key_val(ps1, ps2, ps2.vlim) }
-      ps1.tok = ps1.src[ps1.voff]
-      switch (ps1.tok) {
-        case 102: case 110: case 116:
-          idx = skip_bytes(ps2.src, ps2.vlim, ps2.lim, TOK_BYTES[ps1.tok].slice(ps1.vlim - ps1.voff - 1))
-          break
-        case 34:
-          idx = skip_str(ps2.src, ps2.vlim, ps2.lim)
-          break
-        default:
-          // decimal
-          if (ps2.vlim < ps2.lim && !DECIMAL_ASCII[ps2.src[ps2.vlim]]) {
-            // not really truncated, add a space to show not-truncated
-            ps1.pos = OBJ_B_K
-            ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, [32], 0, 1)
-            ps1.off = ps1.koff = ps1.klim = ps1.voff = ps1.vlim = ps1.tok = ps1.ecode = 0
-            ps1.lim = ps1.src.length
-
-            ps2.pos = OBJ_A_V
-            return TOK.DEC
-          }
-          idx = skip_dec(ps2.src, ps2.vlim, ps2.lim)
-      }
-      if (idx < 0) {
-        // still truncated, expand ps1.src with all of ps2.src
-        ps1.pos = OBJ_B_K
-        ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim)
-        ps1.off = ps1.koff = ps1.klim = ps1.voff = ps1.vlim = ps1.tok = ps1.ecode = 0
-        ps1.lim = ps1.src.length
-        ps2.off = ps2.koff = ps2.klim = ps2.voff = ps2.vlim = ps2.lim
-        return TOK.END
-      } else {
-        // finished val
-        ps2_off = ps2.vlim
-        ps2.vlim = idx
-        ps2.pos = OBJ_A_V
-        return merge_key_val(ps1, ps2, ps2_off)
-      }
-    case OBJ_A_V:
+  if (ps1.pos === OBJ_BFK || ps1.pos === OBJ_B_K) {
+    idx = skip_str(ps2.src, ps2.vlim, ps2.lim)
+    if (idx < 0) {
+      // still truncated, expand ps1.src with all of ps2.src
+      ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim)
+      ps1.off = ps1.koff = ps1.klim = ps1.voff = ps1.vlim = ps1.ecode = 0
+      ps1.lim = ps1.src.length
+      ps2.off = ps2.koff = ps2.klim = ps2.voff = ps2.vlim = ps2.lim
       return TOK.END
+    } else {
+      // finished key
+      ps2_off = ps2.vlim
+      ps2.klim = ps2.voff = ps2.vlim = idx
+      ps2.pos = OBJ_A_K
+      return merge_key_val(ps1, ps2, ps2_off)
+    }
+  } else if (ps1.pos === OBJ_B_V) {
+    ps1.tok = ps1.src[ps1.voff]
+    switch (ps1.tok) {
+      case 102: case 110: case 116:
+      idx = skip_bytes(ps2.src, ps2.vlim, ps2.lim, TOK_BYTES[ps1.tok].slice(ps1.vlim - ps1.voff - 1))
+      break
+      case 34:
+        idx = skip_str(ps2.src, ps2.vlim, ps2.lim)
+        break
+      default:
+        // decimal
+        if (ps2.vlim < ps2.lim && !DECIMAL_ASCII[ps2.src[ps2.vlim]]) {
+          // not really truncated, add a space to show not-truncated
+          ps1.pos = OBJ_B_K
+          ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, [32], 0, 1)
+          ps1.off = ps1.koff = ps1.klim = ps1.voff = ps1.vlim = ps1.tok = ps1.ecode = 0
+          ps1.lim = ps1.src.length
 
-    default: err('pos not handled: ' + ps1.pos)
+          ps2.pos = OBJ_A_V
+          return TOK.DEC
+        }
+        idx = skip_dec(ps2.src, ps2.vlim, ps2.lim)
+    }
+    if (idx < 0) {
+      // still truncated, expand ps1.src with all of ps2.src
+      ps1.pos = OBJ_B_K
+      ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim)
+      ps1.off = ps1.koff = ps1.klim = ps1.voff = ps1.vlim = ps1.tok = ps1.ecode = 0
+      ps1.lim = ps1.src.length
+      ps2.off = ps2.koff = ps2.klim = ps2.voff = ps2.vlim = ps2.lim
+      return TOK.END
+    } else {
+      // finished val
+      ps2_off = ps2.vlim
+      ps2.vlim = idx
+      ps2.pos = OBJ_A_V
+      return merge_key_val(ps1, ps2, ps2_off)
+    }
+  } else {
+    err('unexpected position for truncation: ' + ps1.pos)
   }
-
-  // ps1.src - later
-  // ps1.lim = ps2.lim
-  // ps1.tok - later
-  // ps.koff
-  // ps.klim
-  // ps.voff
-  // ps.vlim
-  // ps1.stack (same)
-  // ps.pos - later
-  // ps.ecode (checked = 0)
-  // ps.vcount (same)
-
 }
 
 function merge_key_val (ps1, ps2, ps2_off) {
