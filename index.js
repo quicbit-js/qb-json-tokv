@@ -281,12 +281,7 @@ function tokenize (ps, opt, cb, nsrc) {
     }
   }
 
-  if (ps.ecode === ECODE.BAD_VALUE) {
-    err('bad byte: ' + ps.src[ps.vlim], ps)
-  }
-  if (ps.ecode === ECODE.UNEXPECTED) {
-    err('unexpected value', ps)
-  }
+  check_err(ps)
 
   ps.tok = TOK.END
   if (nsrc) {
@@ -326,6 +321,15 @@ function end_tokenize (ps, opt, cb) {
   return ps
 }
 
+function check_err (ps) {
+  if (ps.ecode === ECODE.BAD_VALUE) {
+    err('bad byte: ' + ps.src[ps.vlim], ps)
+  }
+  if (ps.ecode === ECODE.UNEXPECTED) {
+    err('unexpected value', ps)
+  }
+}
+
 // next_src() supports smooth transitions between data across 2 buffers.
 //
 // if ps1 ends with a partial state that does not fit within ps1.src such as truncated key,
@@ -350,7 +354,7 @@ function end_tokenize (ps, opt, cb) {
 function next_src (ps1, ps2) {
   ps1.vlim === ps1.lim || err('ps1 is not yet finished')
   ps1.tok === TOK.END || err('ps1 is not completed')
-  ps1.ecode !== ECODE.BAD_VALUE && ps1.ecode !== ECODE.UNEXPECTED || err('ps1 has unresolved errors')
+  check_err(ps1)
 
   // start ps2 with its own offsets, but same stack, pos, vcount
   ps2.stack = ps1.stack
@@ -404,14 +408,10 @@ function next_src (ps1, ps2) {
       }
       if (idx < 0) {
         // still truncated, expand ps1.src with all of ps2.src
+        ps1.pos = OBJ_B_K
         ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim)
         ps1.off = ps1.koff = ps1.klim = ps1.voff = ps1.vlim = ps1.tok = ps1.ecode = 0
-
-        // var adj = ps1.koff
-        // ps1.koff -= adj
-        // ps1.klim -= adj
-        // ps1.voff -= adj
-        // ps1.vlim = ps1.src.length
+        ps1.lim = ps1.src.length
         ps2.off = ps2.koff = ps2.klim = ps2.voff = ps2.vlim = ps2.lim
         return TOK.END
       } else {
@@ -443,10 +443,10 @@ function next_src (ps1, ps2) {
 
 function merge_key_val (ps1, ps2, ps2_off) {
   next(ps2)
-  ps2.koff = ps2.klim =  ps2.voff = ps2.vlim
+  ps2.koff = ps2.klim = ps2.voff = ps2.vlim
   ps2.ecode = 0
-  var add_space = ps2.tok === TOK.DEC && ps2.vlim < ps2.lim ? 1 : 0  // eliminates pseudo truncation
 
+  var add_space = ps2.tok === TOK.DEC && ps2.vlim < ps2.lim ? 1 : 0  // eliminates pseudo truncation
   // ps1.src gets ps1.koff .. ps2.vlim
   ps1.pos = OBJ_B_K
   ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2_off, ps2.vlim + add_space)
