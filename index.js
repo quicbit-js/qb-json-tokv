@@ -400,7 +400,7 @@ function finish_trunc (ps1, ps2) {
     if (idx < 0) {
       // still truncated, expand ps1.src with all of ps2.src
       reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim))
-      reset_src(ps2, [])
+      reset_src(ps2, ps2.src.slice(ps2.lim))
       return TOK.END
     } else {
       // finished key
@@ -435,12 +435,11 @@ function finish_trunc (ps1, ps2) {
       ps1.pos = OBJ_B_K
       reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim))
       reset_src(ps2, ps2.src.slice(ps2.lim))
-      // ps2.off = ps2.koff = ps2.klim = ps2.voff = ps2.vlim = ps2.lim
       return TOK.END
     } else {
       // finished val
       ps2_off = ps2.vlim
-      ps2.vlim = idx
+      ps2.koff = ps2.klim = ps2.voff = ps2.vlim = idx
       ps2.pos = OBJ_A_V
       return merge_key_val(ps1, ps2, ps2_off)
     }
