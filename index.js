@@ -363,7 +363,7 @@ function next_src (ps1, ps2) {
   init(ps2)
 
   var idx
-  var ps2_off = ps2.vlim
+  var ps2_off
   switch (ps1.pos) {
     case OBJ_B_K: case OBJ_BFK:
       if (ps1.ecode !== ECODE.TRUNCATED) { return TOK.END }  // clean break between buffers
@@ -371,12 +371,13 @@ function next_src (ps1, ps2) {
       if (idx < 0) {
         // still truncated, expand ps1.src with all of ps2.src
         ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim)
-        ps1.koff = ps1.klim = ps1.voff = ps1.vlim = 0
+        ps1.off = ps1.koff = ps1.klim = ps1.voff = ps1.vlim = ps1.ecode = 0
         ps1.lim = ps1.src.length
         ps2.off = ps2.koff = ps2.klim = ps2.voff = ps2.vlim = ps2.lim
         return TOK.END
       } else {
         // finished key
+        ps2_off = ps2.vlim
         ps2.klim = ps2.voff = ps2.vlim = idx
         ps2.pos = OBJ_A_K
         return merge_key_val(ps1, ps2, ps2_off)
