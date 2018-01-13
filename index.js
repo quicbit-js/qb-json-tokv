@@ -424,10 +424,7 @@ function finish_trunc (ps1, ps2) {
         if (ps2.vlim < ps2.lim && !DECIMAL_ASCII[ps2.src[ps2.vlim]]) {
           // not really truncated, add a space to show not-truncated
           ps1.pos = OBJ_B_K
-          ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, [32], 0, 1)
-          ps1.off = ps1.koff = ps1.klim = ps1.voff = ps1.vlim = ps1.tok = ps1.ecode = 0
-          ps1.lim = ps1.src.length
-
+          reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, [32], 0, 1))
           ps2.pos = OBJ_A_V
           return TOK.DEC
         }
@@ -436,9 +433,7 @@ function finish_trunc (ps1, ps2) {
     if (idx < 0) {
       // still truncated, expand ps1.src with all of ps2.src
       ps1.pos = OBJ_B_K
-      ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim)
-      ps1.off = ps1.koff = ps1.klim = ps1.voff = ps1.vlim = ps1.tok = ps1.ecode = 0
-      ps1.lim = ps1.src.length
+      reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim))
       ps2.off = ps2.koff = ps2.klim = ps2.voff = ps2.vlim = ps2.lim
       return TOK.END
     } else {
@@ -467,10 +462,8 @@ function merge_key_val (ps1, ps2, ps2_off) {
   var add_space = ps2.tok === TOK.DEC && ps2.vlim < ps2.lim ? 1 : 0  // eliminates pseudo truncation
   // ps1.src gets ps1.koff .. ps2.vlim
   ps1.pos = OBJ_B_K
-  ps1.src = concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2_off, ps2.vlim + add_space)
+  reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2_off, ps2.vlim + add_space))
   if (add_space) { ps1.src[ps1.src.length-1] = 32 }
-  ps1.off = ps1.koff = ps1.klim = ps1.voff = ps1.vlim = ps1.tok = ps1.ecode = 0
-  ps1.lim = ps1.src.length
   return ps2.tok  // the token that will be returned by ps1
 }
 
