@@ -422,7 +422,7 @@ function finish_trunc (ps1, ps2) {
       default:
         // decimal
         if (ps2.vlim < ps2.lim && !DECIMAL_ASCII[ps2.src[ps2.vlim]]) {
-          // not really truncated, add a space to show not-truncated
+          // add a space to show not-truncated
           ps1.pos = OBJ_B_K
           reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, [32], 0, 1))
           ps2.pos = OBJ_A_V
@@ -434,7 +434,8 @@ function finish_trunc (ps1, ps2) {
       // still truncated, expand ps1.src with all of ps2.src
       ps1.pos = OBJ_B_K
       reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim))
-      ps2.off = ps2.koff = ps2.klim = ps2.voff = ps2.vlim = ps2.lim
+      reset_src(ps2, ps2.src.slice(ps2.lim))
+      // ps2.off = ps2.koff = ps2.klim = ps2.voff = ps2.vlim = ps2.lim
       return TOK.END
     } else {
       // finished val
