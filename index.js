@@ -367,7 +367,16 @@ function next_src (ps1, ps2) {
     var ps2_off = ps2.vlim
     var tok = finish_trunc(ps1, ps2)
     if (!tok) {
-      tok = merge_key_val(ps1, ps2, ps2_off)
+      next(ps2)
+      ps2.koff = ps2.klim = ps2.voff = ps2.vlim
+      ps2.ecode = 0
+
+      var add_space = ps2.tok === TOK.DEC && ps2.vlim < ps2.lim ? 1 : 0  // eliminates pseudo truncation
+      // ps1.src gets ps1.koff .. ps2.vlim
+      ps1.pos = OBJ_B_K
+      reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2_off, ps2.vlim + add_space))
+      if (add_space) { ps1.src[ps1.src.length-1] = 32 }
+      tok = ps2.tok  // the token that will be returned by ps1
     }
     return tok
   } else {
@@ -380,7 +389,18 @@ function next_src_no_trunc(ps1, ps2) {
     case OBJ_B_K: case OBJ_BFK: case OBJ_A_V:
     return TOK.END
     case OBJ_A_K: case OBJ_B_V:
-    return merge_key_val(ps1, ps2, ps2.vlim)
+      var ps2_off = ps2.vlim
+      next(ps2)
+      ps2.koff = ps2.klim = ps2.voff = ps2.vlim
+      ps2.ecode = 0
+
+      var add_space = ps2.tok === TOK.DEC && ps2.vlim < ps2.lim ? 1 : 0  // eliminates pseudo truncation
+      // ps1.src gets ps1.koff .. ps2.vlim
+      ps1.pos = OBJ_B_K
+      reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2_off, ps2.vlim + add_space))
+      if (add_space) { ps1.src[ps1.src.length-1] = 32 }
+      return ps2.tok  // the token that will be returned by ps1
+
     default:
       err('pos not handled: ' + ps1.pos)
   }
@@ -455,19 +475,6 @@ function reset_src (ps, src) {
   ps.src = src
   ps.off = ps.koff = ps.klim = ps.tok = ps.voff = ps.vlim = ps.ecode = 0
   ps.lim = ps.src.length
-}
-
-function merge_key_val (ps1, ps2, ps2_off) {
-  next(ps2)
-  ps2.koff = ps2.klim = ps2.voff = ps2.vlim
-  ps2.ecode = 0
-
-  var add_space = ps2.tok === TOK.DEC && ps2.vlim < ps2.lim ? 1 : 0  // eliminates pseudo truncation
-  // ps1.src gets ps1.koff .. ps2.vlim
-  ps1.pos = OBJ_B_K
-  reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2_off, ps2.vlim + add_space))
-  if (add_space) { ps1.src[ps1.src.length-1] = 32 }
-  return ps2.tok  // the token that will be returned by ps1
 }
 
 function concat_src (src1, off1, lim1, src2, off2, lim2) {
