@@ -363,7 +363,12 @@ function next_src (ps1, ps2) {
   init(ps2)
 
   if (ps1.ecode === ECODE.TRUNCATED) {
-    return finish_trunc(ps1, ps2)
+    var ps2_off = ps2.vlim
+    var tok = finish_trunc(ps1, ps2)
+    if (!tok) {
+      tok = merge_key_val(ps1, ps2, ps2_off)
+    }
+    return tok
   } else {
     return next_src_no_trunc(ps1, ps2)
   }
@@ -394,7 +399,6 @@ function next_src_no_trunc(ps1, ps2) {
 
 function finish_trunc (ps1, ps2) {
   var idx
-  var ps2_off
   if (ps1.pos === OBJ_BFK || ps1.pos === OBJ_B_K) {
     idx = skip_str(ps2.src, ps2.vlim, ps2.lim)
     if (idx < 0) {
@@ -404,11 +408,10 @@ function finish_trunc (ps1, ps2) {
       return TOK.END
     } else {
       // finished key
-      ps2_off = ps2.vlim
       ps2.koff = ps2.klim = ps2.voff = ps2.vlim = idx
       ps2.pos = OBJ_A_K
 
-      return merge_key_val(ps1, ps2, ps2_off)
+      return 0
     }
   } else if (ps1.pos === OBJ_B_V) {
     var tok = ps1.src[ps1.voff]
@@ -438,10 +441,9 @@ function finish_trunc (ps1, ps2) {
       return TOK.END
     } else {
       // finished val
-      ps2_off = ps2.vlim
       ps2.koff = ps2.klim = ps2.voff = ps2.vlim = idx
       ps2.pos = OBJ_A_V
-      return merge_key_val(ps1, ps2, ps2_off)
+      return 0
     }
   } else {
     err('unexpected position for truncation: ' + ps1.pos)
