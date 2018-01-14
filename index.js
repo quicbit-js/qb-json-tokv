@@ -364,21 +364,7 @@ function next_src (ps1, ps2) {
   init(ps2)
 
   if (ps1.ecode === ECODE.TRUNCATED) {
-    var ps2_off = ps2.vlim
-    var tok = finish_trunc(ps1, ps2)
-    if (!tok) {
-      next(ps2)
-      ps2.koff = ps2.klim = ps2.voff = ps2.vlim
-      ps2.ecode = 0
-
-      var add_space = ps2.tok === TOK.DEC && ps2.vlim < ps2.lim ? 1 : 0  // eliminates pseudo truncation
-      // ps1.src gets ps1.koff .. ps2.vlim
-      ps1.pos = OBJ_B_K
-      reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2_off, ps2.vlim + add_space))
-      if (add_space) { ps1.src[ps1.src.length-1] = 32 }
-      tok = ps2.tok  // the token that will be returned by ps1
-    }
-    return tok
+    return finish_trunc(ps1, ps2)
   } else {
     return next_src_no_trunc(ps1, ps2)
   }
@@ -420,19 +406,19 @@ function next_src_no_trunc(ps1, ps2) {
 
 function finish_trunc (ps1, ps2) {
   var idx
+  var ret = 0
+  var ps2_off = ps2.vlim
   if (ps1.pos === OBJ_BFK || ps1.pos === OBJ_B_K) {
     idx = skip_str(ps2.src, ps2.vlim, ps2.lim)
     if (idx < 0) {
       // still truncated, expand ps1.src with all of ps2.src
       reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim))
       reset_src(ps2, ps2.src.slice(ps2.lim))
-      return TOK.END
+      ret =TOK.END
     } else {
       // finished key
       ps2.koff = ps2.klim = ps2.voff = ps2.vlim = idx
       ps2.pos = OBJ_A_K
-
-      return 0
     }
   } else if (ps1.pos === OBJ_B_V) {
     var tok = ps1.src[ps1.voff]
@@ -450,7 +436,7 @@ function finish_trunc (ps1, ps2) {
           ps1.pos = OBJ_B_K
           reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, [32], 0, 1))
           ps2.pos = OBJ_A_V
-          return TOK.DEC
+          ret = TOK.DEC
         }
         idx = skip_dec(ps2.src, ps2.vlim, ps2.lim)
     }
@@ -459,16 +445,29 @@ function finish_trunc (ps1, ps2) {
       ps1.pos = OBJ_B_K
       reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim))
       reset_src(ps2, ps2.src.slice(ps2.lim))
-      return TOK.END
+      ret = TOK.END
     } else {
       // finished val
       ps2.koff = ps2.klim = ps2.voff = ps2.vlim = idx
       ps2.pos = OBJ_A_V
-      return 0
     }
   } else {
     err('unexpected position for truncation: ' + ps1.pos)
   }
+  if (!ret) {
+    next(ps2)
+    ps2.koff = ps2.klim = ps2.voff = ps2.vlim
+    ps2.ecode = 0
+
+    var add_space = ps2.tok === TOK.DEC && ps2.vlim < ps2.lim ? 1 : 0  // eliminates pseudo truncation
+    // ps1.src gets ps1.koff .. ps2.vlim
+    ps1.pos = OBJ_B_K
+    reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2_off, ps2.vlim + add_space))
+    if (add_space) { ps1.src[ps1.src.length-1] = 32 }
+    ret = ps2.tok  // the token that will be returned by ps1
+  }
+
+  return ret
 }
 
 function reset_src (ps, src) {
