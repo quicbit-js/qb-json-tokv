@@ -330,26 +330,27 @@ function check_err (ps) {
   }
 }
 
-// next_src() supports smooth transitions between data across 2 buffers.
+// next_src() supports smooth transitions across ps1.src and ps2.src.
+//
+// NOTE this function is only suitable for src with individual values that fit comfortably into memory (which is pretty
+// much all JSON we use today, but not possible next-generation JSON which might have any size data).
 //
 // if ps1 ends with a partial state that does not fit within ps1.src such as truncated key,
 // truncated, value, or key with no value,
-// next_src() will set ps1.src and other properties to hold a single and entire key/value or value as well
-// as update ps2 properties to continue exactly where ps1 finishes.  In these cases, next_src
-// returns 2, meaning parsing should continue with ps1 followed by ps2.
+// next_src() will shift src from ps2 to ps1 and:
 //
-// if there is nothing to make whole (no partial key, key/value or value), then next_src() will  just set
-// ps2 properties to continue parsing the next value where ps1 leaves off.  In this case, next_src()
-// will return 1 to indicate that parsing should just continue with the ps2 state.
+//     a) if ps2 does not have the entire remaining value then TOK.END is returned and ps1 is given the
+//        combined buffer containing all of ps1 and ps2 so that next(ps1) will have a more complete - but not
+//        fully complete key/value.
 //
-// if ps2.src does not complete a partial ps1.value, such as a very large string, then ps2 will
-// be modified to hold ps1 and ps2 sources and next_src() returns zero to indicate that there
-// is no complete data (and more calls to next_src() should be made to create a whole value).
+//     b) if ps2 has the complete remaining value or key/value, then a non-zero token other than TOK.END is returned and
+//        next(ps1) will return a whole value or key/value and next(ps2) will continue from that point
 //
-// For most data where the created single-item src is tiny compared
-// with large ps1.src and ps2.src buffers and so is more efficient than extending large ps1 or ps2 sources.
-// However, for values that do not fit within a buffer, whole will create larger
-// buffers - which may be expensive for very large buffers.
+//
+// if ps1 ends without pending key/value information, then:
+//
+//     c) zero is returned and ps1 is set to end/empty (next(ps1) would return TOK.END) and ps2 properties are set to
+//        continue parsing the where ps1 leaves off.
 //
 function next_src (ps1, ps2) {
   ps1.vlim === ps1.lim || err('ps1 is not yet finished')
