@@ -439,6 +439,18 @@ function complete_val (tok, ps1, ps2) {
   }
 }
 
+function set_end_state (ps1, ps2) {
+  var eps = {src: ps1.src}
+  eps.pos = ps1.pos
+  eps.stack = ps1.stack.slice()
+  eps.vcount = ps1.vcount
+  init(eps)
+  while (next(eps) !== TOK.END) {}
+  ps2.pos = eps.pos
+  ps2.stack = eps.stack
+  ps2.vcount = eps.vcount
+}
+
 function finish_trunc (ps1, ps2) {
   var ps2_off = ps2.vlim
   if (ps1.pos === OBJ_BFK || ps1.pos === OBJ_B_K) {
@@ -451,13 +463,7 @@ function finish_trunc (ps1, ps2) {
       ps1.pos = OBJ_B_K
       reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.vlim + 1))
       reset_src(ps2, ps2.src.slice(ps2.vlim + 1))
-      var ps = {src: ps1.src}
-      init(ps)
-      ps.pos = ps1.pos
-      ps.stack = ps1.stack.slice()
-      while(next(ps) !== TOK.END) {}
-
-      ps2.pos = ps.pos
+      set_end_state(ps1, ps2)
       return TOK.DEC
     }
     if (!complete_val(tok, ps1, ps2)) { return TOK.END }
@@ -469,11 +475,11 @@ function finish_trunc (ps1, ps2) {
   ps2.koff = ps2.klim = ps2.voff = ps2.vlim
   ps2.ecode = 0
 
-  var add_space = ps2.tok === TOK.DEC && ps2.vlim < ps2.lim ? 1 : 0  // eliminates pseudo truncation
+  var add_one = ps2.tok === TOK.DEC && ps2.vlim < ps2.lim ? 1 : 0  // eliminates pseudo truncation
   // ps1.src gets ps1.koff .. ps2.vlim
   ps1.pos = OBJ_B_K
-  reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2_off, ps2.vlim + add_space))
-  if (add_space) { ps1.src[ps1.src.length-1] = 32 }
+  reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2_off, ps2.vlim + add_one))
+  if (add_one) { ps1.src[ps1.src.length-1] = 32 }
   return ps2.tok  // the token that will be returned by ps1
 }
 
