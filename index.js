@@ -414,22 +414,27 @@ function figure_tok (c) {
   return c
 }
 
+function complete_val (tok, ps1, ps2) {
+  var idx = skip_str(ps2.src, ps2.vlim, ps2.lim)
+  if (idx < 0) {
+    // still truncated, expand ps1.src with all of ps2.src
+    ps1.pos = OBJ_B_K
+    reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim))
+    reset_src(ps2, [])
+    return false
+  } else {
+    // finished key
+    ps2.koff = ps2.klim = ps2.voff = ps2.vlim = idx
+    return true
+  }
+}
+
 function finish_trunc (ps1, ps2) {
   var idx
   var ret = 0
   var ps2_off = ps2.vlim
   if (ps1.pos === OBJ_BFK || ps1.pos === OBJ_B_K) {
-    idx = skip_str(ps2.src, ps2.vlim, ps2.lim)
-    if (idx < 0) {
-      // still truncated, expand ps1.src with all of ps2.src
-      ps1.pos = OBJ_B_K
-      reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim))
-      reset_src(ps2, [])
-      ret = TOK.END
-    } else {
-      // finished key
-      ps2.koff = ps2.klim = ps2.voff = ps2.vlim = idx
-    }
+    if (!complete_val(TOK.STR, ps1, ps2)) { return TOK.END }
     ps2.pos = OBJ_A_K
   } else if (ps1.pos === OBJ_B_V) {
     var tok = figure_tok(ps1.src[ps1.voff])
