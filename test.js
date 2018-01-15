@@ -92,8 +92,8 @@ function capture_next_src (src1, src2, t) {
   var r2, r3
   var rtok = jtok.next_src(ps1, ps2)
   if (ps1.ecode === ECODE.TRUNCATED) { ps1.ecode = 0 }    // allow re-parsing
-  // console.log(jstate.explain(ps1))
-  // console.log(jstate.explain(ps2))
+  console.log(jstate.explain(ps1))
+  console.log(jstate.explain(ps2))
   r2 = tokenize(ps1, {incremental: true})
   r3 = tokenize(ps2, {incremental: true}, t)
   return [ r1.toks.join(','), String.fromCharCode(rtok), r2.toks.join(','), r3 && r3.toks.join(',')]

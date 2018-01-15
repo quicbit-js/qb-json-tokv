@@ -440,7 +440,6 @@ function complete_val (tok, ps1, ps2) {
 }
 
 function finish_trunc (ps1, ps2) {
-  var idx
   var ret = 0
   var ps2_off = ps2.vlim
   if (ps1.pos === OBJ_BFK || ps1.pos === OBJ_B_K) {
@@ -451,8 +450,14 @@ function finish_trunc (ps1, ps2) {
     if (tok === TOK.DEC && ps2.vlim < ps2.lim && !DECIMAL_ASCII[ps2.src[ps2.vlim]]) {
       // not really truncated
       ps1.pos = OBJ_B_K
-      reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, [32], 0, 1))
-      ps2.pos = OBJ_A_V
+      reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.vlim + 1))
+      var ps = {src: ps1.src}
+      init(ps)
+      ps.pos = ps1.pos
+      ps.stack = ps1.stack.slice()
+      next(ps)
+
+      ps2.pos = ps.pos
       return TOK.DEC
     }
     if (!complete_val(tok, ps1, ps2)) { return TOK.END }
