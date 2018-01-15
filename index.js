@@ -415,7 +415,17 @@ function figure_tok (c) {
 }
 
 function complete_val (tok, ps1, ps2) {
-  var idx = skip_str(ps2.src, ps2.vlim, ps2.lim)
+  var idx
+  switch (tok) {
+    case TOK.FAL: case TOK.NUL: case TOK.TRU:
+    idx = skip_bytes(ps2.src, ps2.vlim, ps2.lim, TOK_BYTES[tok].slice(ps1.vlim - ps1.voff - 1))
+    break
+    case TOK.STR:
+      idx = skip_str(ps2.src, ps2.vlim, ps2.lim)
+      break
+    case TOK.DEC:
+      idx = skip_dec(ps2.src, ps2.vlim, ps2.lim)
+  }
   if (idx < 0) {
     // still truncated, expand ps1.src with all of ps2.src
     ps1.pos = OBJ_B_K
