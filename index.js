@@ -438,8 +438,9 @@ function finish_trunc (ps1, ps2) {
           reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, [32], 0, 1))
           ps2.pos = OBJ_A_V
           ret = TOK.DEC
+        } else {
+          idx = skip_dec(ps2.src, ps2.vlim, ps2.lim)
         }
-        idx = skip_dec(ps2.src, ps2.vlim, ps2.lim)
     }
     if (idx < 0) {
       // still truncated, expand ps1.src with all of ps2.src
