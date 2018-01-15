@@ -261,7 +261,8 @@ function handle_neg (ps) {
 
 function handle_unexp (ps) {
   if (ps.vlim < 0) { ps.vlim = -ps.vlim }
-  ps.ecode = ECODE.UNEXPECTED; return ps.tok = TOK.END
+  ps.ecode = ECODE.UNEXPECTED
+  return ps.tok = TOK.END
 }
 
 function tokenize (ps, opt, cb, nsrc) {
@@ -357,16 +358,17 @@ function next_src (ps1, ps2) {
   ps1.tok === TOK.END || err('ps1 is not completed')
   check_err(ps1)
   init(ps2)
+  ps2.stack = ps1.stack
+  ps2.vcount = ps1.vcount
+
+  // var ps = positions(ps1, ps2)
 
   if (ps1.ecode === ECODE.TRUNCATED) {
-    ps2.stack = ps1.stack
+    // bump ps1
     ps2.pos = ps1.pos
-    ps2.vcount = ps1.vcount
     return finish_trunc(ps1, ps2)
   } else {
-    ps2.stack = ps1.stack
     ps2.pos = ps1.pos
-    ps2.vcount = ps1.vcount
     return next_src_no_trunc(ps1, ps2)
   }
 }
