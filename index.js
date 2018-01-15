@@ -112,6 +112,7 @@ function ascii_to_bytes (strings) {
 var WHITESPACE = ascii_to_code('\b\f\n\t\r ', 1)
 var NON_TOKEN = ascii_to_code('\b\f\n\t\r ,:', 1)     // token values used internally (and not returned)
 var DELIM = ascii_to_code('\b\f\n\t\r ,:{}[]', 1)
+var DECIMAL_START = ascii_to_code('-0123456789', 1)
 var DECIMAL_ASCII = ascii_to_code('-0123456789+.eE', 1)
 var TOK_BYTES = ascii_to_bytes({ f: 'alse', t: 'rue', n: 'ull' })
 
@@ -407,6 +408,12 @@ function next_src_no_trunc(ps1, ps2) {
 // ps.ecode (checked = 0)
 // ps.vcount (same)
 
+function figure_tok (c) {
+  if (c === 34) { return TOK.STR }
+  if (DECIMAL_START[c]) { return TOK.DEC }
+  return c
+}
+
 function finish_trunc (ps1, ps2) {
   var idx
   var ret = 0
@@ -415,34 +422,33 @@ function finish_trunc (ps1, ps2) {
     idx = skip_str(ps2.src, ps2.vlim, ps2.lim)
     if (idx < 0) {
       // still truncated, expand ps1.src with all of ps2.src
+      ps1.pos = OBJ_B_K
       reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim))
       reset_src(ps2, ps2.src.slice(ps2.lim))
-      ret =TOK.END
+      ret = TOK.END
     } else {
       // finished key
       ps2.koff = ps2.klim = ps2.voff = ps2.vlim = idx
       ps2.pos = OBJ_A_K
     }
   } else if (ps1.pos === OBJ_B_V) {
-    var tok = ps1.src[ps1.voff]
+    var tok = figure_tok(ps1.src[ps1.voff])
+    if (tok === TOK.DEC && ps2.vlim < ps2.lim && !DECIMAL_ASCII[ps2.src[ps2.vlim]]) {
+      // not really truncated
+      ps1.pos = OBJ_B_K
+      reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, [32], 0, 1))
+      ps2.pos = OBJ_A_V
+      return TOK.DEC
+    }
     switch (tok) {
-      case 102: case 110: case 116:
+      case TOK.FAL: case TOK.NUL: case TOK.TRU:
         idx = skip_bytes(ps2.src, ps2.vlim, ps2.lim, TOK_BYTES[tok].slice(ps1.vlim - ps1.voff - 1))
         break
-      case 34:
+      case TOK.STR:
         idx = skip_str(ps2.src, ps2.vlim, ps2.lim)
         break
-      default:
-        // decimal
-        if (ps2.vlim < ps2.lim && !DECIMAL_ASCII[ps2.src[ps2.vlim]]) {
-          // add a space to show not-truncated
-          ps1.pos = OBJ_B_K
-          reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, [32], 0, 1))
-          ps2.pos = OBJ_A_V
-          ret = TOK.DEC
-        } else {
-          idx = skip_dec(ps2.src, ps2.vlim, ps2.lim)
-        }
+      case TOK.DEC:
+        idx = skip_dec(ps2.src, ps2.vlim, ps2.lim)
     }
     if (idx < 0) {
       // still truncated, expand ps1.src with all of ps2.src
