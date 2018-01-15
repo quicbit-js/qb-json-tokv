@@ -439,6 +439,7 @@ function complete_val (tok, ps1, ps2) {
   }
 }
 
+// set ps2 position, stack and vcount to continue where ps1 end state ends
 function set_end_state (ps1, ps2) {
   var eps = {src: ps1.src}
   eps.pos = ps1.pos
@@ -472,15 +473,17 @@ function finish_trunc (ps1, ps2) {
     err('unexpected position for truncation: ' + ps1.pos)
   }
   next(ps2)
+  var ret = ps2.tok
+  if (ps2.vlim < ps2.lim) { ps2.vlim++ }
   ps2.koff = ps2.klim = ps2.voff = ps2.vlim
   ps2.ecode = 0
 
-  var add_one = ps2.tok === TOK.DEC && ps2.vlim < ps2.lim ? 1 : 0  // eliminates pseudo truncation
   // ps1.src gets ps1.koff .. ps2.vlim
   ps1.pos = OBJ_B_K
-  reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2_off, ps2.vlim + add_one))
-  if (add_one) { ps1.src[ps1.src.length-1] = 32 }
-  return ps2.tok  // the token that will be returned by ps1
+  reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2_off, ps2.vlim))
+  reset_src(ps2, ps2.src.slice(ps2.vlim))
+  set_end_state(ps1, ps2)
+  return ret  // the token that will be returned by ps1
 }
 
 function reset_src (ps, src) {
