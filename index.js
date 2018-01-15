@@ -451,11 +451,12 @@ function finish_trunc (ps1, ps2) {
       // not really truncated
       ps1.pos = OBJ_B_K
       reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.vlim + 1))
+      reset_src(ps2, ps2.src.slice(ps2.vlim + 1))
       var ps = {src: ps1.src}
       init(ps)
       ps.pos = ps1.pos
       ps.stack = ps1.stack.slice()
-      next(ps)
+      while(next(ps) !== TOK.END) {}
 
       ps2.pos = ps.pos
       return TOK.DEC
