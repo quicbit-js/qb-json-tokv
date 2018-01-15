@@ -424,13 +424,13 @@ function finish_trunc (ps1, ps2) {
       // still truncated, expand ps1.src with all of ps2.src
       ps1.pos = OBJ_B_K
       reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim))
-      reset_src(ps2, ps2.src.slice(ps2.lim))
+      reset_src(ps2, [])
       ret = TOK.END
     } else {
       // finished key
       ps2.koff = ps2.klim = ps2.voff = ps2.vlim = idx
-      ps2.pos = OBJ_A_K
     }
+    ps2.pos = OBJ_A_K
   } else if (ps1.pos === OBJ_B_V) {
     var tok = figure_tok(ps1.src[ps1.voff])
     if (tok === TOK.DEC && ps2.vlim < ps2.lim && !DECIMAL_ASCII[ps2.src[ps2.vlim]]) {
@@ -454,13 +454,13 @@ function finish_trunc (ps1, ps2) {
       // still truncated, expand ps1.src with all of ps2.src
       ps1.pos = OBJ_B_K
       reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim))
-      reset_src(ps2, ps2.src.slice(ps2.lim))
+      reset_src(ps2, [])
       ret = TOK.END
     } else {
       // finished val
       ps2.koff = ps2.klim = ps2.voff = ps2.vlim = idx
-      ps2.pos = OBJ_A_V
     }
+    ps2.pos = OBJ_A_V
   } else {
     err('unexpected position for truncation: ' + ps1.pos)
   }
