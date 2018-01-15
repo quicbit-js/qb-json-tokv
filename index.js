@@ -455,26 +455,7 @@ function finish_trunc (ps1, ps2) {
       ps2.pos = OBJ_A_V
       return TOK.DEC
     }
-    switch (tok) {
-      case TOK.FAL: case TOK.NUL: case TOK.TRU:
-        idx = skip_bytes(ps2.src, ps2.vlim, ps2.lim, TOK_BYTES[tok].slice(ps1.vlim - ps1.voff - 1))
-        break
-      case TOK.STR:
-        idx = skip_str(ps2.src, ps2.vlim, ps2.lim)
-        break
-      case TOK.DEC:
-        idx = skip_dec(ps2.src, ps2.vlim, ps2.lim)
-    }
-    if (idx < 0) {
-      // still truncated, expand ps1.src with all of ps2.src
-      ps1.pos = OBJ_B_K
-      reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.lim))
-      reset_src(ps2, [])
-      ret = TOK.END
-    } else {
-      // finished val
-      ps2.koff = ps2.klim = ps2.voff = ps2.vlim = idx
-    }
+    if (!complete_val(tok, ps1, ps2)) { return TOK.END }
     ps2.pos = OBJ_A_V
   } else {
     err('unexpected position for truncation: ' + ps1.pos)
