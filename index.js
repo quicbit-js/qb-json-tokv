@@ -111,7 +111,7 @@ function ascii_to_bytes (strings) {
 
 var WHITESPACE = ascii_to_code('\b\f\n\t\r ', 1)
 var NON_TOKEN = ascii_to_code('\b\f\n\t\r ,:', 1)     // token values used internally (and not returned)
-var DELIM = ascii_to_code('\b\f\n\t\r ,:{}[]', 1)
+var   DELIM = ascii_to_code('\b\f\n\t\r ,:{}[]', 1)
 var DECIMAL_START = ascii_to_code('-0123456789', 1)
 var DECIMAL_ASCII = ascii_to_code('-0123456789+.eE', 1)
 var TOK_BYTES = ascii_to_bytes({ f: 'alse', t: 'rue', n: 'ull' })
@@ -365,8 +365,6 @@ function next_src (ps1, ps2) {
   // var ps = positions(ps1, ps2)
 
   if (ps1.ecode === ECODE.TRUNCATED) {
-    // bump ps1
-    ps2.pos = ps1.pos
     return finish_trunc(ps1, ps2)
   } else {
     ps2.pos = ps1.pos
