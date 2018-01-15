@@ -52,6 +52,7 @@ var TOK = {
 var ECODE = {
   // when there is an error, ecode is set to one of these
   BAD_VALUE: 66,    // 'B'  encountered invalid byte or series of bytes
+  TRUNC_DEC: 68,    // 'D'  ended on decimal. *possibly* unfinished
   TRUNCATED: 84,    // 'T'  key or value was unfinished at end of buffer
   UNEXPECTED: 85,   // 'U'  encountered a recognized token in wrong place/context
 }
@@ -111,7 +112,7 @@ function ascii_to_bytes (strings) {
 
 var WHITESPACE = ascii_to_code('\b\f\n\t\r ', 1)
 var NON_TOKEN = ascii_to_code('\b\f\n\t\r ,:', 1)     // token values used internally (and not returned)
-var   DELIM = ascii_to_code('\b\f\n\t\r ,:{}[]', 1)
+var DELIM = ascii_to_code('\b\f\n\t\r ,:{}[]', 1)
 var DECIMAL_START = ascii_to_code('-0123456789', 1)
 var DECIMAL_ASCII = ascii_to_code('-0123456789+.eE', 1)
 var TOK_BYTES = ascii_to_bytes({ f: 'alse', t: 'rue', n: 'ull' })
@@ -242,7 +243,7 @@ function next (ps) {
 
       default:
         --ps.vlim;
-        { ps.ecode = ECODE.BAD_VALUE; return ps.tok = TOK.END }
+        { ps.ecode = ECODE.BAD_VALUE; return end_next(ps) }
     }
   }
 
@@ -251,19 +252,28 @@ function next (ps) {
   if (NON_TOKEN[ps.tok]) {
     ps.voff = ps.vlim
   }
+  return end_next(ps)
+}
+
+function end_next (ps) {
+  if (ps.koff === ps.klim) { ps.koff = ps.klim = ps.voff }  // simplify
   return ps.tok = TOK.END
 }
 
 function handle_neg (ps) {
   ps.vlim = -ps.vlim
-  ps.ecode = ps.vlim === ps.lim ? ECODE.TRUNCATED : ECODE.BAD_VALUE
-  return ps.tok = TOK.END
+  if (ps.vlim === ps.lim) {
+    ps.ecode = ps.tok === TOK.DEC ? ECODE.TRUNC_DEC : ECODE.TRUNCATED
+  } else {
+    ps.ecode = ECODE.BAD_VALUE
+  }
+  return end_next(ps)
 }
 
 function handle_unexp (ps) {
   if (ps.vlim < 0) { ps.vlim = -ps.vlim }
   ps.ecode = ECODE.UNEXPECTED
-  return ps.tok = TOK.END
+  return end_next(ps)
 }
 
 function tokenize (ps, opt, cb, nsrc) {
@@ -300,20 +310,18 @@ function tokenize (ps, opt, cb, nsrc) {
 function end_tokenize (ps, opt, cb) {
   if (!opt.incremental) {
     ps.stack.length === 0 || err('input was incomplete. use option {incremental: true} to enable partial parsing', ps)
-    if (ps.ecode === ECODE.TRUNCATED) {
-      if (DECIMAL_ASCII[ps.src[ps.voff]]) {
-        // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
-        ps.tok = TOK.DEC
-        ps.ecode = 0
-        if (!cb(ps)) {
-          return ps
-        }
-        ps.voff = ps.vlim
-        ps.tok = TOK.END
-        ps.pos = ARR_A_V
-      } else {
-        err('input was truncated. use option {incremental: true} to enable partial parsing', ps)
+    if (ps.ecode === ECODE.TRUNC_DEC) {
+      // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
+      ps.tok = TOK.DEC
+      ps.ecode = 0
+      if (!cb(ps)) {
+        return ps
       }
+      ps.voff = ps.vlim
+      ps.tok = TOK.END
+      ps.pos = ARR_A_V
+    } else if (ps.ecode === ECODE.TRUNCATED) {
+      err('input was truncated. use option {incremental: true} to enable partial parsing', ps)
     } else {
       ps.pos !== ARR_B_V || err('trailing comma. use option {incremental: true} to enable partial parsing', ps)
     }
@@ -364,7 +372,7 @@ function next_src (ps1, ps2) {
 
   // var ps = positions(ps1, ps2)
 
-  if (ps1.ecode === ECODE.TRUNCATED) {
+  if (ps1.ecode === ECODE.TRUNCATED || ps1.ecode === ECODE.TRUNC_DEC) {
     return finish_trunc(ps1, ps2)
   } else {
     ps2.pos = ps1.pos
