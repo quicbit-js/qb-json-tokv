@@ -157,8 +157,8 @@ function init (ps) {
   ps.klim = ps.klim || ps.koff                            // key limit (exclusive)
   ps.voff = ps.voff || ps.klim
   ps.vlim = ps.vlim || ps.voff
-  ps.stack = ps.stack || err('ps has no stack')                    // ascii codes 91 and 123 for array / object depth
-  ps.pos = ps.pos || err('ps has no position')                          // container context and relative position encoded as an int
+  ps.stack = ps.stack || []                   // ascii codes 91 and 123 for array / object depth
+  ps.pos = ps.pos || 0                          // container context and relative position encoded as an int
   ps.ecode = ps.ecode || 0
   ps.vcount = ps.vcount || 0                             // number of complete values parsed
 }
@@ -347,25 +347,26 @@ function check_err (ps) {
 //        next(ps1) will return a whole value or key/value and next(ps2) will continue from that point
 //
 //
-// if ps1 ends without pending key/value information, then:
+// if ps1 ends with complete key/value (nothing pending), then:
 //
-//     c) zero is returned and ps1 is set to end/empty (next(ps1) would return TOK.END) and ps2 properties are set to
+//     c) zero is returned and ps1 is set to end/empty (next(ps1) returns TOK.END) and ps2 properties are set to
 //        continue parsing the where ps1 leaves off.
 //
 function next_src (ps1, ps2) {
   ps1.vlim === ps1.lim || err('ps1 is not yet finished')
   ps1.tok === TOK.END || err('ps1 is not completed')
   check_err(ps1)
-
-  // start ps2 with its own offsets, but same stack, pos, vcount
-  ps2.stack = ps1.stack
-  ps2.pos = ps1.pos
-  ps2.vcount = ps1.vcount
   init(ps2)
 
   if (ps1.ecode === ECODE.TRUNCATED) {
+    ps2.stack = ps1.stack
+    ps2.pos = ps1.pos
+    ps2.vcount = ps1.vcount
     return finish_trunc(ps1, ps2)
   } else {
+    ps2.stack = ps1.stack
+    ps2.pos = ps1.pos
+    ps2.vcount = ps1.vcount
     return next_src_no_trunc(ps1, ps2)
   }
 }
