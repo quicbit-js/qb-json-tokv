@@ -440,7 +440,6 @@ function complete_val (tok, ps1, ps2) {
 }
 
 function finish_trunc (ps1, ps2) {
-  var ret = 0
   var ps2_off = ps2.vlim
   if (ps1.pos === OBJ_BFK || ps1.pos === OBJ_B_K) {
     if (!complete_val(TOK.STR, ps1, ps2)) { return TOK.END }
@@ -466,20 +465,16 @@ function finish_trunc (ps1, ps2) {
   } else {
     err('unexpected position for truncation: ' + ps1.pos)
   }
-  if (!ret) {
-    next(ps2)
-    ps2.koff = ps2.klim = ps2.voff = ps2.vlim
-    ps2.ecode = 0
+  next(ps2)
+  ps2.koff = ps2.klim = ps2.voff = ps2.vlim
+  ps2.ecode = 0
 
-    var add_space = ps2.tok === TOK.DEC && ps2.vlim < ps2.lim ? 1 : 0  // eliminates pseudo truncation
-    // ps1.src gets ps1.koff .. ps2.vlim
-    ps1.pos = OBJ_B_K
-    reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2_off, ps2.vlim + add_space))
-    if (add_space) { ps1.src[ps1.src.length-1] = 32 }
-    ret = ps2.tok  // the token that will be returned by ps1
-  }
-
-  return ret
+  var add_space = ps2.tok === TOK.DEC && ps2.vlim < ps2.lim ? 1 : 0  // eliminates pseudo truncation
+  // ps1.src gets ps1.koff .. ps2.vlim
+  ps1.pos = OBJ_B_K
+  reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2_off, ps2.vlim + add_space))
+  if (add_space) { ps1.src[ps1.src.length-1] = 32 }
+  return ps2.tok  // the token that will be returned by ps1
 }
 
 function reset_src (ps, src) {
