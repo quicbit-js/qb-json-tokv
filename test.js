@@ -21,7 +21,7 @@ var TOK = jtok.TOK
 var ECODE = jtok.ECODE
 var jstate = require('qb-json-state')
 
-test('tokenize', function (t) {
+test('tokenize - finish', function (t) {
   t.table_assert(
     [
       [ 'src',                                      'off', 'lim', 'exp' ],
@@ -59,7 +59,7 @@ test('tokenize', function (t) {
         toks.push(jstate.tokstr(ps))
         return true
       }
-      var ret_ps = jtok.tokenize({src: utf8.buffer(input), off: off, lim: lim}, null, cb)
+      var ret_ps = jtok.tokenize({src: utf8.buffer(input), off: off, lim: lim}, {finish: true}, cb)
       return [ toks.join(','), jstate.encode(ret_ps) ]
     }
   )
@@ -88,14 +88,14 @@ test('next', function (t) {
 function capture_next_src (src1, src2, t) {
   var ps1 = {src: utf8.buffer(src1)}
   var ps2 = {src: utf8.buffer(src2)}
-  var r1 = tokenize(ps1, {incremental: true})
+  var r1 = tokenize(ps1)
   var r2, r3
   var rtok = jtok.next_src(ps1, ps2)
   if (ps1.ecode === ECODE.TRUNCATED) { ps1.ecode = 0 }    // allow re-parsing
   // console.log(jstate.explain(ps1))
   // console.log(jstate.explain(ps2))
-  r2 = tokenize(ps1, {incremental: true})
-  r3 = tokenize(ps2, {incremental: true}, t)
+  r2 = tokenize(ps1)
+  r3 = tokenize(ps2)
   return [ r1.toks.join(','), String.fromCharCode(rtok), r2.toks.join(','), r3 && r3.toks.join(',')]
 }
 
@@ -248,7 +248,7 @@ test('parse error state', function (t) {
       }
       // jtok.tokenize({src: utf8.buffer(src)}, null, cb)
       try {
-        jtok.tokenize({src: utf8.buffer(src)}, null, cb)
+        jtok.tokenize({src: utf8.buffer(src)}, {finish: true}, cb)
       } catch (e) {
         return [ toks.join(','), jstate.encode(e.parse_state) ]
       }
@@ -259,25 +259,25 @@ test('parse error state', function (t) {
 test('callback stop', function (t) {
   t.table_assert(
     [
-      [ 'src',                'inc', 'at_cb', 'exp' ],
-      [ '[1, 2, 3',           true,  4,       [ 'B@0,[@0,d1@1,d1@4,E1@7!D', '8/2/[V1' ] ],
-      [ '1, 2, 3',            false, 3,       [ 'B@0,d1@0,d1@3,d1@6', '7/2/U1' ] ],
-      [ '{ "a": 7, "b": 4 }', true,  0,       [ 'B@0', '0/0/F' ] ],
-      [ '{ "a": 7, "b": 4 }', true,  1,       [ 'B@0,{@0', '1/0/{F' ] ],
-      [ '{ "a": 7, "b": 4 }', true,  2,       [ 'B@0,{@0,k3@2:d1@7', '8/1/{W' ] ],
-      [ '{ "a": 7, "b": 4 }', true,  3,       [ 'B@0,{@0,k3@2:d1@7,k3@10:d1@15', '16/2/{W' ] ],
+      [ 'src',                'finish', 'at_cb', 'exp' ],
+      [ '[1, 2, 3',           0,        4,       [ 'B@0,[@0,d1@1,d1@4,E1@7!D', '8/2/[V1' ] ],
+      [ '1, 2, 3',            1,        3,       [ 'B@0,d1@0,d1@3,d1@6', '7/2/U1' ] ],
+      [ '{ "a": 7, "b": 4 }', 0,        0,       [ 'B@0', '0/0/F' ] ],
+      [ '{ "a": 7, "b": 4 }', 0,        1,       [ 'B@0,{@0', '1/0/{F' ] ],
+      [ '{ "a": 7, "b": 4 }', 0,        2,       [ 'B@0,{@0,k3@2:d1@7', '8/1/{W' ] ],
+      [ '{ "a": 7, "b": 4 }', 0,        3,       [ 'B@0,{@0,k3@2:d1@7,k3@10:d1@15', '16/2/{W' ] ],
       // if callback returns false at the src limit, the parse state is returned from _tokenize, but no end callback is made
-      [ '{ "a": 7, "b": 4 }', true,  4,       [ 'B@0,{@0,k3@2:d1@7,k3@10:d1@15,}@17', '18/3/W' ] ],
+      [ '{ "a": 7, "b": 4 }', 0,        4,       [ 'B@0,{@0,k3@2:d1@7,k3@10:d1@15,}@17', '18/3/W' ] ],
 
     ],
-    function (src, inc, at_cb) {
+    function (src, finish, at_cb) {
       var count = 0
       var toks = []
       var cb = function (ps) {
         toks.push(jstate.tokstr(ps))
         return count++ !== at_cb
       }
-      var ps = jtok.tokenize({src: utf8.buffer(src)}, {incremental: inc}, cb)
+      var ps = jtok.tokenize({src: utf8.buffer(src)}, {finish: finish}, cb)
       return [ toks.join(','), jstate.encode(ps) ]
     }
   )
@@ -311,7 +311,7 @@ test('object - no spaces', function (t) {
       [ '{"a":71,"b":2}', [ 'B@0,{@0,k3@1:d2@5,k3@8:d1@12,}@13,E@14', '14/3/W' ] ],
     ],
     function (src) {
-      var r = tokenize({src: utf8.buffer(src)}, {incremental: true}, t)
+      var r = tokenize({src: utf8.buffer(src)})
       return [ r.toks.join(','), jstate.encode(r.ps) ]
     }
   )
@@ -335,7 +335,7 @@ test('array - no spaces', function (t) {
       [ '[83,"a",2]', [ 'B@0,[@0,d2@1,s3@4,d1@8,]@9,E@10', '10/4/W' ] ],
     ],
     function (src) {
-      var r = tokenize({src: utf8.buffer(src)}, {incremental: true}, t)
+      var r = tokenize({src: utf8.buffer(src)})
       return [ r.toks.join(','), jstate.encode(r.ps) ]
     }
   )
@@ -363,7 +363,7 @@ test('array - spaces', function (t) {
       [ '[ 83, "a" , 2 ]', [ 'B@0,[@0,d2@2,s3@6,d1@12,]@14,E@15', '15/4/W' ] ],
     ],
     function (src) {
-      var r = tokenize({src: utf8.buffer(src)}, {incremental: true}, t)
+      var r = tokenize({src: utf8.buffer(src)})
       return [ r.toks.join(','), jstate.encode(r.ps) ]
     }
   )
@@ -394,7 +394,7 @@ test('object - spaces', function (t) {
       [ ' { "a" : "x" }', [ 'B@0,{@1,k3@3:s3@9,}@13,E@14', '14/2/W' ] ],
     ],
     function (src) {
-      var r = tokenize({src: utf8.buffer(src)}, {incremental: true}, t)
+      var r = tokenize({src: utf8.buffer(src)})
       return [ r.toks.join(','), jstate.encode(r.ps) ]
     }
   )
@@ -463,14 +463,14 @@ test('incremental object', function (t) {
 })
 
 function parse_split (src1, src2, t) {
-  var r1 = tokenize({src: utf8.buffer(src1)}, {incremental: true}, t)
+  var r1 = tokenize({src: utf8.buffer(src1)})
   var ps = {
     src: utf8.buffer(src2),
     stack: r1.ps.stack.slice(),
     pos: r1.ps.pos,
     vcount: r1.ps.vcount,
   }
-  var r2 = tokenize(ps, {incremental: true}, t)
+  var r2 = tokenize(ps)
   
   return [ r1.toks.join(','), jstate.encode(r1.ps), r2.toks.join(','), jstate.encode(r2.ps) ]
 }

@@ -298,7 +298,7 @@ function tokenize (ps, opt, cb, nsrc) {
     cb(ps)
     return ps.tok === TOK.END ? ps : tokenize(nps, opt, cb)
   }
-  if (!opt.incremental && finish(ps, cb)) { return ps }
+  if (opt.finish && finish(ps, cb)) { return ps }
 
   cb(ps)
   return ps
@@ -511,6 +511,7 @@ module.exports = {
   init: init,
   next: next,
   next_src: next_src,
+  finish: finish,
   TOK: TOK,
   ECODE: ECODE,
 }
