@@ -113,7 +113,7 @@ function ascii_to_bytes (strings) {
 var WHITESPACE = ascii_to_code('\b\f\n\t\r ', 1)
 var NON_TOKEN = ascii_to_code('\b\f\n\t\r ,:', 1)     // token values used internally (and not returned)
 var DELIM = ascii_to_code('\b\f\n\t\r ,:{}[]', 1)
-var DECIMAL_START = ascii_to_code('-0123456789', 1)
+var DECIMAL_END = ascii_to_code('0123456789', 1)
 var DECIMAL_ASCII = ascii_to_code('-0123456789+.eE', 1)
 var TOK_BYTES = ascii_to_bytes({ f: 'alse', t: 'rue', n: 'ull' })
 
@@ -263,7 +263,7 @@ function end_next (ps) {
 function handle_neg (ps) {
   ps.vlim = -ps.vlim
   if (ps.vlim === ps.lim) {
-    ps.ecode = ps.tok === TOK.DEC ? ECODE.TRUNC_DEC : ECODE.TRUNCATED
+    ps.ecode = ps.tok === TOK.DEC && DECIMAL_END[ps.src[ps.vlim-1]] ? ECODE.TRUNC_DEC : ECODE.TRUNCATED
   } else {
     ps.ecode = ECODE.BAD_VALUE
   }
