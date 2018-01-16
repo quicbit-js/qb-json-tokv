@@ -409,24 +409,18 @@ function next_src_no_trunc(ps1, ps2) {
 // ps.ecode (checked = 0)
 // ps.vcount (same)
 
-function figure_tok (c) {
-  if (c === 34) { return TOK.STR }
-  if (DECIMAL_START[c]) { return TOK.DEC }
-  return c
-}
-
 function complete_val (ps1, ps2) {
   var off = ps1.pos === OBJ_BFK || ps1.pos === OBJ_B_K ? ps1.koff : ps1.voff
-  var tok = figure_tok(ps1.src[off])
   var idx
-  switch (tok) {
+  var c = ps1.src[off]
+  switch (c) {
     case TOK.FAL: case TOK.NUL: case TOK.TRU:
-    idx = skip_bytes(ps2.src, ps2.vlim, ps2.lim, TOK_BYTES[tok].slice(ps1.vlim - ps1.voff - 1))
-    break
-    case TOK.STR:
+      idx = skip_bytes(ps2.src, ps2.vlim, ps2.lim, TOK_BYTES[c].slice(ps1.vlim - ps1.voff - 1))
+      break
+    case 34:
       idx = skip_str(ps2.src, ps2.vlim, ps2.lim)
       break
-    case TOK.DEC:
+    default:
       idx = skip_dec(ps2.src, ps2.vlim, ps2.lim)
   }
   if (idx < 0) {
