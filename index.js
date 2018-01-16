@@ -161,7 +161,7 @@ function init (ps) {
   ps.vcount = ps.vcount || 0                             // number of complete values parsed
 }
 
-function next (ps) {
+function next (ps, nsrc) {
   ps.koff = ps.klim
   ps.voff = ps.vlim
   var pos1 = ps.pos
@@ -195,7 +195,7 @@ function next (ps) {
         } else {
           // value
           if (ps.vlim > 0)      { ps.pos = pos1; ps.vcount++; return ps.tok }
-          else                  return handle_neg(ps)
+          else                  return handle_neg(ps, nsrc)
         }
 
       case 102:                                         // f    false
@@ -205,7 +205,7 @@ function next (ps) {
         pos1 = POS_MAP[ps.pos | ps.tok]
         if (pos1 === 0)         return handle_unexp(ps)
         if (ps.vlim > 0)        { ps.pos = pos1; ps.vcount++; return ps.tok }
-        else                    return handle_neg(ps)
+        else                    return handle_neg(ps, nsrc)
 
       case 48:case 49:case 50:case 51:case 52:          // 0-4    digits
       case 53:case 54:case 55:case 56:case 57:          // 5-9    digits
@@ -215,7 +215,7 @@ function next (ps) {
         pos1 = POS_MAP[ps.pos | ps.tok]
         if (pos1 === 0)         return handle_unexp(ps)
         if (ps.vlim > 0)        { ps.pos = pos1; ps.vcount++; return ps.tok }
-        else                    return handle_neg(ps)
+        else                    return handle_neg(ps, nsrc)
 
       case 91:                                          // [    ARRAY START
       case 123:                                         // {    OBJECT START
@@ -256,10 +256,13 @@ function end_next (ps) {
   return ps.tok = TOK.END
 }
 
-function handle_neg (ps) {
+function handle_neg (ps, nsrc) {
   ps.vlim = -ps.vlim
   if (ps.vlim === ps.lim) {
     ps.ecode = ps.tok === TOK.DEC && DECIMAL_END[ps.src[ps.vlim-1]] ? ECODE.TRUNC_DEC : ECODE.TRUNCATED
+    if (nsrc) {
+      return next_src(ps, {src: nsrc})
+    }
   } else {
     ps.ecode = ECODE.BAD_VALUE
   }
