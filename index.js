@@ -464,8 +464,7 @@ function finish_trunc (ps1, ps2) {
     if (!complete_val(TOK.STR, ps1, ps2)) { return TOK.END }
     ps2.pos = OBJ_A_K
   } else if (ps1.pos === OBJ_B_V) {
-    var tok = figure_tok(ps1.src[ps1.voff])
-    if (tok === TOK.DEC && ps2.vlim < ps2.lim && !DECIMAL_ASCII[ps2.src[ps2.vlim]]) {
+    if (ps1.ecode === ECODE.TRUNC_DEC && ps2.vlim < ps2.lim && !DECIMAL_ASCII[ps2.src[ps2.vlim]]) {
       // not really truncated
       ps1.pos = OBJ_B_K
       reset_src(ps1, concat_src(ps1.src, ps1.koff, ps1.lim, ps2.src, ps2.vlim, ps2.vlim + 1))
@@ -473,6 +472,7 @@ function finish_trunc (ps1, ps2) {
       set_end_state(ps1, ps2)
       return TOK.DEC
     }
+    var tok = figure_tok(ps1.src[ps1.voff])
     if (!complete_val(tok, ps1, ps2)) { return TOK.END }
     ps2.pos = OBJ_A_V
   } else {
