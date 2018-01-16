@@ -52,7 +52,7 @@ var TOK = {
 var ECODE = {
   // when there is an error, ecode is set to one of these
   BAD_VALUE: 66,    // 'B'  encountered invalid byte or series of bytes
-  TRUNC_DEC: 68,    // 'D'  ended on decimal. *possibly* unfinished
+  TRUNC_DEC: 68,    // 'D'  end of buffer was value was a decimal ending with a digit (0-9). *possibly* unfinished
   TRUNCATED: 84,    // 'T'  key or value was unfinished at end of buffer
   UNEXPECTED: 85,   // 'U'  encountered a recognized token in wrong place/context
 }
