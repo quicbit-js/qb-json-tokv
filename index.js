@@ -40,19 +40,15 @@ var TOK = {
 
   // CAPITAL asciii is used for special start/end codes
 
-  // start code
-  BEG: 66,          // 'B'  (B)eginning of buffer (starting to parse buffer)
-
-  // end-codes
-  END: 69,          // 'E'  (End) of buffer (parsed to limit without error)
-                    //      if the 'incremental' option is set, then voff != vlim means that there is an unfinished
-                    //      value, and koff != klim means that there is an unfinished key.
+  // tokenize() special codes
+  BEG: 66,          // 'B'  (B)egin src.  about to tokenize a new src.
+  END: 69,          // 'E'  (E)nd src. finished parsing a src.  check ps.ecode for more information.
 }
 
 var ECODE = {
-  // when there is an error, ecode is set to one of these
+  // when a tokenize() finishes a src, a non-zero ps.ecode indicates an abnormal/special end state:
   BAD_VALUE: 66,    // 'B'  encountered invalid byte or series of bytes
-  TRUNC_DEC: 68,    // 'D'  end of buffer was value was a decimal ending with a digit (0-9). *possibly* unfinished
+  TRUNC_DEC: 68,    // 'D'  end of buffer was value was a decimal ending with a digit (0-9). it is *possibly* unfinished
   TRUNCATED: 84,    // 'T'  key or value was unfinished at end of buffer
   UNEXPECTED: 85,   // 'U'  encountered a recognized token in wrong place/context
 }
@@ -302,14 +298,14 @@ function tokenize (ps, opt, cb, nsrc) {
     cb(ps)
     return ps.tok === TOK.END ? ps : tokenize(nps, opt, cb)
   }
-  if (!opt.incremental && check_end_state(ps, cb)) { return ps }
+  if (!opt.incremental && finish(ps, cb)) { return ps }
 
   cb(ps)
   return ps
 }
 
-// complete tokenize callbacks, checking end state.
-function check_end_state (ps, cb) {
+// complete tokenize callbacks and validate state for end-of-parsing
+function finish (ps, cb) {
   if (ps.ecode === ECODE.TRUNC_DEC) {
     // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
     ps.tok = TOK.DEC
