@@ -256,7 +256,7 @@ function next (ps) {
 }
 
 function end_next (ps) {
-  if (ps.koff === ps.klim) { ps.koff = ps.klim = ps.voff }  // simplify
+  if (ps.koff === ps.klim) { ps.koff = ps.klim = ps.voff }  // simplify state
   return ps.tok = TOK.END
 }
 
@@ -301,34 +301,29 @@ function tokenize (ps, opt, cb, nsrc) {
     next_src(ps, nps)
     cb(ps)
     return ps.tok === TOK.END ? ps : tokenize(nps, opt, cb)
-  } else {
-    return end_tokenize(ps, opt, cb)
   }
-}
-
-// complete tokenize callbacks, checking end state.
-function end_tokenize (ps, opt, cb) {
-  if (!opt.incremental) {
-    ps.stack.length === 0 || err('input was incomplete. use option {incremental: true} to enable partial parsing', ps)
-    if (ps.ecode === ECODE.TRUNC_DEC) {
-      // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
-      ps.tok = TOK.DEC
-      ps.ecode = 0
-      if (!cb(ps)) {
-        return ps
-      }
-      ps.voff = ps.vlim
-      ps.tok = TOK.END
-      ps.pos = ARR_A_V
-    } else if (ps.ecode === ECODE.TRUNCATED) {
-      err('input was truncated. use option {incremental: true} to enable partial parsing', ps)
-    } else {
-      ps.pos !== ARR_B_V || err('trailing comma. use option {incremental: true} to enable partial parsing', ps)
-    }
-  }
+  if (!opt.incremental && check_end_state(ps, cb)) { return ps }
 
   cb(ps)
   return ps
+}
+
+// complete tokenize callbacks, checking end state.
+function check_end_state (ps, cb) {
+  if (ps.ecode === ECODE.TRUNC_DEC) {
+    // finished number outside of object or array context is considered done: '3.23' or '1, 2, 3'
+    ps.tok = TOK.DEC
+    ps.ecode = 0
+    if (!cb(ps)) {
+      return ps
+    }
+    ps.koff = ps.klim = ps.voff = ps.vlim
+    ps.tok = TOK.END
+    ps.pos = ARR_A_V
+  }
+  ps.stack.length === 0 || err('input was incomplete. use option {incremental: true} to enable partial parsing', ps)
+  ps.ecode !== ECODE.TRUNCATED || err('input was truncated. use option {incremental: true} to enable partial parsing', ps)
+  ps.pos !== ARR_B_V || err('trailing comma. use option {incremental: true} to enable partial parsing', ps)
 }
 
 function check_err (ps) {
@@ -420,7 +415,9 @@ function figure_tok (c) {
   return c
 }
 
-function complete_val (tok, ps1, ps2) {
+function complete_val (ps1, ps2) {
+  var off = ps1.pos === OBJ_BFK || ps1.pos === OBJ_B_K ? ps1.koff : ps1.voff
+  var tok = figure_tok(ps1.src[off])
   var idx
   switch (tok) {
     case TOK.FAL: case TOK.NUL: case TOK.TRU:
@@ -461,7 +458,7 @@ function set_end_state (ps1, ps2) {
 function finish_trunc (ps1, ps2) {
   var ps2_off = ps2.vlim
   if (ps1.pos === OBJ_BFK || ps1.pos === OBJ_B_K) {
-    if (!complete_val(TOK.STR, ps1, ps2)) { return TOK.END }
+    if (!complete_val(ps1, ps2)) { return TOK.END }
     ps2.pos = OBJ_A_K
   } else if (ps1.pos === OBJ_B_V) {
     if (ps1.ecode === ECODE.TRUNC_DEC && ps2.vlim < ps2.lim && !DECIMAL_ASCII[ps2.src[ps2.vlim]]) {
@@ -472,8 +469,7 @@ function finish_trunc (ps1, ps2) {
       set_end_state(ps1, ps2)
       return TOK.DEC
     }
-    var tok = figure_tok(ps1.src[ps1.voff])
-    if (!complete_val(tok, ps1, ps2)) { return TOK.END }
+    if (!complete_val(ps1, ps2)) { return TOK.END }
     ps2.pos = OBJ_A_V
   } else {
     err('unexpected position for truncation: ' + ps1.pos)
