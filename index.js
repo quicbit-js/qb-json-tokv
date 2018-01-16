@@ -161,7 +161,7 @@ function init (ps) {
   ps.vcount = ps.vcount || 0                             // number of complete values parsed
 }
 
-function next (ps, nsrc) {
+function next (ps) {
   ps.koff = ps.klim
   ps.voff = ps.vlim
   var pos1 = ps.pos
@@ -195,7 +195,7 @@ function next (ps, nsrc) {
         } else {
           // value
           if (ps.vlim > 0)      { ps.pos = pos1; ps.vcount++; return ps.tok }
-          else                  return handle_neg(ps, nsrc)
+          else                  return handle_neg(ps)
         }
 
       case 102:                                         // f    false
@@ -205,7 +205,7 @@ function next (ps, nsrc) {
         pos1 = POS_MAP[ps.pos | ps.tok]
         if (pos1 === 0)         return handle_unexp(ps)
         if (ps.vlim > 0)        { ps.pos = pos1; ps.vcount++; return ps.tok }
-        else                    return handle_neg(ps, nsrc)
+        else                    return handle_neg(ps)
 
       case 48:case 49:case 50:case 51:case 52:          // 0-4    digits
       case 53:case 54:case 55:case 56:case 57:          // 5-9    digits
@@ -215,7 +215,7 @@ function next (ps, nsrc) {
         pos1 = POS_MAP[ps.pos | ps.tok]
         if (pos1 === 0)         return handle_unexp(ps)
         if (ps.vlim > 0)        { ps.pos = pos1; ps.vcount++; return ps.tok }
-        else                    return handle_neg(ps, nsrc)
+        else                    return handle_neg(ps)
 
       case 91:                                          // [    ARRAY START
       case 123:                                         // {    OBJECT START
@@ -256,12 +256,12 @@ function end_next (ps) {
   return ps.tok = TOK.END
 }
 
-function handle_neg (ps, nsrc) {
+function handle_neg (ps) {
   ps.vlim = -ps.vlim
   if (ps.vlim === ps.lim) {
     ps.ecode = ps.tok === TOK.DEC && DECIMAL_END[ps.src[ps.vlim-1]] ? ECODE.TRUNC_DEC : ECODE.TRUNCATED
-    if (nsrc) {
-      return next_src(ps, {src: nsrc})
+    if (ps.next_src) {
+      return next_src(ps)
     }
   } else {
     ps.ecode = ECODE.BAD_VALUE
@@ -334,27 +334,17 @@ function check_err (ps) {
   }
 }
 
-// next_src() supports smooth transitions across ps1.src and ps2.src.
+// next_src() supports smooth transitions across two buffers - ps1.src and ps1.next_src
 //
-// NOTE this function is only suitable for src with individual values that fit comfortably into memory (which is pretty
+// a) if ps.src ends cleanly between values (or object key/values), then ps.src will be set to ps.next_src,
+//    other properties are set to continue using ps.src
+//
+// b) if ps1 ends with a partial state that does such as truncated key, truncated value, or key
+//    without value then a new ps.src is created containing ps.src and enough ps.next_src to complete
+//    the whole value or key value.  ps.next_src is sliced by the added amount.
+//
+// NOTE this function is only suitable for src values that fit comfortably into memory (which is pretty
 // much all JSON we use today, but not possible next-generation JSON which might have any size data).
-//
-// if ps1 ends with a partial state that does not fit within ps1.src such as truncated key,
-// truncated, value, or key with no value,
-// next_src() will shift src from ps2 to ps1 and:
-//
-//     a) if ps2 does not have the entire remaining value then TOK.END is returned and ps1 is given the
-//        combined buffer containing all of ps1 and ps2 so that next(ps1) will have a more complete - but not
-//        fully complete key/value.
-//
-//     b) if ps2 has the complete remaining value or key/value, then a non-zero token other than TOK.END is returned and
-//        next(ps1) will return a whole value or key/value and next(ps2) will continue from that point
-//
-//
-// if ps1 ends with complete key/value (nothing pending), then:
-//
-//     c) zero is returned and ps1 is set to end/empty (next(ps1) returns TOK.END) and ps2 properties are set to
-//        continue parsing the where ps1 leaves off.
 //
 function next_src (ps1, ps2) {
   ps1.vlim === ps1.lim || err('ps1 is not yet finished')
