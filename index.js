@@ -318,18 +318,6 @@ function post_cb (ps) {
   return ps
 }
 
-function _tokenize (ps, opt, cb) {
-  var cb_res = true
-  do {
-    next(ps)
-    cb_res = cb(ps)
-  } while (next(ps) !== TOK.END && cb_res) {
-    cb_res = cb(ps)
-  }
-  check_err(ps)
-  return true
-}
-
 function check_err (ps) {
   if (ps.ecode === ECODE.BAD_VALUE) {
     err('bad byte: ' + ps.src[ps.vlim], ps)
@@ -385,6 +373,7 @@ function next_src (ps, nsrc) {
 
   switch (npos) {
     case OBJ_B_K: case OBJ_BFK: case OBJ_A_V: case ARR_BFV: case ARR_B_V: case ARR_A_V:
+      if (ps.ecode === ECODE.TRUNC_DEC && noff < nsrc.length) { noff++ }   // shift truncated decimal
       return shift_src(ps, nsrc, noff > 0 ? noff : nsrc.length)
       break
 
@@ -395,10 +384,7 @@ function next_src (ps, nsrc) {
       nps.pos = npos
       init(nps)
       next(nps)
-      if (nps.tok === TOK.DEC && nps.vlim < nps.lim) {
-        // shift extra byte for truncated decimal
-        nps.vlim++
-      }
+      if (nps.tok === TOK.DEC && nps.vlim < nps.lim) { nps.vlim++ }   // shift truncated decimal
       return shift_src(ps, nsrc, nps.vlim)
       break
 
@@ -412,16 +398,24 @@ function shift_src (ps, nsrc, noff) {
   if (noff === nsrc.length) {
     ret_src = null
   } else {
-    nsrc = nsrc.slice(0, noff)
     ret_src = nsrc.slice(noff)
+    nsrc = nsrc.slice(0, noff)
   }
   var off = ps.koff < ps.klim ? ps.koff : ps.voff
   if (off > 0) {
     ps.src = ps.src.slice(off)
   }
   ps.src = concat_src(ps.src, nsrc)
+  // reset position to be at value or key/value start
   ps.off = ps.koff = ps.klim = ps.tok = ps.voff = ps.vlim = ps.ecode = 0
   ps.lim = ps.src.length
+  switch (ps.pos) {
+    case ARR_BFV: case ARR_B_V: case ARR_A_V:
+      ps.pos = ARR_B_V
+      break
+    default:
+      ps.pos = OBJ_B_K
+  }
   return ret_src
 }
 
