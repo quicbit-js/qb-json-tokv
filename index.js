@@ -276,44 +276,46 @@ function handle_unexp (ps) {
 function tokenize (ps, opt, cb) {
   opt = opt || {}
   init(ps)
-  if (ps.vlim === ps.lim && ps.next_src) {
-    ps.next_src = next_src(ps, ps.next_src)     // switch to new source before calling begin
-  }
-  ps.tok = TOK.BEG
-  if (!cb(ps)) { return post_cb(ps) }
 
+  // continue as long as we have source
   while (true) {
-    while (next(ps) !== TOK.END) {
-      if (cb(ps) !== true) { return post_cb(ps) }
+    if (ps.tok === TOK.END) {
+      if (ps.next_src && ps.next_src.length) {
+        ps.next_src = next_src(ps, ps.next_src)
+      } else {
+        break
+      }
     }
-    check_err(ps)
+
+    ps.tok = TOK.BEG
+    if (!cb(ps)) { return cb_stop(ps) }
+
+    while (next(ps) !== TOK.END) {
+      if (cb(ps) !== true) { return cb_stop(ps) }
+    }
 
     if (opt.finish) {
-      ps.ecode !== ECODE.TRUNCATED || err('input was truncated. use option {incremental: true} to enable partial parsing', ps)
+      check_err(ps)
+      ps.ecode !== ECODE.TRUNCATED || err('input was truncated.', ps)
       if (ps.ecode === ECODE.TRUNC_DEC) {
-        // number outside of object or array context is considered done: '3.23' or '1, 2, 3'
         ps.ecode = 0
-        if (!cb(ps)) { return post_cb(ps) }
-        ps.pos = ARR_A_V  // not in object context (proven by checking stack, below)
+        ps.tok = TOK.DEC
+        if (!cb(ps)) { return cb_stop(ps) }
       }
       ps.stack.length === 0 || err('input was incomplete.', ps)
-      ps.pos !== ARR_B_V || err('trailing comma.', ps)
+      ps.pos === ARR_A_V || ARR_BFV || err('trailing comma.', ps)
     }
 
-    if (ps.next_src && ps.next_src.length) {
-      ps.next_src = next_src(ps, ps.next_src)
-    } else {
-      break
-    }
+    ps.tok = TOK.END
+    if (!cb(ps)) { return cb_stop(ps) }
+    check_err(ps)
   }
 
-  ps.tok = TOK.END
-  cb(ps)
-  return post_cb(ps)
+  return ps
 }
 
 // after callback cleans up state before returning
-function post_cb (ps) {
+function cb_stop (ps) {
   // ps.koff = ps.klim = ps.voff = ps.vlim
   return ps
 }
@@ -327,65 +329,64 @@ function check_err (ps) {
   }
 }
 
-// next_src() supports smooth transitions across two buffers - ps1.src and ps1.next_src
+// next_src() supports smooth transitions across two buffers - ps1.src and ps1.next_src.  It can recover from
+// truncated or partial positions encountered during parsing like so:
+//
+//
+//    while (next(ps) !== TOK.END) {...}
+//    nsrc = next_src(ps, nsrc)               // set ps.src to nsrc or to a selection across ps.src and nsrc that has complete values (returning nsrc remainder)
+//    while (next(ps) !== TOK.END) {...}
+//    nsrc = next_src(ps, nsrc)               // set ps.src to nsrc or to a selection across ps.src and nsrc that has complete values (returning nsrc remainder)
+//    ...
+//
+// Details:
 //
 // a) if ps.src ends cleanly between values (or object key/values), then ps.src will be set to ps.next_src
-//    and other ps properties to continue with ps.src
+//    and set other ps properties to continue with the new ps.src
 //
-// b) if ps1 ends with a partial state that does such as truncated key, truncated value, or key
-//    without value then a new ps.src is created containing ps.src and enough ps.next_src to complete
-//    the whole value or key value.  ps.next_src is sliced by the added amount.
+// b) if ps ends with a partial state such as truncated key, truncated value, or key
+//    without value then a new ps.src is created containing enough of ps.src and ps.next_src to complete
+//    a whole value or key value.  ps.next_src is sliced/reduced by the added amount and ps offsets
+//    and position are *rewound* to point the value or key/value that was truncated so that next(ps) will
+//    operate on the recovered value or key/value.  If the value cannot be completed with nsrc, then
+//    it will still be rewound to start with the new, longer, but still incomplete value when next(ps) is called.
 //
-// NOTE this function is only suitable for src values that fit comfortably into memory (which is pretty
-// much all JSON we use today, but not possible next-generation JSON which might have any size data).
+// NOTE this function is only suitable for src keys and values that fit comfortably into memory (which is pretty
+// much all JSON we use today, but possibly not next-generation JSON which might have any size data).
 //
 function next_src (ps, nsrc) {
-  var noff = 0
-  var npos
-  if (ps.ecode === ECODE.TRUNCATED || ps.ecode === ECODE.TRUNC_DEC) {
-    switch (ps.pos) {
-      case OBJ_BFK: case OBJ_B_K:
-        noff = complete_val(ps.src, ps.koff, ps.klim, nsrc)
-        npos = OBJ_A_K
-        break
-      case OBJ_B_V:
-        noff = complete_val(ps.src, ps.voff, ps.vlim, nsrc)
-        npos = OBJ_A_V
-        break
-      case ARR_BFV: case ARR_B_V:
-        noff = complete_val(ps.src, ps.voff, ps.vlim, nsrc)
-        npos = ARR_A_V
-        break
-      default:
-        err('pos not handled: ' + ps.pos)
+  var ns_lim = 0        // selection of nsrc to include up to (0 means none)
+  var npos = ps.pos     // position (updated for completed truncated values)
+  var ps_off = ps.lim   // selection of ps.src to keep (ps_off through ps.lim)
+  var tinfo = trunc_info(ps, nsrc)
+  if (tinfo) {
+    ps_off = in_obj(ps) ? ps.koff : ps.voff
+    ns_lim = tinfo.ns_lim
+    if (tinfo.npos === ps.pos) {
+      // truncated value not complete
+      return shift_src(ps, ps_off, nsrc, ns_lim)
+    } else {
+      npos = tinfo.npos // advance position
     }
-    if (noff < 0) {
-      // could not complete truncated value
-      noff = -noff
-      if (noff < nsrc.length) {
-        noff++    // encountered a BAD_BYTE. include it in ps.src.
-      }
-      return shift_src(ps, nsrc, noff)
-    }
-  } else {
-    npos = ps.pos
   }
 
+  // continue from ns_lim and npos...
   switch (npos) {
     case OBJ_B_K: case OBJ_BFK: case OBJ_A_V: case ARR_BFV: case ARR_B_V: case ARR_A_V:
-      if (ps.ecode === ECODE.TRUNC_DEC && noff < nsrc.length) { noff++ }   // shift truncated decimal
-      return shift_src(ps, nsrc, noff > 0 ? noff : nsrc.length)
-      break
+      if (ns_lim === 0) { ns_lim = nsrc.length }    // use all next_src
+      // ps.koff = ps.klim = ps.voff = ps.vlim
+      return shift_src(ps, ps_off, nsrc, ns_lim)
 
     case OBJ_A_K: case OBJ_B_V:
+      // find next position in nsrc
       var nps = {src: nsrc}
       nps.stack = ps.stack.slice()
-      nps.vlim = noff
+      nps.vlim = ns_lim
       nps.pos = npos
       init(nps)
       next(nps)
       if (nps.tok === TOK.DEC && nps.vlim < nps.lim) { nps.vlim++ }   // shift truncated decimal
-      return shift_src(ps, nsrc, nps.vlim)
+      return shift_src(ps, ps.koff, nsrc, nps.vlim)
       break
 
     default:
@@ -393,30 +394,68 @@ function next_src (ps, nsrc) {
   }
 }
 
-function shift_src (ps, nsrc, noff) {
-  var ret_src
-  if (noff === nsrc.length) {
-    ret_src = null
-  } else {
-    ret_src = nsrc.slice(noff)
-    nsrc = nsrc.slice(0, noff)
+function trunc_info (ps, nsrc) {
+  if (ps.ecode !== ECODE.TRUNCATED && ps.ecode !== ECODE.TRUNC_DEC) {
+    return null
   }
-  var off = ps.koff < ps.klim ? ps.koff : ps.voff
-  if (off > 0) {
-    ps.src = ps.src.slice(off)
-  }
-  ps.src = concat_src(ps.src, nsrc)
-  // reset position to be at value or key/value start
-  ps.off = ps.koff = ps.klim = ps.tok = ps.voff = ps.vlim = ps.ecode = 0
-  ps.lim = ps.src.length
+  var ret = {}
   switch (ps.pos) {
-    case ARR_BFV: case ARR_B_V: case ARR_A_V:
-      ps.pos = ARR_B_V
+    case OBJ_BFK: case OBJ_B_K:
+      ret.ns_lim = complete_val(ps.src, ps.koff, ps.klim, nsrc)
+      ret.npos = OBJ_A_K
+      break
+    case OBJ_B_V:
+      ret.ns_lim = complete_val(ps.src, ps.voff, ps.vlim, nsrc)
+      ret.npos = OBJ_A_V
+      break
+    case ARR_BFV: case ARR_B_V:
+      ret.ns_lim = complete_val(ps.src, ps.voff, ps.vlim, nsrc)
+      ret.npos = ARR_A_V
       break
     default:
-      ps.pos = OBJ_B_K
+      err('pos not handled: ' + ps.pos)
   }
-  return ret_src
+  if (ret.ns_lim < 0) {
+    // could not complete truncated value - pos unchanged
+    ret.ns_lim = -ret.ns_lim
+    if (ret.ns_lim < nsrc.length) { ret.ns_lim++ }   // early stop means BAD_BYTE - include byte in selection
+    ret.pos = ps.pos
+  } else {
+    if (ps.ecode === ECODE.TRUNC_DEC && ret.ns_lim < nsrc.length) {
+      ret.ns_lim++    // include byte after decimal (avoid truncation in src)
+    }
+  }
+  return ret
+}
+
+function shift_src (ps, ps_off, nsrc, ns_lim) {
+  ns_lim > 0 || err('nothing to shift')
+
+  // split nsrc into new nsrc and remaining amount
+  var ns_remain = ns_lim === nsrc.length ? null : nsrc.slice(ns_lim)
+
+  // combine or replace ps.src with nsrc selection
+  if (ps_off === ps.lim) {
+    ps.src = ns_lim === nsrc.length ? nsrc : nsrc.slice(0, ns_lim)
+  } else {
+    ps.src = concat_src(ps.src, ps_off, ps.lim, nsrc, 0, ns_lim)
+    // ps.src is being used.  rewind position.
+    ps.pos = in_obj(ps.pos) ? OBJ_B_K : ARR_B_V
+  }
+
+  // rewind position to be at value or key/value start
+  ps.off = 0
+  ps.koff = ps.klim = ps.voff = ps.vlim = 0
+  ps.tok = ps.ecode = 0
+  ps.lim = ps.src.length
+  return ns_remain
+}
+
+function in_obj (pos) {
+  switch (pos) {
+    case OBJ_BFK: case OBJ_B_K: case OBJ_A_K: case OBJ_B_V: case OBJ_A_V: return true
+    default: return false
+  }
 }
 
 // ps1.src - later
@@ -446,12 +485,12 @@ function complete_val (src1, voff, vlim, src2) {
   return ret
 }
 
-function concat_src (src1, src2) {
-  var len1 = src1.length
-  var len2 = src2.length
+function concat_src (src1, off1, lim1, src2, off2, lim2) {
+  var len1 = lim1 - off1
+  var len2 = lim2 - off2
   var ret = new Uint8Array(len1 + len2)
-  for (var i=0; i < len1; i++) { ret[i] = src1[i] }
-  for (i=0; i < len2; i++) { ret[i+len1] = src2[i] }
+  for (var i=0; i < len1; i++) { ret[i] = src1[i + off1] }
+  for (i=0; i < len2; i++) { ret[i + len1] = src2[i + off2] }
   return ret
 }
 
