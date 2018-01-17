@@ -301,7 +301,6 @@ function tokenize (ps, opt, cb) {
         ps.ecode = 0
         ps.tok = TOK.DEC
         ps.pos = POS_MAP[ps.pos | ps.tok]
-        if (ps.pos === 0) { handle_unexp(ps) }
         if (!cb(ps)) { return cb_stop(ps) }
         check_err(ps)
         ps.koff = ps.klim = ps.voff = ps.vlim
@@ -333,7 +332,6 @@ function check_err (ps) {
   }
 }
 
-var jstate = require('qb-json-state')
 // next_src() supports smooth transitions across two buffers - ps1.src and ps1.next_src.  It can recover from
 // truncated or partial positions encountered during parsing like so:
 //
@@ -375,7 +373,6 @@ function next_src (ps, nsrc) {
     }
   }
 
-  // console.log(jstate.ps2obj(ps))
   // continue from ns_lim and npos...
   switch (npos) {
     case OBJ_B_K: case OBJ_BFK: case OBJ_A_V: case ARR_BFV: case ARR_B_V: case ARR_A_V:
@@ -477,18 +474,14 @@ function in_obj (pos) {
 // ps.vcount (same)
 
 function complete_val (src1, voff, vlim, src2) {
-  var ret
-  switch (src1[voff]) {
-    case TOK.FAL: case TOK.NUL: case TOK.TRU:
-      ret = skip_bytes(src2, 0, src2.length, TOK_BYTES[src1[voff]].slice(vlim - voff - 1))
-      break
-    case 34:
-      ret = skip_str(src2, 0, src2.length)
-      break
-    default:
-      ret = skip_dec(src2, 0, src2.length)
+  var c = src1[voff]
+  if (c === 34) {
+    return skip_str(src2, 0, src2.length)
+  } else if (TOK_BYTES[c]) {
+    return skip_bytes(src2, 0, src2.length, TOK_BYTES[c].slice(vlim - voff - 1))
+  } else {
+    return skip_dec(src2, 0, src2.length)
   }
-  return ret
 }
 
 function concat_src (src1, off1, lim1, src2, off2, lim2) {
