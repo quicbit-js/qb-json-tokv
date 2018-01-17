@@ -300,7 +300,11 @@ function tokenize (ps, opt, cb) {
       if (ps.ecode === ECODE.TRUNC_DEC) {
         ps.ecode = 0
         ps.tok = TOK.DEC
+        ps.pos = POS_MAP[ps.pos | ps.tok]
+        if (ps.pos === 0) { handle_unexp(ps) }
         if (!cb(ps)) { return cb_stop(ps) }
+        check_err(ps)
+        ps.koff = ps.klim = ps.voff = ps.vlim
       }
       ps.stack.length === 0 || err('input was incomplete.', ps)
       ps.pos === ARR_A_V || ARR_BFV || err('trailing comma.', ps)
