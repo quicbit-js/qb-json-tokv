@@ -307,7 +307,7 @@ function tokenize (ps, opt, cb) {
         ps.koff = ps.klim = ps.voff = ps.vlim
       }
       ps.stack.length === 0 || err('input was incomplete.', ps)
-      ps.pos === ARR_A_V || ARR_BFV || err('trailing comma.', ps)
+      ps.pos === ARR_A_V || ps.pos === ARR_BFV || err('trailing comma.', ps)
     }
 
     ps.tok = TOK.END

@@ -180,7 +180,6 @@ test('errors', function (t) {
   t.table_assert([
     [ 'ps',                                 'opt',        'exp' ],
     [ {},                                   null,        /missing src property/ ],
-    [ {src: [], ecode: ECODE.TRUNCATED},    null,        /cannot tokenize state with ecode "T"/ ],
   ], jtok.tokenize, {assert: 'throws'})
 })
 
@@ -190,7 +189,7 @@ test('parse error state', function (t) {
       [ 'input',            'exp' ],
 
       // incomplete input
-      [ '{"a": ',           [ 'B@0,{@0', '6/0/{U3.2' ] ],
+      // [ '{"a": ',           [ 'B@0,{@0', '6/0/{U3.2' ] ],
       [ '1, 2,',            [ 'B@0,d1@0,d1@3', '5/2/U' ] ],
       [ '[1, 2, ',          [ 'B@0,[@0,d1@1,d1@4', '7/2/[U' ] ],
       [ 'fal',              [ 'B@0', '3/0/V3' ] ],
