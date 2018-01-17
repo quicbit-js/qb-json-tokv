@@ -176,6 +176,20 @@ test('next_src - incomplete', function (t) {
   })
 })
 
+test('next_src - errors', function (t) {
+  t.table_assert([
+    [ 'src1',    'src2',    'exp' ],
+    [ '{"a": t', 'rux',     'bad value, src[5..9] "a": ->trux<-' ],
+  ], function (src1, src2) {
+    try {
+      capture_next_src(src1, src2)
+      return null
+    } catch (e) {
+      return jstate.explain(e.parse_state)
+    }
+  })
+})
+
 test('errors', function (t) {
   t.table_assert([
     [ 'ps',                                 'opt',        'exp' ],
@@ -207,13 +221,13 @@ test('parse error state', function (t) {
       [ '{"a" :  q',        [ 'B@0,{@0', '8/0/{U3.4!B' ] ],
 
       // bad byte in number
-      [ '0*',               [ 'B@0', '1/0/F1!B' ] ],
-      [ '1, 2.4n',          [ 'B@0,d1@0', '6/1/U3!B' ] ],
-      [ '{"a": 3^6}',       [ 'B@0,{@0', '7/0/{U3.2:1!B' ] ],
-      [ ' 1f',              [ 'B@0', '2/0/F1!B' ] ],
+      [ '0*',               [ 'B@0', '2/0/F2!B' ] ],
+      [ '1, 2.4n',          [ 'B@0,d1@0', '7/1/U4!B' ] ],
+      [ '{"a": 3^6}',       [ 'B@0,{@0', '8/0/{U3.2:2!B' ] ],
+      [ ' 1f',              [ 'B@0', '3/0/F2!B' ] ],
 
       // bad byte in value
-      [ '{"a": t,',         [ 'B@0,{@0', '7/0/{U3.2:1!B' ] ],
+      [ '{"a": t,',         [ 'B@0,{@0', '8/0/{U3.2:2!B' ] ],
 
       // unexpected value
       [ '"a""b"',           [ 'B@0,s3@0',           '6/1/W3!U' ] ],

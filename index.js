@@ -122,7 +122,7 @@ function skip_bytes (src, off, lim, bsrc) {
   if (blen > lim - off) { blen = lim - off }
   var i = 0
   while (bsrc[i] === src[i + off] && i < blen) { i++ }
-  return blen === bsrc.length ? i + off : -(i + off)
+  return i === bsrc.length ? i + off : -(i + off)
 }
 
 function skip_str (src, off, lim) {
@@ -259,10 +259,11 @@ function end_src (ps) {
 
 function handle_neg (ps) {
   ps.vlim = -ps.vlim
-  if (ps.vlim === ps.lim) {
+  if (ps.vlim >= ps.lim) {
     ps.ecode = ps.tok === TOK.DEC && DECIMAL_END[ps.src[ps.vlim-1]] ? ECODE.TRUNC_DEC : ECODE.TRUNCATED
   } else {
     ps.ecode = ECODE.BAD_VALUE
+    ps.vlim++
   }
   return end_src(ps)
 }
@@ -294,8 +295,8 @@ function tokenize (ps, opt, cb) {
       if (cb(ps) !== true) { return cb_stop(ps) }
     }
 
+    check_err(ps)
     if (opt.finish) {
-      check_err(ps)
       ps.ecode !== ECODE.TRUNCATED || err('input was truncated.', ps)
       if (ps.ecode === ECODE.TRUNC_DEC) {
         ps.ecode = 0
@@ -325,7 +326,7 @@ function cb_stop (ps) {
 
 function check_err (ps) {
   if (ps.ecode === ECODE.BAD_VALUE) {
-    err('bad byte: ' + ps.src[ps.vlim], ps)
+    err('bad value: ' + ps.src[ps.vlim], ps)
   }
   if (ps.ecode === ECODE.UNEXPECTED) {
     err('unexpected value', ps)
@@ -365,7 +366,7 @@ function next_src (ps, nsrc) {
   if (tinfo) {
     ps_off = in_obj(ps.pos) ? ps.koff : ps.voff
     ns_lim = tinfo.ns_lim
-    if (tinfo.npos === ps.pos) {
+    if (tinfo.pos === ps.pos) {
       // truncated value not complete
       return shift_src(ps, ps_off, nsrc, ns_lim)
     } else {
@@ -375,7 +376,7 @@ function next_src (ps, nsrc) {
 
   // continue from ns_lim and npos...
   switch (npos) {
-    case OBJ_B_K: case OBJ_BFK: case OBJ_A_V: case ARR_BFV: case ARR_B_V: case ARR_A_V:
+    case OBJ_BFK: case OBJ_B_K: case OBJ_A_V: case ARR_BFV: case ARR_B_V: case ARR_A_V:
       if (ns_lim === 0) { ns_lim = nsrc.length }    // use all next_src
       // ps.koff = ps.klim = ps.voff = ps.vlim
       return shift_src(ps, ps_off, nsrc, ns_lim)
@@ -390,10 +391,6 @@ function next_src (ps, nsrc) {
       next(nps)
       if (nps.tok === TOK.DEC && nps.vlim < nps.lim) { nps.vlim++ }   // shift truncated decimal
       return shift_src(ps, ps.koff, nsrc, nps.vlim)
-      break
-
-    default:
-      err('pos not handled: ' + ps.pos)
   }
 }
 
@@ -415,13 +412,11 @@ function trunc_info (ps, nsrc) {
       ret.ns_lim = complete_val(ps.src, ps.voff, ps.vlim, nsrc)
       ret.npos = ARR_A_V
       break
-    default:
-      err('pos not handled: ' + ps.pos)
   }
   if (ret.ns_lim < 0) {
     // could not complete truncated value - pos unchanged
     ret.ns_lim = -ret.ns_lim
-    if (ret.ns_lim < nsrc.length) { ret.ns_lim++ }   // early stop means BAD_BYTE - include byte in selection
+    if (ret.ns_lim < nsrc.length) { ret.ns_lim++ }   // early stop means BAD_VALUE - include byte in selection
     ret.pos = ps.pos
   } else {
     if (ps.ecode === ECODE.TRUNC_DEC && ret.ns_lim < nsrc.length) {
