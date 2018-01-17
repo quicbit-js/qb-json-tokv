@@ -85,29 +85,23 @@ test('next', function (t) {
   })
 })
 
-function capture_next_src (src1, src2, t) {
-  var ps1 = {src: utf8.buffer(src1)}
-  var ps2 = {src: utf8.buffer(src2)}
-  var r1 = tokenize(ps1)
-  var r2, r3
-  var rtok = jtok.next_src(ps1, ps2)
-  if (ps1.ecode === ECODE.TRUNCATED) { ps1.ecode = 0 }    // allow re-parsing
-  // console.log(jstate.explain(ps1))
-  // console.log(jstate.explain(ps2))
-  r2 = tokenize(ps1)
-  r3 = tokenize(ps2)
-  return [ r1.toks.join(','), String.fromCharCode(rtok), r2.toks.join(','), r3 && r3.toks.join(',')]
+function capture_next_src (src1, src2) {
+  var ps = {src: utf8.buffer(src1)}
+  var r1 = tokenize(ps)
+  ps.next_src = utf8.buffer(src2)
+  var r2 = tokenize(ps)
+  return [ r1.toks.join(','), r2.toks.join(',') ]
 }
 
-test('next_src', function (t) {
+test.only('next_src', function (t) {
   t.table_assert([
     [ 'src1',          'src2',               'exp' ],
     //                                                                     call next_src
     //                                                                           |
     //                                  src1_toks,                  rtok,     ps1_1,     ps1_2,     ps2_1,     src2_toks,               ps2_2
-    [ '{',          '"a":3}',             [ 'B@0,{@0,E@1', 'E', 'B@1,E@1', 'B@0,k3@0:d1@4,}@5,E@6' ] ],
-    [ '{"',         'a":3}',              [ 'B@0,{@0,k1@1:E@2!T', 'd', 'B@0,k3@0:d1@4,}@5,E@6', 'B@0,E@0' ] ],
-    [ '{"a',        '":3}',               [ 'B@0,{@0,k2@1:E@3!T', 'd', 'B@0,k3@0:d1@4,}@5,E@6', 'B@0,E@0' ] ],
+    // [ '{',          '"a":3}',             [ 'B@0,{@0,E@1',        'B@0,k3@0:d1@4,}@5,E@6' ] ],
+    // [ '{"',         'a":3}',              [ 'B@0,{@0,k1@1:E@2!T', 'B@0,k3@0:d1@4,}@5,E@6' ] ],
+    // [ '{"a',        '":3}',               [ 'B@0,{@0,k2@1:E@3!T', 'B@0,k3@0:d1@4,}@5,E@6' ] ],
     [ '{"a"',       ':3}',                [ 'B@0,{@0,k3@1:E@4', 'd', 'B@0,k3@0:d1@4,E@6', 'B@2,}@2,E@3' ] ],
     [ '{"a":',      '3}',                 [ 'B@0,{@0,k3@1:E@5', 'd', 'B@0,k3@0:d1@4,E@6', 'B@1,}@1,E@2' ] ],
     [ '{"a":3',     '}',                  [ 'B@0,{@0,k3@1:E1@5!D', 'd', 'B@0,k3@0:d1@4,}@5,E@6', 'B@0,E@0' ] ],
@@ -139,7 +133,7 @@ test('next_src', function (t) {
     [ '{"f":"x"',   ',"bc":44}',          [ 'B@0,{@0,k3@1:s3@5,E@8', 'E', 'B@8,E@8', 'B@0,k4@1:d2@6,}@8,E@9' ] ],
     [ '{"g":"x","', 'bc":44}',            [ 'B@0,{@0,k3@1:s3@5,k1@9:E@10!T', 'd', 'B@0,k4@0:d2@5,}@7,E@8', 'B@0,E@0' ] ],
   ], function (src1, src2) {
-    return capture_next_src(src1, src2, t)
+    return capture_next_src(src1, src2)
   })
 })
 
@@ -176,7 +170,7 @@ test('next_src - incomplete', function (t) {
     [ '{"a": "q', ' ',       [ 'B@0,{@0,k3@1:E2@6!T', 'E', 'B@0,k3@0:E3@5!T', 'B@0,E@0' ] ],
     [ '{"a": "q', ' tr',     [ 'B@0,{@0,k3@1:E2@6!T', 'E', 'B@0,k3@0:E5@5!T', 'B@0,E@0' ] ],
   ], function (src1, src2) {
-    return capture_next_src(src1, src2, t)
+    return capture_next_src(src1, src2)
   })
 })
 
