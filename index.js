@@ -329,6 +329,7 @@ function check_err (ps) {
   }
 }
 
+var jstate = require('qb-json-state')
 // next_src() supports smooth transitions across two buffers - ps1.src and ps1.next_src.  It can recover from
 // truncated or partial positions encountered during parsing like so:
 //
@@ -360,7 +361,7 @@ function next_src (ps, nsrc) {
   var ps_off = ps.lim   // selection of ps.src to keep (ps_off through ps.lim)
   var tinfo = trunc_info(ps, nsrc)
   if (tinfo) {
-    ps_off = in_obj(ps) ? ps.koff : ps.voff
+    ps_off = in_obj(ps.pos) ? ps.koff : ps.voff
     ns_lim = tinfo.ns_lim
     if (tinfo.npos === ps.pos) {
       // truncated value not complete
@@ -370,6 +371,7 @@ function next_src (ps, nsrc) {
     }
   }
 
+  // console.log(jstate.ps2obj(ps))
   // continue from ns_lim and npos...
   switch (npos) {
     case OBJ_B_K: case OBJ_BFK: case OBJ_A_V: case ARR_BFV: case ARR_B_V: case ARR_A_V:
