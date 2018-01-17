@@ -427,8 +427,6 @@ function trunc_info (ps, nsrc) {
 }
 
 function shift_src (ps, ps_off, nsrc, ns_lim) {
-  ns_lim > 0 || err('nothing to shift')
-
   // split nsrc into new nsrc and remaining amount
   var ns_remain = ns_lim === nsrc.length ? null : nsrc.slice(ns_lim)
 
@@ -489,12 +487,10 @@ function concat_src (src1, off1, lim1, src2, off2, lim2) {
 }
 
 function err (msg, ps) {
-  if (ps) {
-    var pobj = Object.keys(ps).reduce(function (m,k) {m[k] = ps[k]; return m}, {})
-    if (pobj.src) {
-      pobj.src = Array.from(pobj.src).map(function(c){return String.fromCharCode(c)}).join('')
-      msg += ': ' + JSON.stringify(pobj)
-    }
+  var pobj = Object.keys(ps).reduce(function (m,k) {m[k] = ps[k]; return m}, {})
+  if (pobj.src) {
+    pobj.src = Array.from(pobj.src).map(function(c){return String.fromCharCode(c)}).join('')
+    msg += ': ' + JSON.stringify(pobj)
   }
   var e = new Error(msg)
   e.parse_state = ps
