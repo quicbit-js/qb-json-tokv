@@ -359,9 +359,12 @@ function check_err (ps) {
 // much all JSON we use today, but possibly not next-generation JSON which might have any size data).
 //
 function next_src (ps, nsrc) {
-  var ns_lim = 0        // selection of nsrc to include up to (0 means none)
-  var npos = ps.pos     // position (updated for completed truncated values)
-  var ps_off = ps.lim   // selection of ps.src to keep (ps_off through ps.lim)
+  if (!nsrc.length) {
+    return null
+  }
+  var ns_lim = 0                // selection of nsrc to include up to (0 means none)
+  var npos = ps.pos             // position (updated for completed truncated values)
+  var ps_off = ps.lim           // selection of ps.src to keep (ps_off through ps.lim)
   var tinfo = trunc_info(ps, nsrc)
   if (tinfo) {
     ps_off = in_obj(ps.pos) ? ps.koff : ps.voff
@@ -377,9 +380,7 @@ function next_src (ps, nsrc) {
   // continue from ns_lim and npos...
   switch (npos) {
     case OBJ_BFK: case OBJ_B_K: case OBJ_A_V: case ARR_BFV: case ARR_B_V: case ARR_A_V:
-      if (ns_lim === 0) { ns_lim = nsrc.length }    // use all next_src
-      // ps.koff = ps.klim = ps.voff = ps.vlim
-      return shift_src(ps, ps_off, nsrc, ns_lim)
+      return shift_src(ps, ps_off, nsrc, ns_lim || nsrc.length) // default to entire nsrc
 
     case OBJ_A_K: case OBJ_B_V:
       // find next position in nsrc
@@ -432,7 +433,7 @@ function shift_src (ps, ps_off, nsrc, ns_lim) {
 
   // combine or replace ps.src with nsrc selection
   if (ps_off === ps.lim) {
-    ps.src = ns_lim === nsrc.length ? nsrc : nsrc.slice(0, ns_lim)
+    ps.src = ns_lim === 0 || ns_lim === nsrc.length ? nsrc : nsrc.slice(0, ns_lim)
   } else {
     ps.src = concat_src(ps.src, ps_off, ps.lim, nsrc, 0, ns_lim)
     // ps.src is being used.  rewind position.
