@@ -17,6 +17,7 @@
 var test = require('test-kit').tape()
 var utf8 = require('qb-utf8-ez')
 var jtok = require('.')
+var TOK = jtok.TOK
 var jstate = require('qb-json-state')
 
 test('tokenize - finish', function (t) {
@@ -83,21 +84,52 @@ test('next', function (t) {
   })
 })
 
-function capture_next_src (src1, src2) {
-  var ps = {src: utf8.buffer(src1)}
-  var r1 = tokenize(ps)
-  ps.next_src = utf8.buffer(src2)
-  // console.log(jstate.ps2obj(ps))
-  var r2 = tokenize(ps)
-  return [ r1.toks.join(','), r2.toks.join(',') ]
+function capture_next_src (sources) {
+  var ret = []
+  var ps = jtok.init({src: utf8.buffer(sources.shift())})
+  var toks = []
+  while(jtok.next(ps) !== TOK.END) { toks.push(jstate.tokstr(ps)) }
+  ret.push(toks.join(','))
+
+  while (sources.length) {
+    jtok.next_src(ps, utf8.buffer(sources.shift()))
+    toks = []
+    while(jtok.next(ps) !== TOK.END) { toks.push(jstate.tokstr(ps)) }
+    ret.push(toks.join(','))
+  }
+  return ret
 }
 
 test('next_src', function (t) {
   t.table_assert([
+    [ 'sources',              'exp' ],
+    [ ['["a', 'bc"', ','] , [ '[@0', 's5@0', '' ] ],
+    [ ['["abc', '"', ','] , [ '[@0', 's5@0', '' ] ],
+    [ ['["abc"', ',', ' '] , [ '[@0,s5@1', '', '' ] ],
+    [ ['["abc"', ',4', ' '] , [ '[@0,s5@1', '', 'd1@0' ] ],
+    [ ['["abc"', '', ',4 ' ] , [ '[@0,s5@1', '', 'd1@1' ] ],
+  ], function (sources) {
+    return capture_next_src(sources)
+  })
+})
+
+test('next_src - errors', function (t) {
+  var ps = jtok.init({src: [34,98,34]})
+  t.throws(function () { jtok.next_src(ps) }, /state not ended/)
+  t.end()
+})
+
+function tokenize_next_src (src1, src2) {
+  var ps = {src: utf8.buffer(src1)}
+  var r1 = tokenize(ps)
+  ps.next_src = utf8.buffer(src2)
+  var r2 = tokenize(ps)
+  return [ r1.toks.join(','), r2.toks.join(',') ]
+}
+
+test('tokenize next_src - object', function (t) {
+  t.table_assert([
     [ 'src1',          'src2',               'exp' ],
-    //                                                                     call next_src
-    //                                                                           |
-    //                                    [ src1,          src2 ]
     [ '{',          '"a":3}',             [ 'B@0,{@0,E@1', 'B@0,k3@0:d1@4,}@5,E@6' ] ],
     [ '{"',         'a":3}',              [ 'B@0,{@0,k1@1:E@2!T', 'B@0,k3@0:d1@4,}@5,E@6' ] ],
     [ '{"a',        '":3}',               [ 'B@0,{@0,k2@1:E@3!T', 'B@0,k3@0:d1@4,}@5,E@6' ] ],
@@ -132,16 +164,13 @@ test('next_src', function (t) {
     [ '{"f":"x"',   ',"bc":11}',          [ 'B@0,{@0,k3@1:s3@5,E@8', 'B@0,k4@1:d2@6,}@8,E@9' ] ],
     [ '{"g":"x","', 'bc":11}',            [ 'B@0,{@0,k3@1:s3@5,k1@9:E@10!T', 'B@0,k4@0:d2@5,}@7,E@8' ] ],
   ], function (src1, src2) {
-    return capture_next_src(src1, src2)
+    return tokenize_next_src(src1, src2)
   })
 })
 
-test('next_src - incomplete', function (t) {
+test('tokenize next_src - incomplete object', function (t) {
   t.table_assert([
     [ 'src1',                 'src2',                     'exp' ],
-    //                                                                     call next_src
-    //                                                                           |
-    //                        src1_toks,                  rtok,     ps1_1,     ps1_2,     ps2_1,     src2_toks,               ps2_2
     [ '{"a":3,',  '"b',      [ 'B@0,{@0,k3@1:d1@5,E@7', 'B@0,k2@0:E@2!T' ] ],
     [ '{',        '"a',      [ 'B@0,{@0,E@1', 'B@0,k2@0:E@2!T' ] ],
     [ '{"',       'a',       [ 'B@0,{@0,k1@1:E@2!T', 'B@0,k2@0:E@2!T' ] ],
@@ -170,17 +199,32 @@ test('next_src - incomplete', function (t) {
     [ '{"a": "q', ' ',       [ 'B@0,{@0,k3@1:E2@6!T', 'B@0,k3@0:E3@5!T' ] ],
     [ '{"a": "q', ' tr',     [ 'B@0,{@0,k3@1:E2@6!T', 'B@0,k3@0:E5@5!T' ] ],
   ], function (src1, src2) {
-    return capture_next_src(src1, src2)
+    return tokenize_next_src(src1, src2)
   })
 })
 
-test('next_src - errors', function (t) {
+test('tokenize next_src - array', function (t) {
+  t.table_assert([
+    [ 'src1',     'src2',   'exp' ],
+    [ '["',       'a',      [ 'B@0,[@0,E1@1!T', 'B@0,E2@0!T' ] ],
+    [ '[4',       '3',      [ 'B@0,[@0,E1@1!D', 'B@0,E2@0!D' ] ],
+    [ '{"a":[ t', 'ru',     [ 'B@0,{@0,k3@1:[@5,E1@7!T', 'B@0,E3@0!T' ] ],
+    [ '{"a":[ t', 'rue',    [ 'B@0,{@0,k3@1:[@5,E1@7!T', 'B@0,t@0,E@4' ] ],
+    [ '{"a":[ t', 'rue,',   [ 'B@0,{@0,k3@1:[@5,E1@7!T', 'B@0,t@0,E@4,B@0,E@1' ] ],
+    [ '{"a":[ t', 'rue, 3', [ 'B@0,{@0,k3@1:[@5,E1@7!T', 'B@0,t@0,E@4,B@0,E1@2!D' ] ],
+    [ '{"a":[ t', '',       [ 'B@0,{@0,k3@1:[@5,E1@7!T', '' ] ],
+  ], function (src1, src2) {
+    return tokenize_next_src(src1, src2)
+  })
+})
+
+test('tokenize next_src - errors', function (t) {
   t.table_assert([
     [ 'src1',    'src2',    'exp' ],
     [ '{"a": t', 'rux',     'bad value, src[5..9] "a": ->trux<-' ],
   ], function (src1, src2) {
     try {
-      capture_next_src(src1, src2)
+      tokenize_next_src(src1, src2)
       return null
     } catch (e) {
       return jstate.explain(e.parse_state)
@@ -188,7 +232,7 @@ test('next_src - errors', function (t) {
   })
 })
 
-test('errors', function (t) {
+test('tokenize errors', function (t) {
   t.table_assert([
     [ 'ps',                                 'opt',        'exp' ],
     [ {},                                   null,        /missing src property/ ],
