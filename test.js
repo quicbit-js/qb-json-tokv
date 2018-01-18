@@ -17,14 +17,12 @@
 var test = require('test-kit').tape()
 var utf8 = require('qb-utf8-ez')
 var jtok = require('.')
-var TOK = jtok.TOK
-var ECODE = jtok.ECODE
 var jstate = require('qb-json-state')
 
 test('tokenize - finish', function (t) {
   t.table_assert(
     [
-      [ 'src',                                      'off', 'lim', 'exp' ],
+      [ 'src',                                      'vlim', 'lim', 'exp' ],
       [ '',                                         0,     null,  [ 'B@0,E@0', '0/0/F' ] ],
       [ '1',                                        0,     null,  [ 'B@0,d1@0,E@1', '1/0/W' ] ],
       [ '1,2,3',                                    0,     null,  [ 'B@0,d1@0,d1@2,d1@4,E@5', '5/2/W' ] ],
@@ -53,13 +51,13 @@ test('tokenize - finish', function (t) {
       [ '"x", 4\n, null, 3.2e5 , true, false',      null,  null,  [ 'B@0,s3@0,d1@5,n@9,d5@15,t@23,f@29,E@34', '34/6/W' ] ],
       [ '["a",1.3,\n\t{ "b" : ["v", "w"]\n}\t\n ]', null,  null,  [ 'B@0,[@0,s3@1,d3@5,{@11,k3@13:[@19,s3@20,s3@25,]@28,}@30,]@34,E@35', '35/7/W' ] ],
     ],
-    function (input, off, lim) {
+    function (input, vlim, lim) {
       var toks = []
       var cb = function (ps) {
         toks.push(jstate.tokstr(ps))
         return true
       }
-      var ret_ps = jtok.tokenize({src: utf8.buffer(input), off: off, lim: lim}, {finish: true}, cb)
+      var ret_ps = jtok.tokenize({src: utf8.buffer(input), vlim: vlim, lim: lim}, {finish: true}, cb)
       return [ toks.join(','), jstate.encode(ret_ps) ]
     }
   )

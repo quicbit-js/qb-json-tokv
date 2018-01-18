@@ -150,15 +150,15 @@ function skip_dec (src, off, lim) {
 function init (ps) {
   ps.src || err('missing src property', ps)
   ps.lim = ps.lim == null ? ps.src.length : ps.lim
-  ps.tok = ps.tok || 0                             // token/byte being handled
-  ps.koff = ps.koff || ps.off || 0                        // key offset
-  ps.klim = ps.klim || ps.koff                            // key limit (exclusive)
+  ps.koff = ps.koff || ps.klim || ps.voff || ps.vlim || 0   // key offset
+  ps.klim = ps.klim || ps.koff                              // key limit (exclusive)
   ps.voff = ps.voff || ps.klim
   ps.vlim = ps.vlim || ps.voff
-  ps.stack = ps.stack || []                   // ascii codes 91 and 123 for array / object depth
-  ps.pos = ps.pos || ARR_BFV                          // container context and relative position encoded as an int
+  ps.tok = ps.tok || 0                                      // token/byte being handled
+  ps.stack = ps.stack || []                         // ascii codes 91 and 123 for array / object depth
+  ps.pos = ps.pos || ARR_BFV                        // container context and relative position encoded as an int
   ps.ecode = ps.ecode || 0
-  ps.vcount = ps.vcount || 0                             // number of complete values parsed
+  ps.vcount = ps.vcount || 0                        // number of complete values parsed
 }
 
 function next (ps) {
@@ -440,7 +440,6 @@ function shift_src (ps, ps_off, nsrc, ns_lim) {
   }
 
   // rewind position to be at value or key/value start
-  ps.off = 0
   ps.koff = ps.klim = ps.voff = ps.vlim = 0
   ps.tok = ps.ecode = 0
   ps.lim = ps.src.length
