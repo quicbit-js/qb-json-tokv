@@ -1,6 +1,6 @@
 {
   "name": "qb-json-tokv",
-  "version": "3.0",
+  "version": "3.0.0",
   "description": "A fast and light-weight *validating* JSON parser (~300 MB/sec) with zero dependencies",
   "homepage": "https://github.com/quicbit-js/qb-json-tokv",
   "url": "https://github.com/quicbit-js/qb-json-tokv/issues",
@@ -8,7 +8,6 @@
   "repository": "quicbit-js/qb-json-tokv",
   "devDependencies": {
     "qb-json-state": "^1.0.0",
-    "qb-obj": "^1.0.0",
     "qb-utf8-ez": "^3.1.1",
     "tape": "^4.8.0",
     "test-kit": "^2.7.2"

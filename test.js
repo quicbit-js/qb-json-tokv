@@ -16,9 +16,9 @@
 
 var test = require('test-kit').tape()
 var utf8 = require('qb-utf8-ez')
+var jstate = require('qb-json-state')
 var jtok = require('.')
 var TOK = jtok.TOK
-var jstate = require('qb-json-state')
 
 test('tokenize - finish', function (t) {
   t.table_assert(
