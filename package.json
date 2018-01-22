@@ -1,0 +1,26 @@
+{
+  "name": "qb-json-tokv",
+  "version": "3.0.2",
+  "description": "qb-json-tokv has been replaced with qb-json-next - a better incarnation of parsing",
+  "homepage": "https://github.com/quicbit-js/qb-json-tokv",
+  "url": "https://github.com/quicbit-js/qb-json-tokv/issues",
+  "email": "support@quicbit.com",
+  "repository": "quicbit-js/qb-json-tokv",
+  "devDependencies": {},
+  "scripts": {
+    "test": "tape test.js",
+    "cov": "tap --coverage-report=html test.js"
+  },
+  "keywords": [
+    "fast",
+    "compact",
+    "minimal",
+    "qb",
+    "qb1",
+    "quicbit",
+    "data",
+    "performance"
+  ],
+  "author": "Matthew Voss",
+  "license": "ISC"
+}
