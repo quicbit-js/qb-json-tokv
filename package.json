@@ -1,6 +1,6 @@
 {
   "name": "qb-json-tokv",
-  "version": "3.0.2",
+  "version": "3.0.1",
   "description": "qb-json-tokv has been replaced with qb-json-next - a better incarnation of parsing",
   "homepage": "https://github.com/quicbit-js/qb-json-tokv",
   "url": "https://github.com/quicbit-js/qb-json-tokv/issues",
